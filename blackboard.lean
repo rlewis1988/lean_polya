@@ -1,274 +1,5 @@
-import data.hash_map
-
-namespace hash_map
-def {u v} find' {α : Type u} {β : α → Type v} [decidable_eq α] (m : hash_map α β) (a : α) [inhabited (β a)] : β a :=
-match m.find a with
-| none := default _
-| some b := b
-end
-
-end hash_map
-
+import .datatypes
 namespace polya
-
-inductive rat : Type
-instance : decidable_linear_ordered_comm_ring rat := sorry
-def div : rat → rat → rat.
-instance : has_div rat := ⟨div⟩
-notation `ℚ` := rat
-instance : has_ordering ℚ :=
-⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩
-
-inductive comp
-| le | lt | ge | gt
-
-inductive gen_comp
-| le | lt | ge | gt | eq | ne
-
-namespace comp
-instance : decidable_eq comp := by tactic.mk_dec_eq_instance
-
-def reverse : comp → comp
-| le := ge
-| lt := gt
-| ge := le
-| gt := lt
-
-def negate : comp → comp
-| le := gt
-| lt := ge
-| ge := lt
-| gt := le
-
-def strengthen : comp → comp
-| le := lt
-| ge := gt
-| a  := a
-
-def is_strict : comp → bool
-| lt := tt
-| gt := tt
-| _  := ff
-
-def is_less : comp → bool
-| lt := tt
-| le := tt
-| _  := ff
-
-def implies (c1 c2 : comp) : bool :=
-(is_less c1 = is_less c2) && (is_strict c1 || bnot (is_strict c2))
-
-end comp
-
-namespace gen_comp
-instance : decidable_eq gen_comp := by tactic.mk_dec_eq_instance
-
-def implies_aux : gen_comp → gen_comp → bool
-| lt le := tt
-| gt ge := tt
-| eq le := tt
-| eq ge := tt
-| lt ne := tt
-| gt ne := tt
-| _ _   := ff
-
-def implies (c1 c2 : gen_comp) : bool :=
-(c1 = c2) || implies_aux c1 c2 
-end gen_comp
-
-/--
- This does not represent the traditional slope, but (x/y) if (x, y) is a point on the line
--/
-inductive slope
-| horiz : slope
-| some : rat → slope
-
-instance slope.decidable_eq : decidable_eq slope := by tactic.mk_dec_eq_instance
-
-/--
- An inequality (str, a, b) represents the halfplane counterclockwise from the vector (a, b).
- If str is true, it is strict (ie, it doesn't include the line bx-ay=0).
--/
-structure ineq :=
-(strict : bool)
-(x y : ℚ)
-
-namespace ineq
-open comp slope
-def to_comp (i : ineq) : comp := -- DOUBLE CHECK THIS
-if i.x ≥ 0 then
-  if i.y > 0 then
-    if i.strict then lt else le
-  else 
-    if i.strict then gt else ge
-else
-  if i.y > 0 then
-    if i.strict then lt else le
-  else
-    if i.strict then gt else ge
-
-def to_slope (i : ineq) : slope :=
-if i.y = 0 then slope.horiz else slope.some (i.x / i.y) 
-
-def equiv (i1 i2 : ineq) : bool :=
-to_slope i1 = to_slope i2
-
-def of_comp_and_slope (c : comp) : slope → ineq
-| horiz    := if is_less c then ⟨is_strict c, -1, 0⟩ else ⟨is_strict c, 1, 0⟩
-| (some v) :=
-  if v > 0 then 
-    if is_less c then ⟨is_strict c, v, 1⟩ else ⟨is_strict c, -v, -1⟩
-  else
-    if is_less c then ⟨is_strict c, v, 1⟩ else ⟨is_strict c, -v, -1⟩
-
-
-/--
- Turns a < 3b into a > 3b
--/
-def flip (i : ineq) : ineq :=
-⟨i.strict, -i.x, -i.y⟩
-
-/--
- Turns a < 3b into a ≥ 3b
--/
-def negate (i : ineq) : ineq :=
-⟨bnot i.strict, -i.x, -i.y⟩
-
-/--
- Turns a < 3b into b > 1/3 a.
- This is equivalent to reflecting over the identity line and flipping
--/
-def reverse (i : ineq) : ineq :=
-⟨i.strict, -i.y, -i.x⟩
-
-/--
- Turns a ≤ 3b into a < 3b.
--/
-def strengthen (i : ineq) : ineq :=
-{i with strict := tt}
-
-def implies (i1 i2 : ineq) : bool :=
-(i1.to_slope = i2.to_slope) && (i1.strict || bnot (i2.strict))
-
-
-def clockwise_of (i1 i2 : ineq) : bool :=
-i1.x*i2.y - i1.y*i2.x > 0
-
-/--
- True if the conjunction of i1 and i2 implies ninq
--/
-def two_imply (i1 i2 : ineq) (ninq : ineq) : bool :=
-(ninq.clockwise_of i1 && i2.clockwise_of ninq) || (i1.implies ninq) || (i2.implies ninq)
-
-end ineq
-
-
-meta inductive diseq_proof : expr → expr → ℚ → Type
-| hyp : Π lhs rhs c, expr → diseq_proof lhs rhs c
-| sym : Π {lhs rhs c}, Π (dp : diseq_proof lhs rhs c), diseq_proof rhs lhs (1/c)
-
-meta inductive ineq_proof : expr → expr → ineq → Type--(lhs rhs : expr) (r : comp) (c : ℚ)
-| hyp : Π lhs rhs i, expr → ineq_proof lhs rhs i
-| sym : Π {lhs rhs i}, ineq_proof lhs rhs i → ineq_proof rhs lhs (i.reverse)
-| of_ineq_proof_and_diseq : Π {lhs rhs i c}, 
-    ineq_proof lhs rhs i → diseq_proof lhs rhs c → ineq_proof rhs lhs (i.strengthen)
-
-meta structure ineq_data (lhs rhs : expr) :=
-(inq : ineq)
-(prf : ineq_proof lhs rhs inq)
-
-meta def ineq_data.reverse {lhs rhs : expr} (id : ineq_data lhs rhs) : ineq_data rhs lhs :=
-⟨id.inq.reverse, id.prf.sym⟩
-
-/--
- In the two_comps case, we maintain the invariant that the defining ray of the first is 
- counterclockwise to that of the second.
--/
-meta inductive ineq_info (lhs rhs : expr)
-| no_comps {}  : ineq_info
-| one_comp {}  : ineq_data lhs rhs → ineq_info
-| two_comps {} : ineq_data lhs rhs → ineq_data lhs rhs → ineq_info
-open ineq_info
-
-meta instance ineq_info.inhabited (lhs rhs) : inhabited (ineq_info lhs rhs) :=
-⟨no_comps⟩
-
-meta def ineq_info.reverse {lhs rhs : expr} : ineq_info lhs rhs → ineq_info rhs lhs
-| no_comps            := no_comps
-| (one_comp id1)      := one_comp id1.reverse
-| (two_comps id1 id2) := two_comps id1.reverse id2.reverse
-
-meta inductive eq_proof : expr → expr → ℚ → Type
-| hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
-| sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)
-
-meta structure eq_data (lhs rhs : expr) :=
-(c   : ℚ)
-(prf : eq_proof lhs rhs c)
-
-meta def eq_data.reverse {lhs rhs : expr} (ei : eq_data lhs rhs) : eq_data rhs lhs :=
-⟨(1/ei.c), ei.prf.sym⟩
-
-meta def eq_info (lhs rhs : expr) := option (eq_data lhs rhs)
-
-meta instance eq_info.inhabited (lhs rhs) : inhabited (eq_info lhs rhs) :=
-⟨none⟩
-
-
-meta def eq_info.reverse {lhs rhs : expr} : eq_info lhs rhs → eq_info rhs lhs
-| none      := none
-| (some ei) := some (ei.reverse)
-
-
-meta structure diseq_data (lhs rhs : expr) :=
-(c : ℚ)
-(prf : diseq_proof lhs rhs c)
-
-meta def diseq_data.reverse {lhs rhs : expr} (di : diseq_data lhs rhs) : diseq_data rhs lhs :=
-⟨(1/di.c), di.prf.sym⟩
-
---meta def diseq_info (lhs rhs : expr) := list (diseq_data lhs rhs)
-meta def diseq_info (lhs rhs : expr) := rb_map ℚ (diseq_data lhs rhs)
-
-meta instance diseq_info.inhabited (lhs rhs) : inhabited (diseq_info lhs rhs) :=
-⟨mk_rb_map⟩
-
-meta def diseq_info.reverse {lhs rhs : expr} : diseq_info lhs rhs → diseq_info rhs lhs :=
-rb_map.map diseq_data.reverse
-
-meta inductive sign_proof : expr → gen_comp → Type
-| hyp  : Π e c, expr → sign_proof e c
-| ineq_lhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof lhs c
-| ineq_rhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof rhs c
-| eq_of_two_eqs_lhs : Π {lhs rhs eqp1 eqp2}, 
-    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof lhs gen_comp.eq
-| eq_of_two_eqs_rhs : Π {lhs rhs eqp1 eqp2}, 
-    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof rhs gen_comp.eq
-| diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
-| eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq
-
-meta structure sign_data (e : expr) :=
-(c : gen_comp)
-(prf : sign_proof e c)
-
-meta def sign_info (e : expr) := option (sign_data e)
-
-meta instance sign_info.inhabited (lhs) : inhabited (sign_info lhs) :=
-⟨none⟩
-
-section two_var_ineqs
-meta def ineq_info.implies {lhs rhs : expr} : ineq_info lhs rhs → ineq_data lhs rhs → bool
-| (one_comp ⟨inq1, _⟩) ⟨ninq, _⟩ := inq1.implies ninq
-| (two_comps ⟨inq1, _⟩ ⟨inq2, _⟩) ⟨ninq, _⟩ := ineq.two_imply inq1 inq1 ninq
-| _ _ := ff
-
-end two_var_ineqs
-
-meta inductive contrad
-| none : contrad
-| eq_diseq : Π {lhs rhs}, eq_data lhs rhs → diseq_data lhs rhs → contrad
-| ineqs : Π {lhs rhs}, ineq_info lhs rhs → ineq_data lhs rhs → contrad
-| sign : Π {e}, sign_data e → sign_data e → contrad
 
 meta structure blackboard :=
 (ineqs : hash_map (expr×expr) (λ p, ineq_info p.1 p.2))
@@ -298,7 +29,7 @@ bb.signs.find' lhs
 meta def get_sign_comp : option gen_comp :=
 match get_sign_info lhs bb with
 | none := none
-| some sd := some (sd.c)
+| some sd := some sd.c
 end
 
 meta def get_expr_list : list expr :=
@@ -320,7 +51,7 @@ section manipulators
 meta def add_expr (e : expr) (bb : blackboard) : blackboard :=
 {bb with exprs := bb.exprs.insert e}
 
-meta def insert_eq {lhs rhs : expr} (ei : eq_data lhs rhs) (bb : blackboard) : blackboard :=
+meta def insert_eq {lhs rhs} (ei : eq_data lhs rhs) (bb : blackboard) : blackboard :=
 {bb with eqs := bb.eqs.insert (lhs, rhs) (some ei)}
 
 meta def remove_eq (lhs rhs : expr) (bb : blackboard) : blackboard :=
@@ -329,105 +60,210 @@ meta def remove_eq (lhs rhs : expr) (bb : blackboard) : blackboard :=
 meta def insert_sign (e : expr) (si : sign_data e) (bb : blackboard) : blackboard :=
 {bb with signs := bb.signs.insert e (some si)}
 
-meta def insert_diseq {lhs rhs : expr} (dd : diseq_data lhs rhs) (bb : blackboard) : blackboard :=
+meta def insert_diseq {lhs rhs} (dd : diseq_data lhs rhs) (bb : blackboard) : blackboard :=
 let dsq := bb.get_diseqs lhs rhs in
 {bb with diseqs := bb.diseqs.insert (lhs, rhs) (dsq.insert dd.c dd)}
+
+meta def insert_ineq_info {lhs rhs} (ii : ineq_info lhs rhs) (bb : blackboard) : blackboard :=
+{bb with ineqs := bb.ineqs.insert (lhs, rhs) ii}
 
 end manipulators
 
 end blackboard
 
 section tactic_state_extension
-open tactic monad
+open monad
 
-meta def polya_tactic := state_t blackboard tactic
-meta instance : monad polya_tactic := state_t.monad _ _
-
-meta instance : has_monad_lift tactic polya_tactic := 
+meta def polya_state := state blackboard
+meta instance : monad polya_state := state.monad _
+meta def skip : polya_state unit := return ()
+/-meta instance : has_monad_lift tactic polya_tactic := 
 ⟨λ _, state_t.lift⟩
 
 meta instance (α : Type) : has_coe (tactic α) (polya_tactic α) :=
-⟨monad_lift⟩
+⟨monad_lift⟩-/
 
 end tactic_state_extension
 
 section tactics
-open tactic
+open state
 
-meta def lift_op (f : blackboard → blackboard) : polya_tactic unit :=
-λ bb, return ((), f bb)
+meta def lift_op (f : blackboard → blackboard) : polya_state unit :=
+λ bb, ((), f bb)
 
-meta instance tac_coe : has_coe (blackboard → blackboard) (polya_tactic unit) :=
+meta instance tac_coe : has_coe (blackboard → blackboard) (polya_state unit) :=
 ⟨lift_op⟩
 
-meta def lift_acc {α} (f : blackboard → α) : polya_tactic α :=
-λ bb, return (f bb, bb)
+meta def lift_acc {α} (f : blackboard → α) : polya_state α :=
+λ bb, (f bb, bb)
 
-meta instance tac_coe' (α) : has_coe (blackboard → α) (polya_tactic α) :=
+meta instance tac_coe' (α) : has_coe (blackboard → α) (polya_state α) :=
 ⟨lift_acc⟩
 
-meta def add_expr (e : expr) : polya_tactic unit :=
+meta def add_expr (e : expr) : polya_state unit :=
 blackboard.add_expr e
 
-meta def get_eq (lhs rhs : expr) : polya_tactic (eq_info lhs rhs) :=
+meta def get_eq (lhs rhs : expr) : polya_state (eq_info lhs rhs) :=
 blackboard.get_eq lhs rhs
 
-meta def get_diseqs (lhs rhs : expr) : polya_tactic (diseq_info lhs rhs) :=
+meta def get_diseqs (lhs rhs : expr) : polya_state (diseq_info lhs rhs) :=
 blackboard.get_diseqs lhs rhs
 
-meta def get_ineqs (lhs rhs : expr) : polya_tactic (ineq_info lhs rhs) :=
+meta def get_ineqs (lhs rhs : expr) : polya_state (ineq_info lhs rhs) :=
 blackboard.get_ineqs lhs rhs
 
-meta def get_sign_info (e : expr) : polya_tactic (sign_info e) :=
+meta def get_sign_info (e : expr) : polya_state (sign_info e) :=
 blackboard.get_sign_info e
 
-meta def remove_eq (lhs rhs : expr) : polya_tactic unit :=
+meta def remove_eq (lhs rhs : expr) : polya_state unit :=
 λ bb, bb.remove_eq lhs rhs
 
-meta def assert_contradiction (ctr : contrad) : polya_tactic unit :=
+meta def assert_contradiction (ctr : contrad) : polya_state unit :=
 ↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := ctr})
 
-meta def add_sign {e} (sd : sign_data e) : polya_tactic unit :=
-do si ← get_sign_info e, 
-match si with
-| none := (λ bb, bb.insert_sign e sd)
-| some osd := 
-  if osd.c.implies sd.c then skip
-  else if sd.c.implies osd.c then (λ bb, bb.insert_sign e sd)
-  else let ctr := contrad.sign sd osd in
-       assert_contradiction ctr 
-end
+meta def get_expr_list : polya_state (list expr) :=
+blackboard.get_expr_list
 
-meta def first_eq_diseq_match {lhs rhs} (c : ℚ) : list (diseq_data lhs rhs) → option (diseq_data lhs rhs)
+section
+variables {lhs rhs : expr}
+meta def first_eq_diseq_match (c : ℚ) : list (diseq_data lhs rhs) → option (diseq_data lhs rhs)
 | [] := none
 | (h::t) := if h.c = c then some h else first_eq_diseq_match t
 
-meta def check_eq_contr_and_insert {lhs rhs} (ed : eq_data lhs rhs) : polya_tactic unit :=
+meta def check_eq_contr_and_insert (ed : eq_data lhs rhs) : polya_state unit :=
 do di ← get_diseqs lhs rhs,
 match di.find ed.c with
 | none := blackboard.insert_eq ed
 | some dd := assert_contradiction $ contrad.eq_diseq ed dd
 end
 
-meta def add_ineq_no_comps {lhs rhs} (id : ineq_data lhs rhs) : polya_tactic unit :=
-failed
-
-meta def add_ineq_one_comp {lhs rhs} (nid oid : ineq_data lhs rhs) : polya_tactic unit :=
-failed
-
-meta def add_ineq_two_comps {lhs rhs} (nid oid1 oid2 : ineq_data lhs rhs) : polya_tactic unit :=
-failed
-
-meta def add_ineq {lhs rhs} (id : ineq_data lhs rhs) : polya_tactic unit :=
-do ii ← get_ineqs lhs rhs,
-match ii with
-| no_comps := add_ineq_no_comps id
-| one_comp id1 := add_ineq_one_comp id id1
-| two_comps id1 id2 := add_ineq_two_comps id id1 id2
+meta def add_zero_ineqs (add_ineq : Π l r, ineq_data l r → polya_state unit) 
+        {e} (sd : sign_data e) : polya_state unit :=
+match sd.c with
+| gen_comp.eq := skip
+| gen_comp.ne := skip
+| c :=
+  let x : ℚ := if c.is_less then -1 else 1,
+      inq : ineq := ⟨c.is_strict, x, 0⟩ in
+  get_expr_list >>= 
+   monad.mapm' (λ rhs, add_ineq e rhs ⟨⟨c.is_strict, x, 0⟩, ineq_proof.zero_comp_of_sign_proof _ _ sd.prf⟩)
+  
 end
 
-meta def check_ineq_for_diseq_update {lhs rhs} (id : ineq_data lhs rhs) (dd : diseq_data lhs rhs) :
-         polya_tactic unit :=
+private meta def add_sign_aux (add_ineq : Π l r, ineq_data l r → polya_state unit) 
+        {e} (sd : sign_data e) : polya_state unit :=
+do si ← get_sign_info e, 
+match si with
+| none := ((λ bb, bb.insert_sign e sd) : polya_state unit) >> add_zero_ineqs add_ineq sd
+| some osd := 
+  if osd.c.implies sd.c then skip
+  else if sd.c.implies osd.c then ((λ bb, bb.insert_sign e sd) : polya_state unit) >> add_zero_ineqs add_ineq sd
+  else let ctr := contrad.sign sd osd in
+       assert_contradiction ctr 
+end
+
+
+/--
+ If id is nonstrict and a disequality is known, return the strict version of id.
+ Else, return id.
+-/
+meta def strengthen_ineq_if_implied (id : ineq_data lhs rhs) : polya_state (ineq_data lhs rhs) :=
+if id.inq.strict then return id else
+match id.inq.to_slope with
+| slope.horiz  := 
+  do si ← get_sign_info rhs,
+  match si with
+  | none := return id
+  | some sd := return $ id.strengthen_from_sign_rhs sd
+  end
+| slope.some m := 
+  if m = 0 then do
+    si ← get_sign_info lhs,
+    match si with
+    | none := return id
+    | some sd := return $ id.strengthen_from_sign_lhs sd
+    end
+  else do
+    di ← get_diseqs lhs rhs,
+    match di.find m with
+    | none := return id
+    | some dd := return $ id.strengthen_from_diseq dd
+    end
+end
+
+/-
+The following three functions assume there are no equalities known between lhs and rhs,
+and that the new ineq data constitutes new and non-contradictory information.
+-/
+meta def add_ineq_no_comps (id : ineq_data lhs rhs) : polya_state unit :=
+do nid ← strengthen_ineq_if_implied id,
+   blackboard.insert_ineq_info $ ineq_info.one_comp nid
+
+meta def add_ineq_one_comp (nid oid : ineq_data lhs rhs) : polya_state unit :=
+if nid.inq.to_slope = oid.inq.to_slope then
+ blackboard.insert_ineq_info $ ineq_info.one_comp nid
+else do nid' ← strengthen_ineq_if_implied nid,
+ let nii := if nid'.inq.clockwise_of oid.inq 
+            then ineq_info.two_comps oid nid' 
+            else ineq_info.two_comps nid' oid in
+ blackboard.insert_ineq_info nii
+
+meta def add_ineq_two_comps (nid oid1 oid2 : ineq_data lhs rhs) : polya_state unit :=
+if nid.inq.to_slope = oid1.inq.to_slope then
+ blackboard.insert_ineq_info $ ineq_info.two_comps nid oid2
+else if nid.inq.to_slope = oid2.inq.to_slope then
+ blackboard.insert_ineq_info $ ineq_info.two_comps oid1 nid
+else do nid' ← strengthen_ineq_if_implied nid,
+ let nii := if nid'.inq.clockwise_of oid1.inq && nid'.inq.clockwise_of oid2.inq 
+            then ineq_info.two_comps oid1 nid'
+            else if oid1.inq.clockwise_of nid'.inq && oid2.inq.clockwise_of nid'.inq
+            then ineq_info.two_comps nid' oid2
+            else ineq_info.two_comps oid1 oid2 in -- this last case shouldn't happen
+ blackboard.insert_ineq_info nii
+
+-- TODO
+/--
+ If an equality is known between lhs and rhs, the inequality is redundant, but
+ we may be able to infer sign information.
+-/
+meta def add_ineq_with_eq_data (id : ineq_data lhs rhs) (ed : eq_data lhs rhs) : polya_state unit :=
+do sil ← get_sign_info lhs,
+sir ← get_sign_info rhs,
+match sil, sir with
+| none, none := skip
+| _, _ := skip
+end
+
+meta def add_self_ineq (id : ineq_data lhs lhs) : polya_state unit :=
+if id.inq.strict then assert_contradiction $ contrad.strict_ineq_self id
+else skip
+
+end
+open ineq_info
+meta def add_ineq : Π {lhs rhs}, ineq_data lhs rhs → polya_state unit | lhs rhs id :=
+if expr.lt rhs lhs then add_ineq id.reverse else
+if h : lhs = rhs then @add_self_ineq lhs (by rw -h at id; apply id) else
+do ii ← get_ineqs lhs rhs,
+if ii.implies id then skip
+else if ii.implies_ineq id.inq.negate then assert_contradiction $ contrad.ineqs ii id
+else do ei ← get_eq lhs rhs,
+match ei with
+| some ed := add_ineq_with_eq_data id ed
+| none :=
+  match ii with
+  | no_comps := add_ineq_no_comps id
+  | one_comp id1 := add_ineq_one_comp id id1
+  | two_comps id1 id2 := add_ineq_two_comps id id1 id2
+  end
+end
+
+section
+variables {lhs rhs : expr}
+
+meta def add_sign := @add_sign_aux @add_ineq 
+
+meta def check_ineq_for_diseq_update (id : ineq_data lhs rhs) (dd : diseq_data lhs rhs) :
+         polya_state unit :=
 match id.inq.to_slope with
 | slope.some c :=
   if (c = dd.c) && bnot (id.inq.strict) then 
@@ -437,14 +273,14 @@ match id.inq.to_slope with
 | _ := skip
 end
 
-meta def update_ineqs_and_insert_diseq {lhs rhs} (dd : diseq_data lhs rhs) : polya_tactic unit :=
+meta def update_ineqs_and_insert_diseq (dd : diseq_data lhs rhs) : polya_state unit :=
 do ei ← get_ineqs lhs rhs,
 match ei with
 | no_comps := blackboard.insert_diseq dd
 | one_comp id1 := do check_ineq_for_diseq_update id1 dd, blackboard.insert_diseq dd
 end
 
-meta def check_diseq_eq_contr_and_insert {lhs rhs} (dd : diseq_data lhs rhs) : polya_tactic unit :=
+meta def check_diseq_eq_contr_and_insert (dd : diseq_data lhs rhs) : polya_state unit :=
 do ei ← get_eq lhs rhs,
 match ei with
 | none := blackboard.insert_diseq dd
@@ -453,7 +289,7 @@ match ei with
   else blackboard.insert_diseq dd
 end
 
-meta def add_eq {lhs rhs} (ed : eq_data lhs rhs) : polya_tactic unit :=
+meta def add_eq (ed : eq_data lhs rhs) : polya_state unit :=
 if h : ed.c = 0 then
  let prf := sign_proof.eq_of_eq_zero (begin rw -h, apply ed.prf end) in
  add_sign ⟨_, prf⟩
@@ -469,7 +305,7 @@ else
      in do add_sign sdl, add_sign sdr, remove_eq lhs rhs
  end
 
-meta def add_diseq {lhs rhs} (dd : diseq_data lhs rhs) : polya_tactic unit :=
+meta def add_diseq (dd : diseq_data lhs rhs) : polya_state unit :=
 if h : dd.c = 0 then
  let prf := sign_proof.diseq_of_diseq_zero (begin rw -h, apply dd.prf end) in
  add_sign ⟨_, prf⟩
@@ -480,8 +316,10 @@ else
  | some _ := skip
  end
 
-meta def process_expr : expr → polya_tactic unit :=
-λ e, (lift_acc $ add_expr e) >>
+end
+
+meta def process_expr : expr → polya_state unit :=
+λ e, add_expr e >>
 match e with
 | ```(%%lhs + %%rhs) := process_expr lhs >> process_expr rhs
 | ```(%%lhs * %%rhs) := process_expr lhs >> process_expr lhs
