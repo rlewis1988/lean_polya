@@ -11,6 +11,12 @@ meta structure blackboard :=
 
 namespace blackboard
 
+meta def expr_pair_hash : expr × expr → ℕ
+| (e1, e2) := (e1.hash + e2.hash) / 2
+
+meta def mk_empty : blackboard :=
+⟨mk_hash_map expr_pair_hash, mk_hash_map expr_pair_hash, mk_hash_map expr_pair_hash, mk_hash_map expr.hash, mk_rb_set, contrad.none⟩
+
 section accessors
 variables (lhs rhs : expr) (bb : blackboard)
 
@@ -44,6 +50,14 @@ match bb.contr with
 | _ := tt
 end
 
+open ineq_info
+meta def num_comps (lhs rhs : expr) : ℕ :=
+match bb.get_ineqs lhs rhs with
+| no_comps      := 0
+| one_comp _    := 1
+| two_comps _ _ := 2
+end
+
 end accessors
 
 section manipulators
@@ -51,21 +65,24 @@ section manipulators
 meta def add_expr (e : expr) (bb : blackboard) : blackboard :=
 {bb with exprs := bb.exprs.insert e}
 
+meta def add_two_exprs (e1 e2 : expr) (bb : blackboard) : blackboard :=
+(bb.add_expr e1).add_expr e2
+
 meta def insert_eq {lhs rhs} (ei : eq_data lhs rhs) (bb : blackboard) : blackboard :=
-{bb with eqs := bb.eqs.insert (lhs, rhs) (some ei)}
+{bb.add_two_exprs lhs rhs with eqs := bb.eqs.insert (lhs, rhs) (some ei)}
 
 meta def remove_eq (lhs rhs : expr) (bb : blackboard) : blackboard :=
-{bb with eqs := bb.eqs.erase (lhs, rhs)}
+{bb.add_two_exprs lhs rhs with eqs := bb.eqs.erase (lhs, rhs)}
 
 meta def insert_sign (e : expr) (si : sign_data e) (bb : blackboard) : blackboard :=
-{bb with signs := bb.signs.insert e (some si)}
+{bb.add_expr e with signs := bb.signs.insert e (some si)}
 
 meta def insert_diseq {lhs rhs} (dd : diseq_data lhs rhs) (bb : blackboard) : blackboard :=
 let dsq := bb.get_diseqs lhs rhs in
-{bb with diseqs := bb.diseqs.insert (lhs, rhs) (dsq.insert dd.c dd)}
+{bb.add_two_exprs lhs rhs with diseqs := bb.diseqs.insert (lhs, rhs) (dsq.insert dd.c dd)}
 
 meta def insert_ineq_info {lhs rhs} (ii : ineq_info lhs rhs) (bb : blackboard) : blackboard :=
-{bb with ineqs := bb.ineqs.insert (lhs, rhs) ii}
+{bb.add_two_exprs lhs rhs with ineqs := bb.ineqs.insert (lhs, rhs) ii}
 
 end manipulators
 
@@ -77,11 +94,6 @@ open monad
 meta def polya_state := state blackboard
 meta instance : monad polya_state := state.monad _
 meta def skip : polya_state unit := return ()
-/-meta instance : has_monad_lift tactic polya_tactic := 
-⟨λ _, state_t.lift⟩
-
-meta instance (α : Type) : has_coe (tactic α) (polya_tactic α) :=
-⟨monad_lift⟩-/
 
 end tactic_state_extension
 
@@ -215,10 +227,10 @@ else if nid.inq.to_slope = oid2.inq.to_slope then
  blackboard.insert_ineq_info $ ineq_info.two_comps oid1 nid
 else do nid' ← strengthen_ineq_if_implied nid,
  let nii := if nid'.inq.clockwise_of oid1.inq && nid'.inq.clockwise_of oid2.inq 
-            then ineq_info.two_comps oid1 nid'
+            then ineq_info.mk_two_comps oid1 nid'
             else if oid1.inq.clockwise_of nid'.inq && oid2.inq.clockwise_of nid'.inq
-            then ineq_info.two_comps nid' oid2
-            else ineq_info.two_comps oid1 oid2 in -- this last case shouldn't happen
+            then ineq_info.mk_two_comps nid' oid2
+            else ineq_info.mk_two_comps oid1 oid2 in -- this last case shouldn't happen
  blackboard.insert_ineq_info nii
 
 -- TODO
@@ -278,6 +290,8 @@ do ei ← get_ineqs lhs rhs,
 match ei with
 | no_comps := blackboard.insert_diseq dd
 | one_comp id1 := do check_ineq_for_diseq_update id1 dd, blackboard.insert_diseq dd
+| two_comps id1 id2 :=
+  do check_ineq_for_diseq_update id1 dd, check_ineq_for_diseq_update id2 dd, blackboard.insert_diseq dd
 end
 
 meta def check_diseq_eq_contr_and_insert (dd : diseq_data lhs rhs) : polya_state unit :=
@@ -305,6 +319,8 @@ else
      in do add_sign sdl, add_sign sdr, remove_eq lhs rhs
  end
 
+
+-- TODO : incorporate update_ineqs_and_insert
 meta def add_diseq (dd : diseq_data lhs rhs) : polya_state unit :=
 if h : dd.c = 0 then
  let prf := sign_proof.diseq_of_diseq_zero (begin rw -h, apply dd.prf end) in
@@ -325,6 +341,13 @@ match e with
 | ```(%%lhs * %%rhs) := process_expr lhs >> process_expr lhs
 | _ := skip
 end
+
+#print ineq_data
+/--- assumes the second input is the type of prf
+meta def process_comp (prf : expr) : expr → polya_state unit
+| ```(%%lhs ≥ %%rhs) := process_expr lhs >> process_expr rhs >> 
+    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩
+| _ := skip-/
 
 end tactics
 end polya

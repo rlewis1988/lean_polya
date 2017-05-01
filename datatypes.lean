@@ -14,14 +14,6 @@ end hash_map
 
 namespace polya
 
-/-inductive rat : Type
-instance : decidable_linear_ordered_comm_ring rat := sorry
-def div : rat → rat → rat.
-instance : has_div rat := ⟨div⟩
-notation `ℚ` := rat
-instance : has_ordering ℚ :=
-⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩-/
-
 inductive comp
 | le | lt | ge | gt
 
@@ -200,8 +192,11 @@ def reverse (i : ineq) : ineq :=
 def strengthen (i : ineq) : ineq :=
 {i with strict := tt}
 
+def same_quadrant (i1 i2 : ineq) : bool :=
+(i1.x > 0 ↔ i2.x > 0) && (i1.y > 0 ↔ i2.y > 0)
+
 def implies (i1 i2 : ineq) : bool :=
-(i1.to_slope = i2.to_slope) && (i1.strict || bnot (i2.strict))
+(i1.to_slope = i2.to_slope) && (same_quadrant i1 i2) && (i1.strict || bnot (i2.strict))
 
 
 def clockwise_of (i1 i2 : ineq) : bool :=
@@ -268,8 +263,12 @@ with sign_proof : expr → gen_comp → Type
 | diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
 | eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq
 
+open ineq_proof
+meta def ineq_proof.to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
+| p := "proof"
 
-
+meta instance (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
+⟨ineq_proof.to_format⟩
 
 end proof_objs
 
@@ -282,6 +281,11 @@ meta structure ineq_data (lhs rhs : expr) :=
 meta def ineq_data.reverse {lhs rhs : expr} (id : ineq_data lhs rhs) : ineq_data rhs lhs :=
 ⟨id.inq.reverse, id.prf.sym⟩
 
+meta def ineq_data.to_format {lhs rhs} : ineq_data lhs rhs → format
+| ⟨inq, prf⟩ := "⟨" ++ to_fmt inq ++ " : " ++ to_fmt prf ++ "⟩"
+
+meta instance ineq_data.has_to_format (lhs rhs) : has_to_format (ineq_data lhs rhs) :=
+⟨ineq_data.to_format⟩
 
 meta structure eq_data (lhs rhs : expr) :=
 (c   : ℚ)
@@ -316,6 +320,9 @@ meta inductive ineq_info (lhs rhs : expr)
 | two_comps {} : ineq_data lhs rhs → ineq_data lhs rhs → ineq_info
 open ineq_info
 
+meta def ineq_info.mk_two_comps {lhs rhs} (id1 id2 : ineq_data lhs rhs) : ineq_info lhs rhs :=
+if id2.inq.clockwise_of id1.inq then two_comps id1 id2 else two_comps id2 id1
+
 meta instance ineq_info.inhabited (lhs rhs) : inhabited (ineq_info lhs rhs) :=
 ⟨no_comps⟩
 
@@ -324,6 +331,13 @@ meta def ineq_info.reverse {lhs rhs : expr} : ineq_info lhs rhs → ineq_info rh
 | (one_comp id1)      := one_comp id1.reverse
 | (two_comps id1 id2) := two_comps id1.reverse id2.reverse
 
+meta def ineq_info.to_format {lhs rhs} : ineq_info lhs rhs → format
+| no_comps := "ineq_info.empty"
+| (one_comp id1) := "{" ++ to_fmt id1 ++ "}"
+| (two_comps id1 id2) := "{" ++ to_fmt id1 ++ " | " ++ to_fmt id2 ++ "}"
+
+meta instance ineq_info.has_to_format (lhs rhs) : has_to_format (ineq_info lhs rhs) :=
+⟨ineq_info.to_format⟩
 
 meta def eq_info (lhs rhs : expr) := option (eq_data lhs rhs)
 
@@ -393,10 +407,6 @@ meta def ineq_info.implies_ineq {lhs rhs : expr} : ineq_info lhs rhs → ineq �
 
 meta def ineq_info.implies {lhs rhs : expr} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : bool :=
 ii.implies_ineq id.inq
-/-| (one_comp ⟨inq1, _⟩) ⟨ninq, _⟩ := inq1.implies ninq
-| (two_comps ⟨inq1, _⟩ ⟨inq2, _⟩) ⟨ninq, _⟩ := ineq.two_imply inq1 inq2 ninq
-| _ _ := ff-/
-
 
 end two_var_ineqs
 
