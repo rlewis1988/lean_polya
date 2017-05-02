@@ -1,4 +1,4 @@
-import data.hash_map .rat
+import data.hash_map .rat_additions
 
 instance : has_ordering ℚ :=
 ⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩
@@ -59,6 +59,15 @@ meta def to_format : comp → format
 | ge := "≥"
 | gt := ">"
 
+meta def to_gen_comp : comp → gen_comp
+| le := gen_comp.le
+| lt := gen_comp.lt
+| ge := gen_comp.ge
+| gt := gen_comp.gt
+
+meta instance : has_coe comp gen_comp :=
+⟨to_gen_comp⟩ 
+
 meta instance : has_to_format comp :=
 ⟨to_format⟩
 
@@ -67,6 +76,22 @@ end comp
 namespace gen_comp
 instance : decidable_eq gen_comp := by tactic.mk_dec_eq_instance
 
+def dir : gen_comp → ℤ
+| le := -1
+| lt := -1
+| ge := 1
+| gt := 1
+| eq := 0
+| ne := 0
+
+
+def reverse : gen_comp → gen_comp
+| le := ge
+| lt := gt
+| ge := le
+| gt := lt
+| eq := ne
+| ne := eq
 
 def is_strict : gen_comp → bool
 | lt := tt
@@ -77,6 +102,11 @@ def is_less : gen_comp → bool
 | lt := tt
 | le := tt
 | _  := ff
+
+def is_ineq : gen_comp → bool
+| eq := ff
+| ne := ff
+| _  := tt
 
 def implies_aux : gen_comp → gen_comp → bool
 | lt le := tt
@@ -262,6 +292,13 @@ with sign_proof : expr → gen_comp → Type
     eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof rhs gen_comp.eq
 | diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
 | eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq
+| ineq_of_eq_and_ineq_lhs : Π {lhs rhs i c}, Π c', 
+    eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof lhs c'
+| ineq_of_eq_and_ineq_rhs : Π {lhs rhs i c}, Π c', 
+    eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof rhs c'
+| ineq_of_ineq_and_eq_zero_rhs : Π {lhs rhs i}, Π c, 
+    ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
+
 
 open ineq_proof
 meta def ineq_proof.to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
@@ -294,6 +331,18 @@ meta structure eq_data (lhs rhs : expr) :=
 meta def eq_data.reverse {lhs rhs : expr} (ei : eq_data lhs rhs) : eq_data rhs lhs :=
 ⟨(1/ei.c), ei.prf.sym⟩
 
+meta def eq_data.implies_ineq {lhs rhs} (ed : eq_data lhs rhs) (id : ineq) : bool :=
+match id.to_slope with
+| slope.some c := c = ed.c ∧ bnot (id.strict)
+| horiz        := ff
+end
+
+meta def eq_data.to_format {lhs rhs} : eq_data lhs rhs → format
+| ⟨c, prf⟩ := "⟨(lhs)=" ++ to_fmt c ++ "*(rhs)⟩" 
+
+meta instance eq_data.has_to_format (lhs rhs) : has_to_format (eq_data lhs rhs) :=
+⟨eq_data.to_format⟩
+
 meta structure diseq_data (lhs rhs : expr) :=
 (c : ℚ)
 (prf : diseq_proof lhs rhs c)
@@ -304,6 +353,7 @@ meta def diseq_data.reverse {lhs rhs : expr} (di : diseq_data lhs rhs) : diseq_d
 meta structure sign_data (e : expr) :=
 (c : gen_comp)
 (prf : sign_proof e c)
+
 
 end data_objs
 
@@ -316,9 +366,11 @@ section info_objs
 -/
 meta inductive ineq_info (lhs rhs : expr)
 | no_comps {}  : ineq_info
-| one_comp {}  : ineq_data lhs rhs → ineq_info
-| two_comps {} : ineq_data lhs rhs → ineq_data lhs rhs → ineq_info
+| one_comp     : ineq_data lhs rhs → ineq_info
+| two_comps    : ineq_data lhs rhs → ineq_data lhs rhs → ineq_info
+| equal        : eq_data lhs rhs → ineq_info
 open ineq_info
+
 
 meta def ineq_info.mk_two_comps {lhs rhs} (id1 id2 : ineq_data lhs rhs) : ineq_info lhs rhs :=
 if id2.inq.clockwise_of id1.inq then two_comps id1 id2 else two_comps id2 id1
@@ -330,16 +382,18 @@ meta def ineq_info.reverse {lhs rhs : expr} : ineq_info lhs rhs → ineq_info rh
 | no_comps            := no_comps
 | (one_comp id1)      := one_comp id1.reverse
 | (two_comps id1 id2) := two_comps id1.reverse id2.reverse
+| (equal ed)          := equal ed.reverse
 
 meta def ineq_info.to_format {lhs rhs} : ineq_info lhs rhs → format
 | no_comps := "ineq_info.empty"
 | (one_comp id1) := "{" ++ to_fmt id1 ++ "}"
 | (two_comps id1 id2) := "{" ++ to_fmt id1 ++ " | " ++ to_fmt id2 ++ "}"
+| (equal ed) := "{" ++ to_fmt ed ++ "}"
 
 meta instance ineq_info.has_to_format (lhs rhs) : has_to_format (ineq_info lhs rhs) :=
 ⟨ineq_info.to_format⟩
 
-meta def eq_info (lhs rhs : expr) := option (eq_data lhs rhs)
+/-meta def eq_info (lhs rhs : expr) := option (eq_data lhs rhs)
 
 meta instance eq_info.inhabited (lhs rhs) : inhabited (eq_info lhs rhs) :=
 ⟨none⟩
@@ -348,7 +402,7 @@ meta instance eq_info.inhabited (lhs rhs) : inhabited (eq_info lhs rhs) :=
 meta def eq_info.reverse {lhs rhs : expr} : eq_info lhs rhs → eq_info rhs lhs
 | none      := none
 | (some ei) := some (ei.reverse)
-
+-/
 
 meta def diseq_info (lhs rhs : expr) := rb_map ℚ (diseq_data lhs rhs)
 
@@ -361,12 +415,93 @@ rb_map.map diseq_data.reverse
 
 meta def sign_info (e : expr) := option (sign_data e)
 
+meta def sign_info.is_strict {e : expr} : sign_info e → bool
+| (some sd) := sd.c.is_strict
+| none := ff
+
 meta instance sign_info.inhabited (lhs) : inhabited (sign_info lhs) :=
 ⟨none⟩
 
 end info_objs
 
-open ineq_proof eq_proof diseq_proof sign_proof ineq_info eq_info diseq_info sign_info
+open ineq_proof eq_proof diseq_proof sign_proof ineq_info diseq_info sign_info
+
+meta def point_of_coeff_and_comps (c : ℚ) : option gen_comp → option gen_comp → option (ℚ × ℚ)
+| (some gen_comp.eq) r := point_of_coeff_and_comps none r
+| (some gen_comp.ne) r := point_of_coeff_and_comps none r
+| l (some gen_comp.eq) := point_of_coeff_and_comps l none
+| l (some gen_comp.ne) := point_of_coeff_and_comps l none
+| (some l) none := if l.is_less then some (-1, -1/c) else some (1, 1/c)
+| none (some r) := if r.is_less then some (-c, -1) else some (c, 1)
+| none none := none
+| (some l) (some r) := 
+if (c ≥ 0) && (l.is_less = r.is_less) then point_of_coeff_and_comps (some l) none
+else if (c < 0) && bnot (l.is_less = r.is_less) then point_of_coeff_and_comps (some l) none
+else none
+
+private meta def comp_option_of_sign_info {e} : sign_info e → option gen_comp
+| (some c) := c.c
+| none := none
+
+-- id.x ≥ 0, id.strict
+private meta def mk_cmp_aux : bool → bool → gen_comp
+| tt tt := gen_comp.gt
+| tt ff := gen_comp.ge
+| ff tt := gen_comp.lt
+| ff ff := gen_comp.le
+
+-- assumes id.to_slope = slope.horiz
+meta def eq_data.get_implied_sign_info_from_horiz_ineq {lhs rhs} (ed : eq_data lhs rhs) :
+     ineq_data lhs rhs → sign_info lhs × sign_info rhs | ⟨id, prf⟩ := 
+if ed.c > 0 then
+  let cmp := mk_cmp_aux (id.x ≥ 0) id.strict,
+      pr1 := sign_proof.ineq_of_eq_and_ineq_lhs cmp ed.prf prf,
+      pr2 := sign_proof.ineq_rhs cmp prf in
+  (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
+else if h : ed.c = 0 then
+  let pr1 := sign_proof.eq_of_eq_zero (by rw -h; apply ed.prf),
+      pr2 := sign_proof.ineq_rhs (mk_cmp_aux (id.x ≥ 0) id.strict) prf in
+  (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
+else 
+  let cmp := mk_cmp_aux (id.x ≤ 0) id.strict,
+      pr1 := sign_proof.ineq_of_eq_and_ineq_lhs cmp ed.prf prf,
+      pr2 := sign_proof.ineq_rhs cmp.reverse prf in
+  (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
+
+-- assumes id.to_slope = slope.some m, with m ≠ ed.c
+meta def eq_data.get_implied_sign_info_from_slope_ineq {lhs rhs} (ed : eq_data lhs rhs) (m : ℚ) :
+     ineq_data lhs rhs → sign_info lhs × sign_info rhs | ⟨id, prf⟩ := 
+let cmp  := if m - ed.c > 0 then id.to_comp else id.to_comp.reverse in 
+if ed.c > 0 then 
+  let pr1 := sign_proof.ineq_of_eq_and_ineq_lhs cmp ed.prf prf,
+      pr2 := sign_proof.ineq_of_eq_and_ineq_rhs cmp ed.prf prf in
+      (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
+else if h : ed.c = 0 then
+  let pr1 := sign_proof.eq_of_eq_zero (by rw -h; apply ed.prf),
+      pr2 := sign_proof.ineq_of_ineq_and_eq_zero_rhs cmp prf pr1 in
+      (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
+else
+  let pr1 := sign_proof.ineq_of_eq_and_ineq_lhs cmp.reverse ed.prf prf,
+      pr2 := sign_proof.ineq_of_eq_and_ineq_rhs cmp ed.prf prf in
+      (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
+
+
+meta def eq_data.get_implied_sign_info_from_ineq {lhs rhs} (ed : eq_data lhs rhs) 
+     (id : ineq_data lhs rhs) : sign_info lhs × sign_info rhs  := 
+match id.inq.to_slope with
+| slope.horiz := ed.get_implied_sign_info_from_horiz_ineq id
+| slope.some m := 
+  if m = ed.c then (none, none)
+  else ed.get_implied_sign_info_from_slope_ineq m id
+end
+
+meta def eq_data.implies_ineq_with_sign_info {lhs rhs} (ed : eq_data lhs rhs) (iq : ineq) 
+     (sil : sign_info lhs) (sir : sign_info rhs) : bool :=
+match point_of_coeff_and_comps ed.c (comp_option_of_sign_info sil) (comp_option_of_sign_info sir) with
+| some (x, y) := (iq.clockwise_of ⟨tt, x, y⟩ && ((bnot iq.strict) || sil.is_strict || sir.is_strict)) 
+                  || ed.implies_ineq iq
+| none := ff
+end
 
 meta def ineq_data.strengthen_from_diseq {lhs rhs} (id : ineq_data lhs rhs) (dd : diseq_data lhs rhs) :
          ineq_data lhs rhs :=
@@ -403,6 +538,7 @@ section two_var_ineqs
 meta def ineq_info.implies_ineq {lhs rhs : expr} : ineq_info lhs rhs → ineq → bool
 | (one_comp ⟨inq1, _⟩) ninq := inq1.implies ninq
 | (two_comps ⟨inq1, _⟩ ⟨inq2, _⟩) ninq := ineq.two_imply inq1 inq2 ninq
+| (equal ed) ninq := ed.implies_ineq ninq
 | _ _ := ff
 
 meta def ineq_info.implies {lhs rhs : expr} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : bool :=

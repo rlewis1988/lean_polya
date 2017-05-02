@@ -3,7 +3,7 @@ namespace polya
 
 meta structure blackboard :=
 (ineqs : hash_map (expr×expr) (λ p, ineq_info p.1 p.2))
-(eqs : hash_map (expr×expr) (λ p, eq_info p.1 p.2))
+--(eqs : hash_map (expr×expr) (λ p, eq_info p.1 p.2))
 (diseqs : hash_map (expr×expr) (λ p, diseq_info p.1 p.2))
 (signs : hash_map expr (λ e, sign_info e))
 (exprs : rb_set expr)
@@ -15,16 +15,13 @@ meta def expr_pair_hash : expr × expr → ℕ
 | (e1, e2) := (e1.hash + e2.hash) / 2
 
 meta def mk_empty : blackboard :=
-⟨mk_hash_map expr_pair_hash, mk_hash_map expr_pair_hash, mk_hash_map expr_pair_hash, mk_hash_map expr.hash, mk_rb_set, contrad.none⟩
+⟨mk_hash_map expr_pair_hash, mk_hash_map expr_pair_hash, mk_hash_map expr.hash, mk_rb_set, contrad.none⟩
 
 section accessors
 variables (lhs rhs : expr) (bb : blackboard)
 
 meta def get_ineqs : ineq_info lhs rhs :=
 if expr.lt lhs rhs then bb.ineqs.find' (lhs, rhs) else (bb.ineqs.find' (rhs, lhs)).reverse
-
-meta def get_eq : eq_info lhs rhs :=
-if expr.lt lhs rhs then bb.eqs.find' (lhs, rhs) else (bb.eqs.find' (rhs, lhs)).reverse
 
 meta def get_diseqs : diseq_info lhs rhs :=
 if expr.lt lhs rhs then bb.diseqs.find' (lhs, rhs) else (bb.diseqs.find' (rhs, lhs)).reverse
@@ -50,14 +47,6 @@ match bb.contr with
 | _ := tt
 end
 
-open ineq_info
-meta def num_comps (lhs rhs : expr) : ℕ :=
-match bb.get_ineqs lhs rhs with
-| no_comps      := 0
-| one_comp _    := 1
-| two_comps _ _ := 2
-end
-
 end accessors
 
 section manipulators
@@ -67,12 +56,6 @@ meta def add_expr (e : expr) (bb : blackboard) : blackboard :=
 
 meta def add_two_exprs (e1 e2 : expr) (bb : blackboard) : blackboard :=
 (bb.add_expr e1).add_expr e2
-
-meta def insert_eq {lhs rhs} (ei : eq_data lhs rhs) (bb : blackboard) : blackboard :=
-{bb.add_two_exprs lhs rhs with eqs := bb.eqs.insert (lhs, rhs) (some ei)}
-
-meta def remove_eq (lhs rhs : expr) (bb : blackboard) : blackboard :=
-{bb.add_two_exprs lhs rhs with eqs := bb.eqs.erase (lhs, rhs)}
 
 meta def insert_sign (e : expr) (si : sign_data e) (bb : blackboard) : blackboard :=
 {bb.add_expr e with signs := bb.signs.insert e (some si)}
@@ -115,9 +98,6 @@ meta instance tac_coe' (α) : has_coe (blackboard → α) (polya_state α) :=
 meta def add_expr (e : expr) : polya_state unit :=
 blackboard.add_expr e
 
-meta def get_eq (lhs rhs : expr) : polya_state (eq_info lhs rhs) :=
-blackboard.get_eq lhs rhs
-
 meta def get_diseqs (lhs rhs : expr) : polya_state (diseq_info lhs rhs) :=
 blackboard.get_diseqs lhs rhs
 
@@ -126,9 +106,6 @@ blackboard.get_ineqs lhs rhs
 
 meta def get_sign_info (e : expr) : polya_state (sign_info e) :=
 blackboard.get_sign_info e
-
-meta def remove_eq (lhs rhs : expr) : polya_state unit :=
-λ bb, bb.remove_eq lhs rhs
 
 meta def assert_contradiction (ctr : contrad) : polya_state unit :=
 ↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := ctr})
@@ -142,10 +119,10 @@ meta def first_eq_diseq_match (c : ℚ) : list (diseq_data lhs rhs) → option (
 | [] := none
 | (h::t) := if h.c = c then some h else first_eq_diseq_match t
 
-meta def check_eq_contr_and_insert (ed : eq_data lhs rhs) : polya_state unit :=
+meta def check_eq_diseq_contr_and_insert (ed : eq_data lhs rhs) : polya_state unit :=
 do di ← get_diseqs lhs rhs,
 match di.find ed.c with
-| none := blackboard.insert_eq ed
+| none := blackboard.insert_ineq_info $ ineq_info.equal ed
 | some dd := assert_contradiction $ contrad.eq_diseq ed dd
 end
 
@@ -203,14 +180,18 @@ match id.inq.to_slope with
     end
 end
 
-/-
-The following three functions assume there are no equalities known between lhs and rhs,
-and that the new ineq data constitutes new and non-contradictory information.
+/--
+ Assumes there are no equalities known between lhs and rhs,
+ and that the new ineq data constitutes new and non-contradictory information.
 -/
 meta def add_ineq_no_comps (id : ineq_data lhs rhs) : polya_state unit :=
 do nid ← strengthen_ineq_if_implied id,
    blackboard.insert_ineq_info $ ineq_info.one_comp nid
 
+/--
+ Assumes there are no equalities known between lhs and rhs,
+ and that the new ineq data constitutes new and non-contradictory information.
+-/
 meta def add_ineq_one_comp (nid oid : ineq_data lhs rhs) : polya_state unit :=
 if nid.inq.to_slope = oid.inq.to_slope then
  blackboard.insert_ineq_info $ ineq_info.one_comp nid
@@ -220,6 +201,10 @@ else do nid' ← strengthen_ineq_if_implied nid,
             else ineq_info.two_comps nid' oid in
  blackboard.insert_ineq_info nii
 
+/--
+ Assumes there are no equalities known between lhs and rhs,
+ and that the new ineq data constitutes new and non-contradictory information.
+-/
 meta def add_ineq_two_comps (nid oid1 oid2 : ineq_data lhs rhs) : polya_state unit :=
 if nid.inq.to_slope = oid1.inq.to_slope then
  blackboard.insert_ineq_info $ ineq_info.two_comps nid oid2
@@ -233,46 +218,39 @@ else do nid' ← strengthen_ineq_if_implied nid,
             else ineq_info.mk_two_comps oid1 oid2 in -- this last case shouldn't happen
  blackboard.insert_ineq_info nii
 
--- TODO
-/--
- If an equality is known between lhs and rhs, the inequality is redundant, but
- we may be able to infer sign information.
--/
-meta def add_ineq_with_eq_data (id : ineq_data lhs rhs) (ed : eq_data lhs rhs) : polya_state unit :=
-do sil ← get_sign_info lhs,
-sir ← get_sign_info rhs,
-match sil, sir with
-| none, none := skip
-| _, _ := skip
-end
+
+private meta def add_implied_signs_from_eq_and_ineq_aux (as : Π {e}, sign_data e → polya_state unit) {lhs rhs} 
+         (ed : eq_data lhs rhs) (id : ineq_data lhs rhs) : polya_state unit :=
+do (si1, si2) ← return $ ed.get_implied_sign_info_from_ineq id,
+   match si1, si2 with
+   | some sd1, some sd2 := as sd1 >> as sd2
+   | some sd1, none     := as sd1
+   | none, some sd2     := as sd2
+   | none, none         := skip
+   end
+
 
 meta def add_self_ineq (id : ineq_data lhs lhs) : polya_state unit :=
 if id.inq.strict then assert_contradiction $ contrad.strict_ineq_self id
 else skip
 
-end
 open ineq_info
 meta def add_ineq : Π {lhs rhs}, ineq_data lhs rhs → polya_state unit | lhs rhs id :=
 if expr.lt rhs lhs then add_ineq id.reverse else
 if h : lhs = rhs then @add_self_ineq lhs (by rw -h at id; apply id) else
 do ii ← get_ineqs lhs rhs,
-if ii.implies id then skip
-else if ii.implies_ineq id.inq.negate then assert_contradiction $ contrad.ineqs ii id
-else do ei ← get_eq lhs rhs,
-match ei with
-| some ed := add_ineq_with_eq_data id ed
-| none :=
-  match ii with
-  | no_comps := add_ineq_no_comps id
-  | one_comp id1 := add_ineq_one_comp id id1
-  | two_comps id1 id2 := add_ineq_two_comps id id1 id2
-  end
-end
-
-section
-variables {lhs rhs : expr}
+   if ii.implies id then skip
+   else if ii.implies_ineq id.inq.negate then assert_contradiction $ contrad.ineqs ii id
+   else match ii with
+   | no_comps := add_ineq_no_comps id
+   | one_comp id1 := add_ineq_one_comp id id1
+   | two_comps id1 id2 := add_ineq_two_comps id id1 id2
+   | equal ed := add_implied_signs_from_eq_and_ineq_aux (@add_sign_aux @add_ineq) ed id
+   end
 
 meta def add_sign := @add_sign_aux @add_ineq 
+
+meta def add_implied_signs_from_eq_and_ineq := @add_implied_signs_from_eq_and_ineq_aux @add_sign
 
 meta def check_ineq_for_diseq_update (id : ineq_data lhs rhs) (dd : diseq_data lhs rhs) :
          polya_state unit :=
@@ -292,35 +270,34 @@ match ei with
 | one_comp id1 := do check_ineq_for_diseq_update id1 dd, blackboard.insert_diseq dd
 | two_comps id1 id2 :=
   do check_ineq_for_diseq_update id1 dd, check_ineq_for_diseq_update id2 dd, blackboard.insert_diseq dd
-end
-
-meta def check_diseq_eq_contr_and_insert (dd : diseq_data lhs rhs) : polya_state unit :=
-do ei ← get_eq lhs rhs,
-match ei with
-| none := blackboard.insert_diseq dd
-| some ed :=
-  if ed.c = dd.c then assert_contradiction $ contrad.eq_diseq ed dd 
+| equal ed := 
+  if ed.c = dd.c then 
+    assert_contradiction $ contrad.eq_diseq ed dd 
   else blackboard.insert_diseq dd
 end
+
 
 meta def add_eq (ed : eq_data lhs rhs) : polya_state unit :=
 if h : ed.c = 0 then
  let prf := sign_proof.eq_of_eq_zero (begin rw -h, apply ed.prf end) in
  add_sign ⟨_, prf⟩
 else
- do ei ← get_eq lhs rhs,
+ do ei ← get_ineqs lhs rhs,
  match ei with
- | none := check_eq_contr_and_insert ed
- | some ⟨c, prf⟩ := 
+ | no_comps := check_eq_diseq_contr_and_insert ed
+ | one_comp id1 := add_implied_signs_from_eq_and_ineq ed id1 >>
+                      check_eq_diseq_contr_and_insert ed
+ | two_comps id1 id2 := add_implied_signs_from_eq_and_ineq ed id1 >>
+                          add_implied_signs_from_eq_and_ineq ed id2 >>
+                            check_eq_diseq_contr_and_insert ed
+ | equal ⟨c, prf⟩ := 
     if c = ed.c then skip 
     else 
      let sdl : sign_data lhs := ⟨gen_comp.eq, sign_proof.eq_of_two_eqs_lhs ed.prf prf⟩,
          sdr : sign_data rhs := ⟨gen_comp.eq, sign_proof.eq_of_two_eqs_rhs ed.prf prf⟩
-     in do add_sign sdl, add_sign sdr, remove_eq lhs rhs
+     in add_sign sdl >> add_sign sdr
  end
 
-
--- TODO : incorporate update_ineqs_and_insert
 meta def add_diseq (dd : diseq_data lhs rhs) : polya_state unit :=
 if h : dd.c = 0 then
  let prf := sign_proof.diseq_of_diseq_zero (begin rw -h, apply dd.prf end) in
@@ -328,7 +305,7 @@ if h : dd.c = 0 then
 else
  do di ← get_diseqs lhs rhs,
  match di.find dd.c with
- | none := check_diseq_eq_contr_and_insert dd
+ | none := update_ineqs_and_insert_diseq dd
  | some _ := skip
  end
 
@@ -342,8 +319,7 @@ match e with
 | _ := skip
 end
 
-#print ineq_data
-/--- assumes the second input is the type of prf
+/- assumes the second input is the type of prf
 meta def process_comp (prf : expr) : expr → polya_state unit
 | ```(%%lhs ≥ %%rhs) := process_expr lhs >> process_expr rhs >> 
     add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩

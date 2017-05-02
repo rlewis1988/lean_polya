@@ -8,6 +8,19 @@ meta def expr_to_ineq : expr → tactic (expr × expr × ineq)
 | ```(%%x > %%c*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.gt (slope.some c'))
 | _ := failed
 
+meta def expr_to_eq : expr → tactic (expr × expr × ℚ)
+| ```(%%x = %%c*%%y) := do c' ← eval_expr rat c, return $ (x, y, c')
+| _ := failed
+
+meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard :=
+(do (x, y, ie1) ← expr_to_ineq e,
+    id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
+    return (add_ineq id b).2)
+<|>
+(do (x, y, ie1) ← expr_to_eq e,
+    id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
+    return (add_eq id b).2)
+
 meta def test_ineqs_imply (e1 e2 n : expr) (output : bool) : tactic unit :=
 do (x, y, ie1) ← expr_to_ineq e1,
    (_, _, ie2) ← expr_to_ineq e2,
@@ -30,6 +43,9 @@ section
 open tactic interactive interactive.types lean.parser
 meta def tactic.interactive.test_ineqs_imply (e1 e2 n : parse qexpr) (output : bool) : tactic unit :=
 do e1' ← i_to_expr e1, e2' ← i_to_expr e2, n' ← i_to_expr n, test_ineqs_imply e1' e2' n' output
+
+meta def add_comp_to_blackboard' (e : parse qexpr) (b : blackboard) : tactic blackboard :=
+do e' ← i_to_expr e, add_comp_to_blackboard e' b
 end
 
 variables x y : ℚ
@@ -67,7 +83,7 @@ id3 ← return $ ineq_data.mk ie3 (ineq_proof.hyp x y _ e1),
 bb ← return blackboard.mk_empty,
 (_, bb) ← return $ add_ineq id1 bb,
 (_, bb) ← return $ add_ineq id2 bb,
-trace $ bb.num_comps x y, trace $ bb.contr_found,
+trace $ bb.contr_found,
 (ii, _) ← return $ get_ineqs x y bb,
 trace ("implies", ii.implies_ineq id3.inq),
 (_, bb) ← return $ add_ineq id3 bb,

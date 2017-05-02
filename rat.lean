@@ -10,8 +10,6 @@ import standard
 
 /- linorder -/
 
-meta instance : has_to_format ℤ := ⟨λ z, int.rec_on z (λ k, ↑k) (λ k, "-"++↑(k+1)++"")⟩
-
 section linear_order_cases_on
 universes u v
 variables {α : Type u} [decidable_linear_order α] {β : Sort v}
@@ -71,13 +69,10 @@ instance setoid_rat.rel : setoid rat.num_denum :=
     take  ⟨n₁, ⟨d₁, _⟩⟩ ⟨n₂, ⟨d₂, _⟩⟩ h, h^.symm,
     take a b c, rel_trans⟩}
 
-meta def num_denum_format : rat.num_denum → format
-| (num, ⟨denum, _⟩) := 
-if num = 0 then "0"
-else if denum = 1 then to_fmt num
-else to_fmt num ++ "/" ++ to_fmt denum
-
-meta def num_denum_format_wf : Π a b : rat.num_denum, rat.rel a b → num_denum_format a = num_denum_format b := sorry
+@[simp]
+protected theorem rel_eq {n₁ d₁ n₂ d₂ : ℤ} { h₁ : d₁ > 0 } { h₂ : d₂ > 0 } : 
+  @setoid.r rat.num_denum _ (n₁, ⟨d₁, h₁⟩) (n₂, ⟨d₂, h₂⟩) = (n₁ * d₂ = n₂ * d₁) :=
+rfl
 
 end rat
 
@@ -85,9 +80,6 @@ def rat := quotient rat.setoid_rat.rel
 notation `ℚ` := rat
 
 namespace rat
-
-meta instance : has_to_format ℚ :=
-⟨quot.lift num_denum_format num_denum_format_wf⟩
 
 protected def zero : ℚ := ⟦⟨0, ⟨1, zero_lt_one⟩⟩⟧
 
@@ -169,7 +161,7 @@ quotient.lift inv' $ λ⟨n₁, ⟨d₁, h₁⟩⟩ ⟨n₂, ⟨d₂, h₂⟩⟩
       begin
         rw [inv'_neg this, inv'_neg ‹n₁ < 0›],
         apply quotient.sound,
-        simp [rat.rel, h_eq]
+        simp [h_eq]
       end)
     (suppose n₁ > 0, 
       have n₂ * d₁ > 0,
@@ -179,7 +171,7 @@ quotient.lift inv' $ λ⟨n₁, ⟨d₁, h₁⟩⟩ ⟨n₂, ⟨d₂, h₂⟩⟩
       begin
         rw [inv'_pos this, inv'_pos ‹n₁ > 0›],
         apply quotient.sound,
-        simp [rat.rel, h_eq]
+        simp [h_eq]
       end)
 
 instance : has_inv ℚ := ⟨rat.inv⟩
@@ -250,11 +242,11 @@ let a : rat.num_denum := ⟨n, ⟨d, h⟩⟩ in
 linear_order_cases_on n 0 
   (suppose n = 0, by rw [this, @eq_zero_of_rat_eq_zero ⟨0, ⟨d, h⟩⟩ rfl] at neq0; contradiction)
   (suppose n < 0,
-    have @inv rat _ ⟦a⟧ = ⟦⟨-d, ⟨-n, neg_pos_of_neg this⟩⟩⟧,
+    have @has_inv.inv rat _ ⟦a⟧ = ⟦⟨-d, ⟨-n, neg_pos_of_neg this⟩⟩⟧,
       from @inv'_neg n d h _, 
     begin simp [this], apply quotient.sound, simp [rat.rel] end)
   (suppose n > 0,
-    have @inv rat _ ⟦a⟧ = ⟦⟨d, ⟨n, this⟩⟩⟧,
+    have @has_inv.inv rat _ ⟦a⟧ = ⟦⟨d, ⟨n, this⟩⟩⟧,
       from @inv'_pos n d h _, 
     begin simp [this], apply quotient.sound, simp [rat.rel] end)
 
@@ -361,8 +353,8 @@ quotient.induction_on a $ take ⟨n, ⟨d, h⟩⟩, suppose 0 ≤ n * 1 + (- 0) 
 
 instance : discrete_linear_ordered_field ℚ :=
 { rat.field_rat with
-  le              := le,
-  lt              := lt,
+  le              := (≤),
+  lt              := (<),
   le_refl         := le_refl,
   le_trans        := take a b c, le_trans,
   le_antisymm     := take a b, le_antisymm,
