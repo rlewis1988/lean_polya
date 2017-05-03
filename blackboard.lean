@@ -108,10 +108,13 @@ meta def get_sign_info (e : expr) : polya_state (sign_info e) :=
 blackboard.get_sign_info e
 
 meta def assert_contradiction (ctr : contrad) : polya_state unit :=
-↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := ctr})
+↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := (trace_val ("contr:", ctr)).2})
 
 meta def get_expr_list : polya_state (list expr) :=
 blackboard.get_expr_list
+
+meta def contr_found : polya_state bool :=
+blackboard.contr_found
 
 section
 variables {lhs rhs : expr}
@@ -132,16 +135,17 @@ match sd.c with
 | gen_comp.eq := skip
 | gen_comp.ne := skip
 | c :=
-  let x : ℚ := if c.is_less then -1 else 1,
-      inq : ineq := ⟨c.is_strict, x, 0⟩ in
+  let y : ℚ := if c.is_less then 1 else -1,
+      inq : ineq := ⟨c.is_strict, 0, y⟩ in
   get_expr_list >>= 
-   monad.mapm' (λ rhs, add_ineq e rhs ⟨⟨c.is_strict, x, 0⟩, ineq_proof.zero_comp_of_sign_proof _ _ sd.prf⟩)
+   monad.mapm' (λ rhs, add_ineq e rhs ⟨inq, ineq_proof.zero_comp_of_sign_proof _ _ sd.prf⟩)
   
 end
 
 private meta def add_sign_aux (add_ineq : Π l r, ineq_data l r → polya_state unit) 
         {e} (sd : sign_data e) : polya_state unit :=
 do si ← get_sign_info e, 
+return $ trace_val ("si:", si),
 match si with
 | none := ((λ bb, bb.insert_sign e sd) : polya_state unit) >> add_zero_ineqs add_ineq sd
 | some osd := 
@@ -223,7 +227,7 @@ private meta def add_implied_signs_from_eq_and_ineq_aux (as : Π {e}, sign_data 
          (ed : eq_data lhs rhs) (id : ineq_data lhs rhs) : polya_state unit :=
 do (si1, si2) ← return $ ed.get_implied_sign_info_from_ineq id,
    match si1, si2 with
-   | some sd1, some sd2 := as sd1 >> as sd2
+   | some sd1, some sd2 := as (trace_val sd1) >> as sd2
    | some sd1, none     := as sd1
    | none, some sd2     := as sd2
    | none, none         := skip
@@ -231,7 +235,7 @@ do (si1, si2) ← return $ ed.get_implied_sign_info_from_ineq id,
 
 
 meta def add_self_ineq (id : ineq_data lhs lhs) : polya_state unit :=
-if id.inq.strict then assert_contradiction $ contrad.strict_ineq_self id
+if id.inq.strict && bnot (id.inq.is_axis) then assert_contradiction $ contrad.strict_ineq_self id
 else skip
 
 open ineq_info
@@ -276,8 +280,9 @@ match ei with
   else blackboard.insert_diseq dd
 end
 
-
-meta def add_eq (ed : eq_data lhs rhs) : polya_state unit :=
+meta def add_eq : Π {lhs rhs}, eq_data lhs rhs → polya_state unit 
+| lhs rhs ed :=
+if rhs.lt lhs then add_eq ed.reverse else
 if h : ed.c = 0 then
  let prf := sign_proof.eq_of_eq_zero (begin rw -h, apply ed.prf end) in
  add_sign ⟨_, prf⟩
@@ -298,7 +303,9 @@ else
      in add_sign sdl >> add_sign sdr
  end
 
-meta def add_diseq (dd : diseq_data lhs rhs) : polya_state unit :=
+meta def add_diseq : Π {lhs rhs}, diseq_data lhs rhs → polya_state unit
+| lhs rhs dd :=
+if rhs.lt lhs then add_diseq dd.reverse else
 if h : dd.c = 0 then
  let prf := sign_proof.diseq_of_diseq_zero (begin rw -h, apply dd.prf end) in
  add_sign ⟨_, prf⟩

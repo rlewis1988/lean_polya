@@ -9,8 +9,13 @@ match m.find a with
 | none := default _
 | some b := b
 end
-
 end hash_map
+
+meta def string.to_name (s : string) : name :=
+name.mk_string s name.anonymous
+
+meta def rb_set.of_list {α} [has_ordering α] (l : list α) : rb_set α :=
+l.foldl (λ s a, s.insert a) mk_rb_set
 
 namespace polya
 
@@ -90,8 +95,8 @@ def reverse : gen_comp → gen_comp
 | lt := gt
 | ge := le
 | gt := lt
-| eq := ne
-| ne := eq
+| eq := eq
+| ne := ne
 
 def is_strict : gen_comp → bool
 | lt := tt
@@ -107,6 +112,15 @@ def is_ineq : gen_comp → bool
 | eq := ff
 | ne := ff
 | _  := tt
+
+def strongest : gen_comp → gen_comp → gen_comp
+| gt ge := gt
+| lt le := lt
+| ge gt := gt
+| le lt := lt
+| eq b  := b
+| a eq  := a
+| a b   := if a = b then a else b
 
 def implies_aux : gen_comp → gen_comp → bool
 | lt le := tt
@@ -143,6 +157,13 @@ inductive slope
 
 instance slope.decidable_eq : decidable_eq slope := by tactic.mk_dec_eq_instance
 
+meta def slope.to_format : slope → format
+| slope.horiz := "horiz"
+| (slope.some m) := to_fmt m
+
+meta instance : has_to_format slope :=
+⟨slope.to_format⟩ 
+
 /--
  An inequality (str, a, b) represents the halfplane counterclockwise from the vector (a, b).
  If str is true, it is strict (ie, it doesn't include the line bx-ay=0).
@@ -157,6 +178,9 @@ instance : inhabited ineq :=
 
 /-meta instance rat.has_to_format : has_to_format ℚ :=
 ⟨λ q, ↑"0"⟩-/
+
+def is_axis (i : ineq) : bool :=
+(i.x = 0) || (i.y = 0)
 
 open comp slope
 def to_comp (i : ineq) : comp := -- DOUBLE CHECK THIS
@@ -304,7 +328,7 @@ open ineq_proof
 meta def ineq_proof.to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
 | p := "proof"
 
-meta instance (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
+meta instance ineq_proof.has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
 ⟨ineq_proof.to_format⟩
 
 end proof_objs
@@ -354,6 +378,11 @@ meta structure sign_data (e : expr) :=
 (c : gen_comp)
 (prf : sign_proof e c)
 
+meta def sign_data.to_format {e} : sign_data e → format
+| ⟨c, _⟩ := to_fmt "{" ++ to_fmt e ++ to_fmt c ++ to_fmt "0}"
+
+meta instance sign_data.has_to_format {e} : has_to_format (sign_data e) :=
+⟨sign_data.to_format⟩ 
 
 end data_objs
 
@@ -412,7 +441,7 @@ meta instance diseq_info.inhabited (lhs rhs) : inhabited (diseq_info lhs rhs) :=
 meta def diseq_info.reverse {lhs rhs : expr} : diseq_info lhs rhs → diseq_info rhs lhs :=
 rb_map.map diseq_data.reverse
 
-
+@[reducible]
 meta def sign_info (e : expr) := option (sign_data e)
 
 meta def sign_info.is_strict {e : expr} : sign_info e → bool
@@ -471,7 +500,7 @@ else
 -- assumes id.to_slope = slope.some m, with m ≠ ed.c
 meta def eq_data.get_implied_sign_info_from_slope_ineq {lhs rhs} (ed : eq_data lhs rhs) (m : ℚ) :
      ineq_data lhs rhs → sign_info lhs × sign_info rhs | ⟨id, prf⟩ := 
-let cmp  := if m - ed.c > 0 then id.to_comp else id.to_comp.reverse in 
+let cmp  := if m - ed.c < 0 then id.to_comp else id.to_comp.reverse in 
 if ed.c > 0 then 
   let pr1 := sign_proof.ineq_of_eq_and_ineq_lhs cmp ed.prf prf,
       pr2 := sign_proof.ineq_of_eq_and_ineq_rhs cmp ed.prf prf in
@@ -552,5 +581,15 @@ meta inductive contrad
 | ineqs : Π {lhs rhs}, ineq_info lhs rhs → ineq_data lhs rhs → contrad
 | sign : Π {e}, sign_data e → sign_data e → contrad
 | strict_ineq_self : Π {e}, ineq_data e e → contrad
+
+meta def contrad.to_format : contrad → format
+| contrad.none := "no contradiction"
+| (@contrad.eq_diseq lhs rhs _ _) := "eq_diseq"
+| (@contrad.ineqs lhs rhs _ _) := "ineqs"
+| (@contrad.sign e _ _) := "sign"
+| (@contrad.strict_ineq_self e _) := "strict_ineq_self"
+
+meta instance contrad.has_to_format : has_to_format contrad :=
+⟨contrad.to_format⟩
 
 end polya
