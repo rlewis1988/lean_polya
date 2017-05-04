@@ -8,14 +8,17 @@ meta def sum_form := rb_map expr ℚ
 meta def sum_form.zero : sum_form := rb_map.mk _ _
 meta instance : has_zero sum_form := ⟨sum_form.zero⟩
 
--- fill this in later: placeholder for proof tracking
-meta def sum_form.of_expr (e : expr) : sum_form := sorry
+meta def sum_form.of_expr (e : expr) : sum_form := 
+mk_rb_map.insert e 1
 
 meta def sum_form.get_coeff (sf : sum_form) (e : expr) : ℚ :=
 match sf.find e with
 | some q := q
 | none := 0
 end
+
+meta def sum_form.get_nonzero_factors (sf : sum_form) : list (expr × ℚ) :=
+sf.to_list
 
 meta def sum_form.add_coeff (sf : sum_form) (e : expr) (c : ℚ) : sum_form :=
 if (sf.get_coeff e) + c = 0 then sf.erase e
@@ -51,10 +54,31 @@ match id.inq.to_slope with
 | slope.some m := ⟨(sum_form.of_expr lhs).add_factor (sum_form.of_expr rhs) (-m), id.inq.to_comp⟩
 end
 
+meta def sum_form_comp.of_ineq_proof {lhs rhs id} (ip : ineq_proof lhs rhs id) : sum_form_comp :=
+sum_form_comp.of_ineq_data ⟨_, ip⟩
+
+-- we need a proof constructor for ineq and eq
+meta def sum_form_comp.to_ineq_data (sfc : sum_form_comp) : option Σ lhs rhs, ineq_data lhs rhs :=
+if (sfc.c.dir = 0) then none else
+match sfc.sf.get_nonzero_factors with
+| [(rhs, cr), (lhs, cl)] := 
+  let iq := ineq.of_comp_and_slope (sfc.c.to_comp) (slope.some (-cr/cl)) in
+  some ⟨lhs, rhs, ⟨iq, sorry⟩⟩
+| _ := none
+end
+
+meta def sum_form_comp.to_eq_data (sfc : sum_form_comp) : option Σ lhs rhs, eq_data lhs rhs :=
+if bnot (sfc.c = gen_comp.eq) then none else
+match sfc.sf.get_nonzero_factors with
+| [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), sorry⟩⟩
+| _ := none
+end
+  
+  
 -- some of these are unused
 meta inductive sum_form_proof : sum_form_comp → Type
-| of_ineq_data : Π {lhs rhs}, Π id : ineq_data lhs rhs,
-    sum_form_proof (sum_form_comp.of_ineq_data id)
+| of_ineq_proof : Π {lhs rhs iq}, Π id : ineq_proof lhs rhs iq,
+    sum_form_proof (sum_form_comp.of_ineq_proof id)
 | of_add_factor_same_comp : Π {lhs rhs c1 c2}, Π m : ℚ, -- assumes m is positive
   sum_form_proof ⟨lhs, c1⟩ → sum_form_proof ⟨rhs, c2⟩ → sum_form_proof ⟨lhs.add_factor rhs m, gen_comp.strongest c1 c2⟩ 
 | of_add_factor_rev_comp : Π {lhs rhs c1 c2}, Π m : ℚ, -- assumes m is negative

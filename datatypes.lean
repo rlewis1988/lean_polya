@@ -70,6 +70,12 @@ meta def to_gen_comp : comp → gen_comp
 | ge := gen_comp.ge
 | gt := gen_comp.gt
 
+meta def to_pexpr : comp → pexpr
+| le := `(has_le.le)
+| lt := `(has_lt.lt)
+| ge := `(ge)
+| gt := `(gt)
+
 meta instance : has_coe comp gen_comp :=
 ⟨to_gen_comp⟩ 
 
@@ -143,6 +149,16 @@ meta def to_format : gen_comp → format
 | eq := "="
 | ne := "≠"
 
+/--
+ Be careful. In the ne or eq case, this returns ge.
+-/
+meta def to_comp : gen_comp → comp
+| le := comp.le
+| lt := comp.lt
+| ge := comp.ge
+| gt := comp.gt
+| _  := comp.ge
+
 meta instance : has_to_format gen_comp :=
 ⟨to_format⟩
 
@@ -208,6 +224,12 @@ end
 
 meta instance ineq.has_to_format : has_to_format ineq :=
 ⟨to_format⟩
+
+meta def is_zero_slope (i : ineq) : bool :=
+(i.x = 0) && bnot (i.y = 0)
+
+meta def is_horiz (i : ineq) : bool :=
+i.y = 0
 
 def equiv (i1 i2 : ineq) : bool :=
 to_slope i1 = to_slope i2
@@ -290,11 +312,17 @@ meta inductive sign_proof : expr → gen_comp → Type
 | eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq-/
 
 
-meta inductive eq_proof : expr → expr → ℚ → Type
+/-meta inductive eq_proof : expr → expr → ℚ → Type
+| hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
+| sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)-/
+
+meta mutual inductive eq_proof, ineq_proof, sign_proof 
+with eq_proof : expr → expr → ℚ → Type
 | hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
 | sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)
+| of_opp_ineqs : Π {lhs rhs i}, Π c,
+  ineq_proof lhs rhs i → ineq_proof lhs rhs (i.reverse) → eq_proof lhs rhs c
 
-meta mutual inductive ineq_proof, sign_proof 
 with ineq_proof : expr → expr → ineq → Type
 | hyp : Π lhs rhs i, expr → ineq_proof lhs rhs i
 | sym : Π {lhs rhs i}, ineq_proof lhs rhs i → ineq_proof rhs lhs (i.reverse)
@@ -357,7 +385,7 @@ meta def eq_data.reverse {lhs rhs : expr} (ei : eq_data lhs rhs) : eq_data rhs l
 
 meta def eq_data.implies_ineq {lhs rhs} (ed : eq_data lhs rhs) (id : ineq) : bool :=
 match id.to_slope with
-| slope.some c := c = ed.c ∧ bnot (id.strict)
+| slope.some c := (c = ed.c) && bnot (id.strict)
 | horiz        := ff
 end
 

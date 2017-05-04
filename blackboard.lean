@@ -185,6 +185,17 @@ match id.inq.to_slope with
 end
 
 /--
+ Assumes that nid.inq.to_slope = oid.inq.to_slope,
+ there are no equalities known yet between lhs and rhs,
+ and nid constitutes new and non-contradictory information.
+ It could be stronger than oid, or imply an equality.
+
+TODO
+-/
+meta def add_ineq_one_comp_matching_slopes (nid oid : ineq_data lhs rhs) : polya_state unit :=
+skip
+
+/--
  Assumes there are no equalities known between lhs and rhs,
  and that the new ineq data constitutes new and non-contradictory information.
 -/
@@ -198,7 +209,8 @@ do nid ← strengthen_ineq_if_implied id,
 -/
 meta def add_ineq_one_comp (nid oid : ineq_data lhs rhs) : polya_state unit :=
 if nid.inq.to_slope = oid.inq.to_slope then
- blackboard.insert_ineq_info $ ineq_info.one_comp nid
+ add_ineq_one_comp_matching_slopes nid oid
+ --blackboard.insert_ineq_info $ ineq_info.one_comp nid
 else do nid' ← strengthen_ineq_if_implied nid,
  let nii := if nid'.inq.clockwise_of oid.inq 
             then ineq_info.two_comps oid nid' 
@@ -208,6 +220,8 @@ else do nid' ← strengthen_ineq_if_implied nid,
 /--
  Assumes there are no equalities known between lhs and rhs,
  and that the new ineq data constitutes new and non-contradictory information.
+
+TODO : equal slopes cases are wrong!
 -/
 meta def add_ineq_two_comps (nid oid1 oid2 : ineq_data lhs rhs) : polya_state unit :=
 if nid.inq.to_slope = oid1.inq.to_slope then
