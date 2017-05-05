@@ -3,9 +3,9 @@ namespace polya
 
 meta structure blackboard :=
 (ineqs : hash_map (expr×expr) (λ p, ineq_info p.1 p.2))
---(eqs : hash_map (expr×expr) (λ p, eq_info p.1 p.2))
 (diseqs : hash_map (expr×expr) (λ p, diseq_info p.1 p.2))
 (signs : hash_map expr (λ e, sign_info e))
+(extra_ineqs : list Σ lhs rhs, ineq_data lhs rhs)
 (exprs : rb_set expr)
 (contr : contrad)
 
@@ -15,7 +15,12 @@ meta def expr_pair_hash : expr × expr → ℕ
 | (e1, e2) := (e1.hash + e2.hash) / 2
 
 meta def mk_empty : blackboard :=
-⟨mk_hash_map expr_pair_hash, mk_hash_map expr_pair_hash, mk_hash_map expr.hash, mk_rb_set, contrad.none⟩
+{ineqs       := mk_hash_map expr_pair_hash, 
+ diseqs      := mk_hash_map expr_pair_hash, 
+ signs       := mk_hash_map expr.hash, 
+ extra_ineqs := [],
+ exprs       := mk_rb_set, 
+ contr       := contrad.none}
 
 section accessors
 variables (lhs rhs : expr) (bb : blackboard)
@@ -49,6 +54,7 @@ end
 
 end accessors
 
+
 section manipulators
 
 meta def add_expr (e : expr) (bb : blackboard) : blackboard :=
@@ -66,6 +72,12 @@ let dsq := bb.get_diseqs lhs rhs in
 
 meta def insert_ineq_info {lhs rhs} (ii : ineq_info lhs rhs) (bb : blackboard) : blackboard :=
 {bb.add_two_exprs lhs rhs with ineqs := bb.ineqs.insert (lhs, rhs) ii}
+
+meta def clear_extra_ineqs (bb : blackboard) : blackboard :=
+{bb with extra_ineqs := []}
+
+meta def get_contr (bb : blackboard) : contrad :=
+bb.contr
 
 end manipulators
 
@@ -115,6 +127,23 @@ blackboard.get_expr_list
 
 meta def contr_found : polya_state bool :=
 blackboard.contr_found
+
+meta def get_contr : polya_state contrad :=
+blackboard.get_contr
+
+meta def get_ineq_list : polya_state (list Σ lhs rhs, ineq_data lhs rhs) :=
+let extract_ineq_info : Π l r, polya_state (list Σ lhs rhs, ineq_data lhs rhs) :=
+  (λ l r, if expr.lt r l then return [] else do ii ← get_ineqs l r,
+    match ii with
+    | ineq_info.one_comp id := return [⟨l, r, id⟩]
+    | ineq_info.two_comps id1 id2 := return [⟨l, r, id1⟩, ⟨l, r, id2⟩]
+    | _ := return []
+    end),
+    inner_fold : Π lhs, Π lst r, polya_state (list Σ lhs rhs, ineq_data lhs rhs) := 
+     λ (lhs : expr) lst (r : expr), do nl ← extract_ineq_info lhs r, return $ list.append lst nl
+in do exprs ← get_expr_list,
+   monad.foldl (λ lst l, monad.foldl (inner_fold l) lst exprs) [] exprs
+--extract_ineq_info ```(1) ```(2)
 
 section
 variables {lhs rhs : expr}
@@ -247,7 +276,9 @@ do (si1, si2) ← return $ ed.get_implied_sign_info_from_ineq id,
    | none, none         := skip
    end
 
-
+/-
+TODO: This is wrong, not always a contradiction. Could just be sign info
+-/
 meta def add_self_ineq (id : ineq_data lhs lhs) : polya_state unit :=
 if id.inq.strict && bnot (id.inq.is_axis) then assert_contradiction $ contrad.strict_ineq_self id
 else skip
@@ -317,6 +348,9 @@ else
      in add_sign sdl >> add_sign sdr
  end
 
+/-
+TODO: check for lhs = rhs
+-/
 meta def add_diseq : Π {lhs rhs}, diseq_data lhs rhs → polya_state unit
 | lhs rhs dd :=
 if rhs.lt lhs then add_diseq dd.reverse else

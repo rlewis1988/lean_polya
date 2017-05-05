@@ -57,23 +57,6 @@ end
 meta def sum_form_comp.of_ineq_proof {lhs rhs id} (ip : ineq_proof lhs rhs id) : sum_form_comp :=
 sum_form_comp.of_ineq_data ⟨_, ip⟩
 
--- we need a proof constructor for ineq and eq
-meta def sum_form_comp.to_ineq_data (sfc : sum_form_comp) : option Σ lhs rhs, ineq_data lhs rhs :=
-if (sfc.c.dir = 0) then none else
-match sfc.sf.get_nonzero_factors with
-| [(rhs, cr), (lhs, cl)] := 
-  let iq := ineq.of_comp_and_slope (sfc.c.to_comp) (slope.some (-cr/cl)) in
-  some ⟨lhs, rhs, ⟨iq, sorry⟩⟩
-| _ := none
-end
-
-meta def sum_form_comp.to_eq_data (sfc : sum_form_comp) : option Σ lhs rhs, eq_data lhs rhs :=
-if bnot (sfc.c = gen_comp.eq) then none else
-match sfc.sf.get_nonzero_factors with
-| [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), sorry⟩⟩
-| _ := none
-end
-  
   
 -- some of these are unused
 meta inductive sum_form_proof : sum_form_comp → Type
@@ -92,6 +75,35 @@ meta inductive sum_form_proof : sum_form_comp → Type
 meta structure sum_form_comp_data :=
 (sfc : sum_form_comp) (prf : sum_form_proof sfc)
 
+meta def sum_form_comp_data.of_ineq_data {lhs rhs} (id : ineq_data lhs rhs) : sum_form_comp_data :=
+⟨_, sum_form_proof.of_ineq_proof id.prf⟩
+
+-- assumes lhs < rhs as exprs. cl*lhs + cr*rhs R 0 ==> ineq_data
+meta def mk_ineq_data_of_lhs_rhs (lhs rhs : expr) (cl cr : ℚ) (c : comp) : Σ l r, ineq_data l r :=
+let c' := if cl > 0 then c else c.reverse,
+    iq := ineq.of_comp_and_slope (c') (slope.some (-cr/cl)) in
+⟨lhs, rhs, ⟨iq, ineq_proof.hyp _ _ _ ```(0)⟩⟩ -- TODO
+
+
+-- we need a proof constructor for ineq and eq
+meta def sum_form_comp_data.to_ineq_data : sum_form_comp_data → option (Σ lhs rhs, ineq_data lhs rhs) 
+| ⟨sfc, prf⟩ := 
+if (sfc.c.dir = 0) then none else
+match sfc.sf.get_nonzero_factors with
+| [(rhs, cr), (lhs, cl)] := 
+  if lhs.lt rhs then mk_ineq_data_of_lhs_rhs lhs rhs cl cr (sfc.c.to_comp)
+  else mk_ineq_data_of_lhs_rhs rhs lhs cr cl (sfc.c.to_comp)
+| _ := none
+end
+
+meta def sum_form_comp_data.to_eq_data : sum_form_comp_data → option (Σ lhs rhs, eq_data lhs rhs)
+| ⟨sfc, prf⟩ :=
+if bnot (sfc.c = gen_comp.eq) then none else
+match sfc.sf.get_nonzero_factors with
+| [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.hyp _ _ _ ```(0)⟩⟩ -- TODO
+| _ := none
+end
+  
 
 meta instance sum_form_comp.has_to_format : has_to_format sum_form_comp :=
 ⟨λ sfc, "{" ++ to_fmt (sfc.sf) ++ to_fmt sfc.c ++ "0}"⟩
@@ -181,6 +193,7 @@ cmps.fold mk_rb_set (λ c rv, elim_expr_from_comp_data c cmps e rv)
 
 meta def elim_expr_from_comp_data_list (cmps : list sum_form_comp_data) (e : expr) : list sum_form_comp_data :=
 (elim_expr_from_comp_data_set (rb_set.of_list cmps) e).to_list
+
 
 
 end polya

@@ -1,4 +1,4 @@
-import .blackboard
+import .blackboard .sum_form .proof_reconstruction 
 open tactic
 
 namespace polya
@@ -68,7 +68,11 @@ do id ← get_ineqs x y, trace id
 meta def test_cmd {α} (t : polya_tactic α) : tactic α :=
 do (b, _) ← t (blackboard.mk_empty), return b
 
-variables x y : ℚ
+--variables x y z w : ℚ
+def x : ℚ := 0
+def y : ℚ := 0
+def z : ℚ := 0
+def w : ℚ := 0
 
 run_cmd test_cmd $ 
 do (x', y', ie) ← expr_to_ineq ```(x > 4*y),
@@ -86,14 +90,41 @@ do b ← contr_found,
 
 open ineq_info
 
+meta def get_sum_comp_list_of_list (l : list (Σ lhs rhs, ineq_data lhs rhs)) : list sum_form_comp_data :=
+l.map (λ ⟨_, _, id⟩, sum_form_comp_data.of_ineq_data id)
+
 
 run_cmd test_cmd $ 
 do add_comp_to_blackboard ```(x ≤ 2*y),
-   add_comp_to_blackboard ```(x < 2*y),
-   add_comp_to_blackboard ```(x > 0),
-   add_comp_to_blackboard ```(y > 0),
+   add_comp_to_blackboard ```(y < 5*z),
+   l ← get_ineq_list,
+   trace l,
+   sfc_list ← return $ get_sum_comp_list_of_list l,
+   exprs ← get_expr_list,
+   trace exprs,
+   ts ← return $ elim_expr_from_comp_data_list sfc_list (exprs.head),
+   trace ts,
+   trace $ ts.map sum_form_comp_data.to_ineq_data
+
+
+
+run_cmd test_cmd $ 
+do add_comp_to_blackboard ```(x ≤ 2*y),
+   add_comp_to_blackboard ```(y < 5*z),
+--   add_comp_to_blackboard ```(x < 4*y),
+--   add_comp_to_blackboard ```(y ≥ 1*x),
+--   add_comp_to_blackboard ```(z ≤ 0*x),
+--   add_comp_to_blackboard ```(z ≤ -2*y),
+--   add_comp_to_blackboard ```(x > 0),
+--   add_comp_to_blackboard ```(y > 0),
    a ← return ```(x), b ← return ```(y),
-   trace_comps a b
+   --trace_comps a b
+   l ← get_ineq_list,
+   sfc_list ← return $ get_sum_comp_list_of_list l,
+   exprs ← get_expr_list,
+   ts ← return $ elim_expr_from_comp_data_list sfc_list (exprs.head),
+   trace ts,
+   trace $ ts.map sum_form_comp_data.to_ineq_data
 
 run_cmd test_cmd $ 
 do add_comp_to_blackboard ```(x ≤ 2*y),
@@ -118,6 +149,8 @@ do add_comp_to_blackboard ```(x ≤ 2*y),
    si ← get_sign_info b,
    trace si,
    b ← contr_found,
-   trace ("contr?", b)
+   trace ("contr?", b),
+   ctd ← get_contr,
+   trace ctd
 
 end polya

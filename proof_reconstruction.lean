@@ -108,11 +108,76 @@ theorem ne_zero_of_ne_mul_zero {lhs rhs : ℚ} (h : lhs ≠ 0*rhs) : lhs ≠ 0 :
 by rw -(zero_mul rhs); assumption
 
 theorem eq_zero_of_two_eqs_rhs {lhs rhs c1 c2 : ℚ} (h : lhs = c1*rhs) (h2 : lhs = c2*rhs) (hc : c1 ≠ c2) : rhs = 0 :=
-sorry
+begin
+ rw h at h2,
+ note h3 := sub_eq_zero_of_eq h2,
+ rw -sub_mul at h3,
+ cases eq_zero_or_eq_zero_of_mul_eq_zero h3,
+ apply absurd (eq_of_sub_eq_zero a) hc,
+ assumption
+end
 
 theorem eq_zero_of_two_eqs_lhs {lhs rhs c1 c2 : ℚ} (h : lhs = c1*rhs) (h2 : lhs = c2*rhs) (hc : c1 ≠ c2) : lhs = 0 :=
 have hr : rhs = 0, from eq_zero_of_two_eqs_rhs h h2 hc,
 begin rw hr at h, rw mul_zero at h, assumption end
+
+section
+variables {lhs rhs c : ℚ} (h : lhs = 0)
+include h
+
+/-
+PUT THEOREMS FOR ineq_of_ineq_and_eq_zero_rhs here
+-/
+
+end
+
+section
+variables {lhs rhs c d : ℚ} (h : lhs = d*rhs)
+include h
+
+-- there are 16 possibilities here!
+theorem sub_le_zero_of_le {a b : ℚ} (h : a ≤ b) : a - b ≤ 0 := sorry
+theorem sub_lt_zero_of_lt {a b : ℚ} (h : a < b) : a - b < 0 := sorry
+theorem sub_ge_zero_of_ge {a b : ℚ} (h : a ≥ b) : a - b ≥ 0 := sorry
+theorem sub_gt_zero_of_gt {a b : ℚ} (h : a > b) : a - b > 0 := sorry
+
+theorem le_gt_rhs (h1 : lhs ≤ c*rhs) (h2 : d - c > 0) : rhs ≤ 0 :=
+have d*rhs ≤ c*rhs, by rw -h; assumption,
+have d*rhs - c*rhs ≤ 0, from sub_le_zero_of_le this,
+have (d - c)*rhs ≤ 0, by rw sub_mul; assumption,
+show rhs ≤ 0, from nonpos_of_mul_nonpos_left this h2
+
+theorem lt_gt_rhs (h1 : lhs < c*rhs) (h2 : d - c > 0) : rhs < 0 :=
+have d*rhs < c*rhs, by rw -h; assumption,
+have d*rhs - c*rhs < 0, from sub_lt_zero_of_lt this,
+have (d - c)*rhs < 0, by rw sub_mul; assumption,
+show rhs < 0, from neg_of_mul_neg_left this (le_of_lt h2)
+
+theorem ge_gt_rhs (h1 : lhs ≥ c*rhs) (h2 : d - c > 0) : rhs ≥ 0 :=
+have d*rhs ≥ c*rhs, by rw -h; assumption,
+have d*rhs - c*rhs ≥ 0, from sub_ge_zero_of_ge this,
+have (d - c)*rhs ≥ 0, by rw sub_mul; assumption,
+show rhs ≥ 0, from nonneg_of_mul_nonneg_left this h2
+
+theorem gt_gt_rhs (h1 : lhs > c*rhs) (h2 : d - c > 0) : rhs > 0 :=
+have d*rhs > c*rhs, by rw -h; assumption,
+have d*rhs - c*rhs > 0, from sub_gt_zero_of_gt this,
+have (d - c)*rhs > 0, by rw sub_mul; assumption,
+show rhs > 0, from pos_of_mul_pos_left this (le_of_lt h2)
+
+end
+
+theorem gt_self_contr {e : ℚ} (h : e > 1*e) : false :=
+begin apply lt_irrefl, rw one_mul at h, assumption end
+
+theorem lt_self_contr {e : ℚ} (h : e < 1*e) : false :=
+begin apply lt_irrefl, rw one_mul at h, assumption end
+
+theorem le_gt_contr {e : ℚ} (h1 : e ≤ 0) (h2 : e > 0) : false :=
+not_le_of_gt h2 h1
+
+theorem ge_lt_contr {e : ℚ} (h1 : e ≥ 0) (h2 : e < 0) : false :=
+not_le_of_gt h2 h1
 
 end arith_thms
 
@@ -328,14 +393,16 @@ private meta def reconstruct_eq_of_eq_zero {lhs rhs} (ep : eq_proof lhs rhs 0) :
 do epp ← rce ep,
    mk_app ``eq_zero_of_eq_mul_zero [epp]
 
+-- these are the hard cases. Is this the right place to handle them?
 private meta def reconstruct_ineq_of_eq_and_ineq_lhs {lhs rhs iq c} (c' : gen_comp) (ep : eq_proof lhs rhs c) (ip : ineq_proof lhs rhs iq) : tactic expr :=
-failed
+fail "reconstruct_ineq_of_eq_and_ineq not implemented"
 
 private meta def reconstruct_ineq_of_eq_and_ineq_rhs {lhs rhs iq c} (c' : gen_comp) (ep : eq_proof lhs rhs c) (ip : ineq_proof lhs rhs iq) : tactic expr :=
-failed
+fail "reconstruct_ineq_of_eq_and_ineq not implemented"
 
 private meta def reconstruct_ineq_of_ineq_and_eq_zero_rhs {lhs rhs iq} (c : gen_comp) (ip : ineq_proof lhs rhs iq) (sp : sign_proof lhs gen_comp.eq) : tactic expr :=
-failed
+fail "reconstruct_ineq_of_ineq_and_eq_zero not implemented"
+   
 
 end
 
@@ -357,7 +424,63 @@ meta def ineq_proof.reconstruct := @ineq_proof.reconstruct_aux @sign_proof.recon
 
 meta def eq_proof.reconstruct := @eq_proof.reconstruct_aux @ineq_proof.reconstruct
 
+namespace contrad
+
+private meta def reconstruct_eq_diseq {lhs rhs} (ed : eq_data lhs rhs) (dd : diseq_data lhs rhs) : tactic expr :=
+if bnot (ed.c = dd.c) then fail "reconstruct_eq_diseq failed: given different coefficients"
+else do ddp ← dd.prf.reconstruct, edp ← ed.prf.reconstruct, return $ ddp.app edp
+
+-- TODO: this is the hard part. Should this be refactored into smaller pieces?
+private meta def reconstruct_ineqs {lhs rhs} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : tactic expr :=
+failed
+
+private meta def reconstruct_sign_ne_eq {e} (nepr : sign_proof e gen_comp.ne) (eqpr : sign_proof e gen_comp.eq) : tactic expr :=
+do neprp ← nepr.reconstruct, eqprp ← eqpr.reconstruct,
+   return $ neprp.app eqprp
+
+private meta def reconstruct_sign_le_gt {e} (lepr : sign_proof e gen_comp.le) (gtpr : sign_proof e gen_comp.gt) : tactic expr :=
+do leprp ← lepr.reconstruct, gtprp ← gtpr.reconstruct,
+   mk_app ``le_gt_contr [leprp, gtprp]
+
+private meta def reconstruct_sign_ge_lt {e} (gepr : sign_proof e gen_comp.ge) (ltpr : sign_proof e gen_comp.lt) : tactic expr :=
+do geprp ← gepr.reconstruct, ltprp ← ltpr.reconstruct,
+   mk_app ``ge_lt_contr [geprp, ltprp]
+
+
+private meta def reconstruct_sign {e} : sign_data e → sign_data e → tactic expr
+| ⟨gen_comp.ne, prf1⟩ ⟨gen_comp.eq, prf2⟩ := reconstruct_sign_ne_eq prf1 prf2
+| ⟨gen_comp.eq, prf1⟩ ⟨gen_comp.ne, prf2⟩ := reconstruct_sign_ne_eq prf2 prf1
+| ⟨gen_comp.le, prf1⟩ ⟨gen_comp.gt, prf2⟩ := reconstruct_sign_le_gt prf1 prf2
+| ⟨gen_comp.gt, prf1⟩ ⟨gen_comp.le, prf2⟩ := reconstruct_sign_le_gt prf2 prf1
+| ⟨gen_comp.lt, prf1⟩ ⟨gen_comp.ge, prf2⟩ := reconstruct_sign_ge_lt prf2 prf1
+| ⟨gen_comp.ge, prf1⟩ ⟨gen_comp.lt, prf2⟩ := reconstruct_sign_ge_lt prf1 prf2
+| _ _ := fail "reconstruct_sign failed: given non-opposite comps"
+
+private meta def reconstruct_strict_ineq_self {e} (id : ineq_data e e) : tactic expr := 
+match id.inq.to_comp, id.inq.to_slope with
+| comp.gt, slope.some m := 
+  if bnot (m = 1) then fail "reconstruct_strict_ineq_self failed: given non-one slope"
+  else do idp ← id.prf.reconstruct,
+       mk_app ``gt_self_contr [idp]
+| comp.lt, slope.some m := 
+  if bnot (m = 1) then fail "reconstruct_strict_ineq_self failed: given non-one slope"
+  else do idp ← id.prf.reconstruct,
+       mk_app ``lt_self_contr [idp]
+| _, _ := fail "reconstruct_strict_ineq_self failed: given non-strict comp or non-one slope"
+end
+
+meta def reconstruct : contrad → tactic expr
+| none := fail "cannot reconstruct contr: no contradiction is known"
+| (@eq_diseq lhs rhs ed dd) := reconstruct_eq_diseq ed dd
+| (@ineqs lhs rhs ii id) := reconstruct_ineqs ii id
+| (@sign e sd1 sd2) := reconstruct_sign sd1 sd2
+| (@strict_ineq_self e id) := reconstruct_strict_ineq_self id
+
+end contrad
+
 end polya
+
+#exit
 
 section tests
 open polya tactic expr
