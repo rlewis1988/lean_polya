@@ -1,4 +1,4 @@
-import .datatypes
+import .datatypes --.sum_form
 namespace polya
 
 section arith_thms
@@ -165,7 +165,62 @@ have d*rhs - c*rhs > 0, from sub_gt_zero_of_gt this,
 have (d - c)*rhs > 0, by rw sub_mul; assumption,
 show rhs > 0, from pos_of_mul_pos_left this (le_of_lt h2)
 
+omit h
+theorem sub_lt_of_lt (h1 : lhs < c*rhs) : 1*lhs + (-c)*rhs < 0 :=
+begin
+ simp,
+ apply sub_neg_of_lt,
+ rw mul_comm, assumption
 end
+
+theorem sub_le_of_le (h1 : lhs ≤ c*rhs) : 1*lhs + (-c)*rhs ≤ 0 :=
+begin
+ simp,
+ apply sub_nonpos_of_le,
+ rw mul_comm, assumption
+end
+
+theorem sub_lt_of_gt (h1 : lhs > c*rhs) : (-1)*lhs + c*rhs < 0 :=
+begin
+ rw [add_comm, -neg_mul_eq_neg_mul, one_mul],
+ apply sub_neg_of_lt,
+ assumption
+end
+
+theorem sub_le_of_ge (h1 : lhs ≥ c*rhs) : (-1)*lhs + c*rhs ≤ 0 :=
+begin
+ rw [add_comm, -neg_mul_eq_neg_mul, one_mul],
+ apply sub_nonpos_of_le,
+ assumption
+end
+
+
+theorem mul_lt_of_gt (h1 : lhs > 0) : (-1)*lhs < 0 :=
+by simp; apply neg_neg_of_pos h1
+
+theorem mul_le_of_ge (h1 : lhs ≥ 0) : (-1)*lhs ≤ 0 :=
+by simp; apply neg_nonpos_of_nonneg h1
+
+theorem mul_lt_of_lt (h1 : lhs < 0) : 1*lhs < 0 :=
+by simp; assumption
+
+theorem mul_le_of_le (h1 : lhs ≤ 0) : 1*lhs ≤ 0 :=
+by simp; assumption
+
+end
+
+
+meta def sum_form_name_of_comp_single : comp → name
+| comp.lt := ``mul_lt_of_lt
+| comp.le := ``mul_le_of_le
+| comp.gt := ``mul_lt_of_gt
+| comp.ge := ``mul_le_of_ge
+
+meta def sum_form_name_of_comp : comp → name
+| comp.lt := ``sub_lt_of_lt
+| comp.le := ``sub_le_of_le
+| comp.gt := ``sub_lt_of_gt
+| comp.ge := ``sub_le_of_ge
 
 theorem gt_self_contr {e : ℚ} (h : e > 1*e) : false :=
 begin apply lt_irrefl, rw one_mul at h, assumption end
@@ -179,25 +234,32 @@ not_le_of_gt h2 h1
 theorem ge_lt_contr {e : ℚ} (h1 : e ≥ 0) (h2 : e < 0) : false :=
 not_le_of_gt h2 h1
 
+
 end arith_thms
 
 open expr tactic diseq_proof
 
+theorem fake_ne_zero_pf (q : ℚ) : q ≠ 0 := sorry
+theorem fake_gt_zero_pf (q : ℚ) : q > 0 := sorry
+theorem fake_lt_zero_pf (q : ℚ) : q < 0 := sorry
+theorem fake_eq_zero_pf (q : ℚ) : q = 0 := sorry
+theorem fake_ne_pf (q1 q2 : ℚ) : q1 ≠ q2 := sorry
+
 meta def mk_ne_zero_pf (q : ℚ) : tactic expr :=
-do qe ← to_expr `(%%(quote q) : ℚ),
-   to_expr `(sorry : (%%qe : ℚ) ≠ 0)
+do qe ← to_expr ``(%%(quote q) : ℚ),
+   to_expr ``(fake_ne_zero_pf (%%qe : ℚ))
    
 -- proves that q > 0, q < 0, or q = 0
 meta def mk_sign_pf (q : ℚ) : tactic expr :=
 do qe ← to_expr `(%%(quote q) : ℚ),
-   if q > 0 then to_expr `(sorry : (%%qe : ℚ) > 0)
-   else if q < 0 then to_expr `(sorry : (%%qe : ℚ) < 0)
-   else to_expr `(sorry : (%%qe : ℚ) = 0)
+   if q > 0 then to_expr `(fake_gt_zero_pf (%%qe : ℚ))
+   else if q < 0 then to_expr `(fake_lt_zero_pf (%%qe : ℚ))
+   else to_expr ``(fake_eq_zero_pf (%%qe : ℚ))
 
 meta def mk_ne_pf (q1 q2 : ℚ) : tactic expr :=
-do q1e ← to_expr `(%%(quote q1) : ℚ),
-   q2e ← to_expr `(%%(quote q2) : ℚ),
-   to_expr `(sorry : %%q1e ≠ %%q2e)
+do q1e ← to_expr ``(%%(quote q1) : ℚ),
+   q2e ← to_expr ``(%%(quote q2) : ℚ),
+   to_expr `(fake_ne_pf %%q1e %%q2e)
 
 namespace diseq_proof
 private meta def reconstruct_hyp (lhs rhs : expr) (c : ℚ) (pf : expr) : tactic expr :=
@@ -252,13 +314,14 @@ meta def reconstruct_aux : Π {lhs rhs : expr} {c : ℚ}, eq_proof lhs rhs c →
 | .(_) .(_) .(_) (hyp (lhs) (rhs) (c) e) := reconstruct_hyp lhs rhs c e
 | .(_) .(_) .(_) (@sym lhs rhs c dp) := reconstruct_sym @reconstruct_aux dp
 | .(_) .(_) .(_) (@of_opp_ineqs lhs rhs i c iep iepr) := reconstruct_of_opp_ineqs_aux @iepr_fn c iep iepr
+| .(_) .(_) .(_) (adhoc _ _ _ t) := t
 
 end eq_proof
 
 namespace ineq_proof
 
 meta def guard_is_ineq (lhs rhs : expr) (iq : ineq) (pf : expr) : tactic expr :=
-do mvc ← mk_mvar, pft ← infer_type pf,
+do mvc ← mk_mvar, pft ← infer_type pf, trace "in guard_is_ineq", trace iq.to_comp, trace pft, trace (lhs, rhs), trace pf,
 match iq.to_comp with
 | comp.lt := to_expr `(%%lhs < %%mvc * %%rhs) >>= unify pft >> return mvc
 | comp.le := to_expr `(%%lhs ≤ %%mvc * %%rhs) >>= unify pft >> return mvc
@@ -269,7 +332,7 @@ end
 private meta def reconstruct_hyp (lhs rhs : expr) (iq : ineq) (pf : expr) : tactic expr :=
 match iq.to_slope with
 | slope.horiz  := 
-  do tp ← infer_type pf,
+  do tp ← infer_type pf, trace "unifying tp in reconstruct_hyp1", trace tp,
      to_expr `( %%(iq.to_comp.to_pexpr) %%rhs 0) >>= unify tp,
      return pf
 | slope.some c :=
@@ -285,7 +348,7 @@ include rc
 private meta def reconstruct_sym 
         {lhs rhs iq} (ip : ineq_proof lhs rhs iq) : tactic expr :=
 match iq.to_slope with
-| slope.horiz  := failed
+| slope.horiz  := fail "reconstruct_sym failed on horiz slope"
 | slope.some m := 
   do symp ← rc ip, sgnp ← mk_sign_pf m,
      mk_mapp (name_of_c_and_comp m iq.to_comp) [none, none, none, some sgnp, some symp]
@@ -346,6 +409,7 @@ meta def reconstruct_aux (rcs : Π {e gc}, sign_proof e gc → tactic expr) :  �
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_lhs lhs rhs iq c ip sp) := reconstruct_ineq_sign_lhs @reconstruct_aux @rcs ip sp
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_rhs lhs rhs iq c ip sp) := reconstruct_ineq_sign_rhs @reconstruct_aux @rcs ip sp
 | .(_) .(_) .(_) (@zero_comp_of_sign_proof lhs c rhs iq sp) := reconstruct_zero_comp_of_sign @rcs rhs iq sp
+| .(_) .(_) .(_) (adhoc _ _ _ t) := t
 
 end ineq_proof
 
@@ -417,6 +481,7 @@ meta def reconstruct : Π {e c}, sign_proof e c → tactic expr
 | .(_) .(_) (@ineq_of_eq_and_ineq_lhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_lhs c' ep ip
 | .(_) .(_) (@ineq_of_eq_and_ineq_rhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_rhs c' ep ip
 | .(_) .(_) (@ineq_of_ineq_and_eq_zero_rhs _ _ _ c ip sp) := reconstruct_ineq_of_ineq_and_eq_zero_rhs c ip sp
+| .(_) .(_) (adhoc _ _ t) := t
 
 end sign_proof
 
@@ -424,15 +489,112 @@ meta def ineq_proof.reconstruct := @ineq_proof.reconstruct_aux @sign_proof.recon
 
 meta def eq_proof.reconstruct := @eq_proof.reconstruct_aux @ineq_proof.reconstruct
 
+namespace sum_form_proof
+
+-- assumes lhs < rhs
+private meta def reconstruct_of_ineq_proof : Π {lhs rhs iq}, ineq_proof lhs rhs iq → tactic expr | lhs rhs iq ip :=
+if expr.lt rhs lhs then reconstruct_of_ineq_proof ip.sym else 
+match iq.to_slope with
+| slope.horiz := 
+  do ipp ← ip.reconstruct,
+     tactic.mk_app (sum_form_name_of_comp_single iq.to_comp) [ipp]
+| slope.some m := 
+  do ipp ← ip.reconstruct, trace ("ipp", ip, ipp), infer_type ipp >>= trace,
+     tactic.mk_app ((if m = 0 then sum_form_name_of_comp_single else sum_form_name_of_comp) iq.to_comp) [ipp]
+end
+
+meta def expr_coeff_list_to_expr : list (expr × ℚ) → tactic expr
+| [] := to_expr `(0 : ℚ)
+| [(e, q)] := to_expr `(%%(quote q)*e)
+| ((e, q)::t) := do e' ← expr_coeff_list_to_expr t, h ← to_expr `(%%(quote q)*e), to_expr `(%%h + %%e')
+
+meta def sum_form.to_expr (sf : sum_form) : tactic expr := 
+expr_coeff_list_to_expr sf.to_list
+
+--  sum_form_proof ⟨lhs.add_factor rhs m, spec_comp.strongest c1 c2⟩ 
+-- wait for algebraic normalizer?
+-- TODO
+private theorem reconstruct_of_add_factor_aux (P : Prop) {Q R : Prop} (h : Q) (h2 : R) : P := sorry
+
+private meta def reconstruct_of_add_factor_same_comp (rct : Π {sfc}, sum_form_proof sfc → tactic expr) {lhs rhs c1 c2} (m : ℚ) 
+        (sfpl : sum_form_proof ⟨lhs, c1⟩) (sfpr : sum_form_proof ⟨rhs, c2⟩) : tactic expr :=
+let sum := lhs + rhs.scale m in
+do tp ← sum_form.to_expr sum,
+   tp' ← (spec_comp.strongest c1 c2).to_comp.to_function tp ```(0 : ℚ),
+   pf1 ← rct sfpl, pf2 ← rct sfpr,
+   mk_mapp ``reconstruct_of_add_factor_aux [some tp', none, none, some pf1, some pf2] --to_expr `(sorry : %%tp)    
+--fail "reconstruct_of_add_factor_same_comp failed, not implemented yet"
+
+private theorem reconstruct_of_scale_aux (P : Prop) {Q : Prop} (h : Q) : P := sorry
+--TODO
+private meta def reconstruct_of_scale (rct : Π {sfc}, sum_form_proof sfc → tactic expr) 
+        {sfc} (m : ℚ) (sfp : sum_form_proof sfc) : tactic expr :=
+do tp ← sum_form.to_expr (sfc.sf.scale m),
+   tp' ← sfc.c.to_comp.to_function tp ```(0 : ℚ),
+   pf ← rct sfp,
+   mk_app ``reconstruct_of_scale_aux [tp', pf] -- to_expr `(sorry : %%tp')
+   
+--fail "reconstruct_of_scale failed, not implemented yet"
+
+-- commented for now, fake one below 
+meta def reconstruct : Π {sfc}, sum_form_proof sfc → tactic expr
+| .(_) (@of_ineq_proof _ _ _ ip) := reconstruct_of_ineq_proof ip
+| .(_) (@of_add_factor_same_comp _ _ _ _ m sfpl sfpr) := reconstruct_of_add_factor_same_comp @reconstruct m sfpl sfpr
+| .(_) (@of_scale _ m sfp) := reconstruct_of_scale @reconstruct m sfp
+| .(_) (@fake sd) := fail "cannot reconstruct a fake proof"
+
+
+meta def ineq_data.to_expr {lhs rhs} (id : ineq_data lhs rhs) : tactic expr :=
+match id.inq.to_slope with
+| slope.horiz := id.inq.to_comp.to_function rhs ```(0 : ℚ)
+| slope.some m := if m = 0 then id.inq.to_comp.to_function lhs ```(0 : ℚ)
+                  else do rhs' ← to_expr `(%%(quote m)*%%rhs), id.inq.to_comp.to_function lhs rhs'
+end
+
+/-meta def reconstruct : Π {sfc}, sum_form_proof sfc → tactic expr | sfc sfp :=
+if sfc.sf.keys.length = 0 then do
+ ex ← sfc.c.to_comp.to_function ```(0 : ℚ) ```(0 : ℚ),
+ to_expr `(sorry : %%ex) else
+let sfcd : sum_form_comp_data := ⟨_, sfp, mk_rb_set⟩ in
+match sfcd.to_ineq_data with
+| option.some ⟨lhs, rhs, id⟩ := do ex ← ineq_data.to_expr id, to_expr `(sorry : %%ex)
+| none := trace sfc >> fail "fake sum_form_proof.reconstruct failed, no ineq data"
+end-/
+
+end sum_form_proof
+
 namespace contrad
 
 private meta def reconstruct_eq_diseq {lhs rhs} (ed : eq_data lhs rhs) (dd : diseq_data lhs rhs) : tactic expr :=
 if bnot (ed.c = dd.c) then fail "reconstruct_eq_diseq failed: given different coefficients"
 else do ddp ← dd.prf.reconstruct, edp ← ed.prf.reconstruct, return $ ddp.app edp
 
+private meta def reconstruct_two_ineq_data {lhs rhs} (rct : contrad → tactic expr) (id1 id2 : ineq_data lhs rhs) : tactic expr :=
+let sfid1 := sum_form_comp_data.of_ineq_data id1,
+    sfid2 := sum_form_comp_data.of_ineq_data id2 in
+match find_contrad_in_sfcd_list [sfid1, sfid2] with
+| some ctr    := trace ("ctr:", ctr) >> rct ctr
+| option.none := fail "reconstruct_two_ineq_data failed to find contr"
+end
+
+private meta def reconstruct_eq_ineq {lhs rhs} (ed : eq_data lhs rhs) (id : ineq_data lhs rhs) : tactic expr :=
+fail "reconstruct_eq_ineq not implemented"
+
 -- TODO: this is the hard part. Should this be refactored into smaller pieces?
-private meta def reconstruct_ineqs {lhs rhs} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : tactic expr :=
-failed
+private meta def reconstruct_ineqs (rct : contrad → tactic expr) {lhs rhs} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : tactic expr := do trace "ineqs!!",
+match ii with
+| ineq_info.no_comps := fail "reconstruct_ineqs cannot find a contradiction with no known comps"
+| ineq_info.one_comp id2 := reconstruct_two_ineq_data rct id id2
+| ineq_info.equal ed := reconstruct_eq_ineq ed id
+| ineq_info.two_comps id1 id2 := 
+   let sfid  := sum_form_comp_data.of_ineq_data id,
+       sfid1 := sum_form_comp_data.of_ineq_data id1,
+       sfid2 := sum_form_comp_data.of_ineq_data id2 in
+   match find_contrad_in_sfcd_list [sfid, sfid1, sfid2] with
+   | some ctr    := rct ctr
+   | option.none := fail "reconstruct_ineqs failed to find contr"
+   end
+end
 
 private meta def reconstruct_sign_ne_eq {e} (nepr : sign_proof e gen_comp.ne) (eqpr : sign_proof e gen_comp.eq) : tactic expr :=
 do neprp ← nepr.reconstruct, eqprp ← eqpr.reconstruct,
@@ -469,14 +631,22 @@ match id.inq.to_comp, id.inq.to_slope with
 | _, _ := fail "reconstruct_strict_ineq_self failed: given non-strict comp or non-one slope"
 end
 
+meta def reconstruct_sum_form {sfc} (sfp : sum_form_proof sfc) : tactic expr :=
+if sfc.is_contr then do
+  zltz ← sfp.reconstruct,
+  mk_mapp ``lt_irrefl [option.none, option.none, option.none, some zltz]
+else fail "reconstruct_sum_form requires proof of 0 < 0"
+
 meta def reconstruct : contrad → tactic expr
 | none := fail "cannot reconstruct contr: no contradiction is known"
 | (@eq_diseq lhs rhs ed dd) := reconstruct_eq_diseq ed dd
-| (@ineqs lhs rhs ii id) := reconstruct_ineqs ii id
+| (@ineqs lhs rhs ii id) := reconstruct_ineqs reconstruct ii id
 | (@sign e sd1 sd2) := reconstruct_sign sd1 sd2
 | (@strict_ineq_self e id) := reconstruct_strict_ineq_self id
+| (@sum_form _ sfp) := reconstruct_sum_form sfp
 
 end contrad
+
 
 end polya
 

@@ -52,6 +52,13 @@ match bb.contr with
 | _ := tt
 end
 
+private meta def trace_ineqs : list expr → tactic unit
+| [] := tactic.skip
+| (h::t) := monad.mapm' (λ e, tactic.trace ("exprs", h, e) >> tactic.trace (get_ineqs h e bb)) t >> trace_ineqs t
+
+meta def trace : tactic unit :=
+trace_ineqs bb bb.exprs.keys
+
 end accessors
 
 

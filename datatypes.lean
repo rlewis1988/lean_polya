@@ -1,5 +1,8 @@
 import data.hash_map .rat_additions
 
+meta def rb_set.insert_list {α : Type} (s : rb_set α) (l : list α) : rb_set α :=
+l.foldr (λ a s', s'.insert a) s
+
 instance : has_ordering ℚ :=
 ⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩
 
@@ -16,6 +19,9 @@ name.mk_string s name.anonymous
 
 meta def rb_set.of_list {α} [has_ordering α] (l : list α) : rb_set α :=
 l.foldl (λ s a, s.insert a) mk_rb_set
+
+meta def rb_set.union {α} (s1 s2 : rb_set α) : rb_set α :=
+s1.fold s2 (λ s c, c.insert s)
 
 namespace polya
 
@@ -75,6 +81,15 @@ meta def to_pexpr : comp → pexpr
 | lt := `(has_lt.lt)
 | ge := `(ge)
 | gt := `(gt)
+
+section
+open tactic
+meta def to_function (lhs rhs : expr) : comp → tactic expr
+| lt := to_expr `(%%lhs < %%rhs)
+| le := to_expr `(%%lhs ≤ %%rhs)
+| gt := to_expr `(%%lhs > %%rhs)
+| ge := to_expr `(%%lhs ≥ %%rhs)
+end
 
 meta instance : has_coe comp gen_comp :=
 ⟨to_gen_comp⟩ 
@@ -163,6 +178,44 @@ meta instance : has_to_format gen_comp :=
 ⟨to_format⟩
 
 end gen_comp
+
+inductive spec_comp
+| lt | le | eq
+
+def spec_comp_and_flipped_of_comp : comp → spec_comp × bool
+| comp.lt := (spec_comp.lt, ff)
+| comp.le := (spec_comp.le, ff)
+| comp.gt := (spec_comp.lt, tt)
+| comp.ge := (spec_comp.le, tt)
+
+namespace spec_comp
+
+instance : decidable_eq spec_comp := by tactic.mk_dec_eq_instance
+
+def strongest : spec_comp → spec_comp → spec_comp
+| spec_comp.lt _ := spec_comp.lt
+| _ spec_comp.lt := spec_comp.lt
+| spec_comp.le _ := spec_comp.le
+| _ spec_comp.le := spec_comp.le
+| spec_comp.eq spec_comp.eq := spec_comp.eq
+
+/--
+ This is nonsense on eq
+-/
+def to_comp : spec_comp → comp
+| spec_comp.lt := comp.lt
+| spec_comp.le := comp.le
+| spec_comp.eq := comp.gt
+
+meta def to_format : spec_comp → format
+| spec_comp.lt := "<"
+| spec_comp.le := "≤"
+| spec_comp.eq := "="
+
+meta instance has_to_format : has_to_format spec_comp :=
+⟨spec_comp.to_format⟩
+
+end spec_comp
 
 /--
  This does not represent the traditional slope, but (x/y) if (x, y) is a point on the line
@@ -322,6 +375,7 @@ with eq_proof : expr → expr → ℚ → Type
 | sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)
 | of_opp_ineqs : Π {lhs rhs i}, Π c,
   ineq_proof lhs rhs i → ineq_proof lhs rhs (i.reverse) → eq_proof lhs rhs c
+| adhoc : Π lhs rhs c, tactic expr → eq_proof lhs rhs c
 
 with ineq_proof : expr → expr → ineq → Type
 | hyp : Π lhs rhs i, expr → ineq_proof lhs rhs i
@@ -333,6 +387,7 @@ with ineq_proof : expr → expr → ineq → Type
 | of_ineq_proof_and_sign_rhs : Π {lhs rhs i c},
     ineq_proof lhs rhs i → sign_proof rhs c → ineq_proof lhs rhs (i.strengthen)
 | zero_comp_of_sign_proof : Π {lhs c} rhs i, sign_proof lhs c → ineq_proof lhs rhs i
+| adhoc : Π lhs rhs i, tactic expr → ineq_proof lhs rhs i
 
 with sign_proof : expr → gen_comp → Type
 | hyp  : Π e c, expr → sign_proof e c
@@ -350,6 +405,7 @@ with sign_proof : expr → gen_comp → Type
     eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof rhs c'
 | ineq_of_ineq_and_eq_zero_rhs : Π {lhs rhs i}, Π c, 
     ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
+| adhoc : Π e c, tactic expr → sign_proof e c
 
 
 open ineq_proof
@@ -375,6 +431,26 @@ meta def ineq_data.to_format {lhs rhs} : ineq_data lhs rhs → format
 
 meta instance ineq_data.has_to_format (lhs rhs) : has_to_format (ineq_data lhs rhs) :=
 ⟨ineq_data.to_format⟩
+
+-- TODO
+section
+open tactic
+
+
+-- TODO : add proof argument and move
+meta def ineq.to_type (id : ineq) (lhs rhs : expr) : tactic expr :=
+match id.to_slope with
+| slope.horiz := id.to_comp.to_function rhs ```(0 : ℚ) --, to_expr `(fake_ineq_to_expr_proof %%tp)
+| slope.some m := 
+  do rhs' ← to_expr (if m=0 then `(0 : ℚ) else `(%%(quote m)*%%rhs)),
+     id.to_comp.to_function lhs rhs'
+     --to_expr `(fake_ineq_to_expr_proof %%tp)
+end 
+
+end 
+
+/- meta def ineq_data.to_expr {lhs rhs} (id : ineq_data lhs rhs) : tactic expr :=
+id.inq.to_expr lhs rhs -/
 
 meta structure eq_data (lhs rhs : expr) :=
 (c   : ℚ)
@@ -603,12 +679,152 @@ ii.implies_ineq id.inq
 
 end two_var_ineqs
 
+@[reducible]
+meta def sum_form := rb_map expr ℚ
+
+namespace sum_form
+
+meta def zero : sum_form := rb_map.mk _ _
+meta instance : has_zero sum_form := ⟨sum_form.zero⟩
+
+meta def of_expr (e : expr) : sum_form := 
+mk_rb_map.insert e 1
+
+meta def get_coeff (sf : sum_form) (e : expr) : ℚ :=
+match sf.find e with
+| some q := q
+| none := 0
+end
+
+meta def get_nonzero_factors (sf : sum_form) : list (expr × ℚ) :=
+sf.to_list
+
+meta def add_coeff (sf : sum_form) (e : expr) (c : ℚ) : sum_form :=
+if (sf.get_coeff e) + c = 0 then sf.erase e
+else sf.insert e ((sf.get_coeff e) + c)
+
+meta def add (lhs rhs : sum_form) : sum_form :=
+rhs.fold lhs (λ e q sf, sf.add_coeff e q)
+
+meta def scale (sf : sum_form) (c : ℚ) : sum_form :=
+sf.map (λ q, if q=1/c then 1 else c*q) -- replace this with a real implementation of ℚ
+
+meta def sub (lhs rhs : sum_form) : sum_form :=
+lhs.add (rhs.scale (-1))
+
+meta def negate (lhs : sum_form) : sum_form :=
+lhs.scale (-1)
+
+meta instance : has_add sum_form := ⟨sum_form.add⟩
+meta instance : has_sub sum_form := ⟨sum_form.sub⟩
+
+meta def add_factor (lhs rhs : sum_form) (c : ℚ) : sum_form :=
+lhs + (rhs.scale c)
+
+meta def normalize (sf : sum_form) : sum_form :=
+match rb_map.to_list sf with
+| [] := sf
+| (_, m)::t := if abs m = 1 then sf else sf.scale (abs (1/m))
+end
+
+meta def is_normalized (sd : sum_form) : bool :=
+match rb_map.to_list sd with
+| [] := tt
+| (_, m)::t := abs m = 1
+end
+
+
+end sum_form
+
+meta structure sum_form_comp :=
+(sf : sum_form) (c : spec_comp) 
+
+namespace sum_form_comp
+
+
+meta instance sum_form_comp.has_to_format : has_to_format sum_form_comp :=
+⟨λ sfc, "{" ++ to_fmt (sfc.sf) ++ to_fmt sfc.c ++ "0}"⟩
+
+/--
+ This is only valid for positive m
+-/
+meta def scale (m : ℚ) : sum_form_comp → sum_form_comp
+| ⟨sf, c⟩ := ⟨sf.scale m, c⟩
+
+meta def of_ineq_data {lhs rhs} (id : ineq_data lhs rhs) : sum_form_comp :=
+match id.inq.to_slope, spec_comp_and_flipped_of_comp id.inq.to_comp with
+| slope.horiz, (cmp, flp) := ⟨if flp then (sum_form.of_expr rhs).negate else sum_form.of_expr rhs, cmp⟩
+| slope.some m, (cmp, flp) := 
+   let nsfc := (sum_form.of_expr lhs).add_factor (sum_form.of_expr rhs) (-m) in
+   ⟨if flp then nsfc.negate else nsfc, cmp⟩
+end
+
+meta def of_ineq_proof {lhs rhs id} (ip : ineq_proof lhs rhs id) : sum_form_comp :=
+sum_form_comp.of_ineq_data ⟨_, ip⟩
+
+meta def normalize : sum_form_comp → sum_form_comp
+| ⟨sf, c⟩ := ⟨sf.normalize, c⟩
+
+meta def is_normalized : sum_form_comp → bool
+| ⟨sf, _⟩ := sf.is_normalized
+
+meta def is_contr : sum_form_comp → bool
+| ⟨sf, c⟩ := (c = spec_comp.lt) && (sf.keys.length = 0)
+
+end sum_form_comp
+  
+-- some of these are unused
+meta inductive sum_form_proof : sum_form_comp → Type
+| of_ineq_proof : Π {lhs rhs iq}, Π id : ineq_proof lhs rhs iq,
+    sum_form_proof (sum_form_comp.of_ineq_proof id)
+| of_add_factor_same_comp : Π {lhs rhs c1 c2}, Π m : ℚ, -- assumes m is positive
+  sum_form_proof ⟨lhs, c1⟩ → sum_form_proof ⟨rhs, c2⟩ → sum_form_proof ⟨lhs.add_factor rhs m, spec_comp.strongest c1 c2⟩ 
+| of_scale : Π {sfc}, Π m, sum_form_proof sfc → sum_form_proof (sfc.scale m)
+| fake : Π sd, sum_form_proof sd
+
+meta structure sum_form_comp_data :=
+(sfc : sum_form_comp) (prf : sum_form_proof sfc) (elim_list : rb_set expr)
+
+namespace sum_form_comp_data
+
+meta def of_ineq_data {lhs rhs} (id : ineq_data lhs rhs) : sum_form_comp_data :=
+⟨_, sum_form_proof.of_ineq_proof id.prf, mk_rb_set⟩
+
+meta def vars (sfcd : sum_form_comp_data) : list expr :=
+sfcd.sfc.sf.keys
+
+
+  
+
+meta instance : has_to_format sum_form_comp_data :=
+⟨λ sfcd, to_fmt sfcd.sfc⟩
+
+meta def get_coeff (sfcd : sum_form_comp_data) (e : expr) : ℚ :=
+sfcd.sfc.sf.get_coeff e
+
+
+meta def normalize (sd : sum_form_comp_data) : sum_form_comp_data :=
+match rb_map.to_list sd.sfc.sf with
+| [] := sd
+| (_, m)::t := if abs m = 1 then sd else ⟨_, sum_form_proof.of_scale (abs (1/m)) sd.prf, sd.elim_list⟩
+end
+
+meta def is_normalized : sum_form_comp_data → bool
+| ⟨sfc, _, _⟩ := sfc.is_normalized
+
+
+meta def is_contr : sum_form_comp_data → bool
+| ⟨sfc, _, _⟩ := sfc.is_contr
+
+end sum_form_comp_data
+
 meta inductive contrad
 | none : contrad
 | eq_diseq : Π {lhs rhs}, eq_data lhs rhs → diseq_data lhs rhs → contrad
 | ineqs : Π {lhs rhs}, ineq_info lhs rhs → ineq_data lhs rhs → contrad
 | sign : Π {e}, sign_data e → sign_data e → contrad
 | strict_ineq_self : Π {e}, ineq_data e e → contrad
+| sum_form : Π {sfc}, sum_form_proof sfc → contrad
 
 meta def contrad.to_format : contrad → format
 | contrad.none := "no contradiction"
@@ -616,6 +832,7 @@ meta def contrad.to_format : contrad → format
 | (@contrad.ineqs lhs rhs _ _) := "ineqs"
 | (@contrad.sign e _ _) := "sign"
 | (@contrad.strict_ineq_self e _) := "strict_ineq_self"
+| (@contrad.sum_form _ sfcd) := "sum_form"
 
 meta instance contrad.has_to_format : has_to_format contrad :=
 ⟨contrad.to_format⟩

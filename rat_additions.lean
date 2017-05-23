@@ -9,7 +9,7 @@ meta instance : has_quote ℤ :=
 meta def num_denum_format : rat.num_denum → format
 | (num, ⟨denum, _⟩) := 
 if num = 0 then "0"
-else if denum = 1 then to_fmt num
+--else if denum = 1 then to_fmt num
 else to_fmt num ++ "/" ++ to_fmt denum
 
 meta def num_denum_quote : rat.num_denum → pexpr

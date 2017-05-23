@@ -1,4 +1,4 @@
-import .datatypes .blackboard
+import .blackboard .proof_reconstruction .sum_form
 open polya tactic
 
 meta def expr_to_ineq : expr → tactic (expr × expr × ineq)
@@ -48,8 +48,9 @@ meta def add_comp_to_blackboard' (e : parse qexpr) (b : blackboard) : tactic bla
 do e' ← i_to_expr e, add_comp_to_blackboard e' b
 end
 
-variables x y : ℚ
-include x y
+
+variables x z y : ℚ
+include x y z
 
 example : true :=
 begin
@@ -68,6 +69,55 @@ test_ineqs_imply (x < 1*y) (x ≥ 2*y) (x > 0*y) ff,
 test_ineqs_imply (x < 1*y) (x ≥ 2*y) (x > 1*y) ff,
 triv
 end
+
+-- add_new_ineqs not quite right
+set_option trace.app_builder true
+
+
+example (e1 : x < 1*y) (e2 : y ≤ 2*z) (e3 : x > 2*z) : true := by do
+x ← get_local `x, y ← get_local `y, z ← get_local `z, 
+e1' ← get_local `e1,
+e2' ← get_local `e2,
+e3' ← get_local `e3,
+e1 ← infer_type e1',
+e2 ← infer_type e2',
+e3 ← infer_type e3',
+(_, _, ie1) ← expr_to_ineq e1,
+(_, _, ie2) ← expr_to_ineq e2,
+(_, _, ie3) ← expr_to_ineq e3,
+id1 ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e1'),
+id2 ← return $ ineq_data.mk ie2 (ineq_proof.hyp y z _ e2'),
+id3 ← return $ ineq_data.mk ie3 (ineq_proof.hyp x z _ e3'),
+bb ← return blackboard.mk_empty,
+(_, bb) ← return $ add_ineq id1 bb,
+(_, bb) ← return $ add_ineq id2 bb,
+trace $ bb.contr_found,
+(ii, _) ← return $ get_ineqs x y bb,
+trace ("implies", ii.implies_ineq id3.inq),
+(_, bb) ← return $ add_ineq id3 bb,
+trace $ ("contr found", bb.contr_found),
+(_, bb) ← return $ add_new_ineqs bb,
+bb.trace,
+trace $ ("contr found", bb.contr_found),
+bb.contr.reconstruct >>= trace,
+triv
+
+example : true := by do
+x ← get_local `x, y ← get_local `y, z ← get_local `z,
+e1 ← to_expr `(x < 1*y),
+e2 ← to_expr `(y ≤ 2*z),
+e3 ← to_expr `(x > 2*z),
+(_, _, ie1) ← expr_to_ineq e1,
+(_, _, ie2) ← expr_to_ineq e2,
+(_, _, ie3) ← expr_to_ineq e3,
+id1 ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e1),
+id2 ← return $ ineq_data.mk ie2 (ineq_proof.hyp y z _ e1),
+id3 ← return $ ineq_data.mk ie3 (ineq_proof.hyp x z _ e1),
+let sfcd1 : sum_form_comp_data := ⟨sum_form_comp.of_ineq_data id1, sum_form_proof.fake _, mk_rb_map⟩ in
+let sfcd2 : sum_form_comp_data := ⟨sum_form_comp.of_ineq_data id2, sum_form_proof.fake _, mk_rb_map⟩ in
+let sfcd3 : sum_form_comp_data := ⟨sum_form_comp.of_ineq_data id3, sum_form_proof.fake _, mk_rb_map⟩ in do
+trace $ elim_list [sfcd1, sfcd2],
+triv
 
 example : true := by do
 x ← get_local `x, y ← get_local `y,
