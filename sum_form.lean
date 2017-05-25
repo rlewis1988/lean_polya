@@ -1,4 +1,4 @@
-import .datatypes .struct_eta .blackboard .proof_reconstruction
+import .datatypes .struct_eta .blackboard  --.proof_reconstruction
 
 -- TODO: maybe more of this can move to datatypes
 
@@ -7,19 +7,19 @@ namespace polya
 
 section sfcd_to_ineq
 
-theorem fake_ineq_to_expr_proof (P : Prop) {Q : Prop} (h : Q) : P := sorry
+/-theorem fake_ineq_to_expr_proof (P : Prop) {Q : Prop} (h : Q) : P := sorry
 
 meta def ineq.to_expr (lhs rhs : expr) (id : ineq) {s} (pf : sum_form_proof s) : tactic expr :=
 do tp ← id.to_type lhs rhs,
    prf ← pf.reconstruct,
-   tactic.mk_app ``fake_ineq_to_expr_proof [tp, prf]
+   tactic.mk_app ``fake_ineq_to_expr_proof [tp, prf]-/
 
  -- assumes lhs < rhs as exprs. cl*lhs + cr*rhs R 0 ==> ineq_data
 private meta def mk_ineq_data_of_lhs_rhs (lhs rhs : expr) (cl cr : ℚ) (c : comp) {s} (pf : sum_form_proof s) :
         Σ l r, ineq_data l r :=
 let c' := if cl > 0 then c else c.reverse,
     iq := ineq.of_comp_and_slope (c') (slope.some (-cr/cl)) in
-⟨lhs, rhs, ⟨iq, ineq_proof.adhoc _ _ _ (iq.to_expr lhs rhs pf)⟩⟩ -- TODO
+⟨lhs, rhs, ⟨iq, ineq_proof.of_sum_form_proof lhs rhs iq pf⟩⟩ --_ _ _ (iq.to_expr lhs rhs pf)⟩⟩ -- TODO
 --⟨lhs, rhs, ⟨iq, ineq_proof.hyp _ _ _ ```(0)⟩⟩ -- TODO
 
 /--- assumes lhs < rhs as exprs. cl*lhs + cr*rhs R 0 ==> ineq_data

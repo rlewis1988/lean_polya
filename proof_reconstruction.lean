@@ -1,241 +1,7 @@
-import .datatypes --.sum_form
+import .datatypes .sum_form .reconstruction_theorems
 namespace polya
 
-section arith_thms
 
-theorem diseq_sym {lhs rhs c : ℚ} (hc : c ≠ 0) (h : lhs ≠ c*rhs) : rhs ≠ (1/c) * lhs := 
-sorry
-
-theorem eq_sym {lhs rhs c : ℚ} (hc : c ≠ 0) (h : lhs = c*rhs) : rhs = (1/c) * lhs :=
-sorry
-
-section ineq_sym
-variables {lhs rhs c : ℚ}
-theorem ineq_sym_le_pos (hc : c > 0) (h : lhs ≤ c*rhs) : rhs ≥ (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_lt_pos (hc : c > 0) (h : lhs < c*rhs) : rhs > (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_ge_pos (hc : c > 0) (h : lhs ≥ c*rhs) : rhs ≤ (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_gt_pos (hc : c > 0) (h : lhs > c*rhs) : rhs < (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_le_neg (hc : c < 0) (h : lhs ≤ c*rhs) : rhs ≤ (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_lt_neg (hc : c < 0) (h : lhs < c*rhs) : rhs < (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_ge_neg (hc : c < 0) (h : lhs ≥ c*rhs) : rhs ≥ (1/c) * lhs := 
-sorry
-
-theorem ineq_sym_gt_neg (hc : c < 0) (h : lhs > c*rhs) : rhs > (1/c) * lhs := 
-sorry
-
-meta def name_of_comp_pos : comp → name
-| comp.le := ``ineq_sym_le_pos
-| comp.lt := ``ineq_sym_lt_pos
-| comp.ge := ``ineq_sym_ge_pos
-| comp.gt := ``ineq_sym_gt_pos
-
-meta def name_of_comp_neg : comp → name
-| comp.le := ``ineq_sym_le_neg
-| comp.lt := ``ineq_sym_lt_neg
-| comp.ge := ``ineq_sym_ge_neg
-| comp.gt := ``ineq_sym_gt_neg
-
-meta def name_of_c_and_comp (c : ℚ) (cmp : comp) : name :=
-if c ≥ 0 then name_of_comp_pos cmp else name_of_comp_neg cmp
-
-end ineq_sym
-
-theorem ineq_diseq_le {lhs rhs c : ℚ} (hc : lhs ≠ c*rhs) (h : lhs ≤ c*rhs) : lhs < c*rhs :=
-or.elim (lt_or_eq_of_le h) (id) (λ hp, absurd hp hc)
-
-theorem ineq_diseq_ge {lhs rhs c : ℚ} (hc : lhs ≠ c*rhs) (h : lhs ≥ c*rhs) : lhs > c*rhs :=
-or.elim (lt_or_eq_of_le h) (id) (λ hp, absurd (eq.symm hp) hc)
-
-theorem ineq_diseq_sign_lhs_le {lhs rhs : ℚ} (hc : lhs ≠ 0) (h : lhs ≤ 0*rhs) : lhs < 0*rhs :=
-sorry
-
-theorem ineq_diseq_sign_lhs_ge {lhs rhs : ℚ} (hc : lhs ≠ 0) (h : lhs ≥ 0*rhs) : lhs > 0*rhs :=
-sorry
-
-theorem ineq_diseq_sign_rhs_le {rhs : ℚ} (hc : rhs ≠ 0) (h : rhs ≤ 0) : rhs < 0 :=
-sorry
-
-theorem ineq_diseq_sign_rhs_ge {rhs : ℚ} (hc : rhs > 0) (h : rhs ≥ 0) : rhs < 0 :=
-sorry
-
-theorem op_ineq {lhs rhs c : ℚ} (h1 : lhs ≤ c*rhs) (h2 : lhs ≥ c*rhs) : lhs = rhs :=
-sorry
-
-section
-variables {lhs : ℚ} (rhs : ℚ)
-theorem zero_mul_le (h : lhs ≤ 0) : lhs ≤ 0*rhs := by rw zero_mul; assumption
-theorem zero_mul_lt (h : lhs < 0) : lhs < 0*rhs := by rw zero_mul; assumption
-theorem zero_mul_ge (h : lhs ≥ 0) : lhs ≥ 0*rhs := by rw zero_mul; assumption
-theorem zero_mul_gt (h : lhs > 0) : lhs > 0*rhs := by rw zero_mul; assumption
-
-meta def zero_mul_name_of_comp : comp → name
-| comp.le := ``zero_mul_le
-| comp.lt := ``zero_mul_lt
-| comp.ge := ``zero_mul_ge
-| comp.gt := ``zero_mul_gt
-
-variable {rhs}
-theorem zero_mul_le' (h : lhs ≤ 0*rhs) : lhs ≤ 0 := by rw -(zero_mul rhs); assumption
-theorem zero_mul_lt' (h : lhs < 0*rhs) : lhs < 0 := by rw -(zero_mul rhs); assumption
-theorem zero_mul_ge' (h : lhs ≥ 0*rhs) : lhs ≥ 0 := by rw -(zero_mul rhs); assumption
-theorem zero_mul_gt' (h : lhs > 0*rhs) : lhs > 0 := by rw -(zero_mul rhs); assumption
-
-
-meta def zero_mul'_name_of_comp : comp → name
-| comp.le := ``zero_mul_le'
-| comp.lt := ``zero_mul_lt'
-| comp.ge := ``zero_mul_ge'
-| comp.gt := ``zero_mul_gt'
-
-end
-
-theorem eq_zero_of_eq_mul_zero {lhs rhs : ℚ} (h : lhs = 0*rhs) : lhs = 0 :=
-by rw -(zero_mul rhs); assumption
-
-theorem ne_zero_of_ne_mul_zero {lhs rhs : ℚ} (h : lhs ≠ 0*rhs) : lhs ≠ 0 :=
-by rw -(zero_mul rhs); assumption
-
-theorem eq_zero_of_two_eqs_rhs {lhs rhs c1 c2 : ℚ} (h : lhs = c1*rhs) (h2 : lhs = c2*rhs) (hc : c1 ≠ c2) : rhs = 0 :=
-begin
- rw h at h2,
- note h3 := sub_eq_zero_of_eq h2,
- rw -sub_mul at h3,
- cases eq_zero_or_eq_zero_of_mul_eq_zero h3,
- apply absurd (eq_of_sub_eq_zero a) hc,
- assumption
-end
-
-theorem eq_zero_of_two_eqs_lhs {lhs rhs c1 c2 : ℚ} (h : lhs = c1*rhs) (h2 : lhs = c2*rhs) (hc : c1 ≠ c2) : lhs = 0 :=
-have hr : rhs = 0, from eq_zero_of_two_eqs_rhs h h2 hc,
-begin rw hr at h, rw mul_zero at h, assumption end
-
-section
-variables {lhs rhs c : ℚ} (h : lhs = 0)
-include h
-
-/-
-PUT THEOREMS FOR ineq_of_ineq_and_eq_zero_rhs here
--/
-
-end
-
-section
-variables {lhs rhs c d : ℚ} (h : lhs = d*rhs)
-include h
-
--- there are 16 possibilities here!
-theorem sub_le_zero_of_le {a b : ℚ} (h : a ≤ b) : a - b ≤ 0 := sorry
-theorem sub_lt_zero_of_lt {a b : ℚ} (h : a < b) : a - b < 0 := sorry
-theorem sub_ge_zero_of_ge {a b : ℚ} (h : a ≥ b) : a - b ≥ 0 := sorry
-theorem sub_gt_zero_of_gt {a b : ℚ} (h : a > b) : a - b > 0 := sorry
-
-theorem le_gt_rhs (h1 : lhs ≤ c*rhs) (h2 : d - c > 0) : rhs ≤ 0 :=
-have d*rhs ≤ c*rhs, by rw -h; assumption,
-have d*rhs - c*rhs ≤ 0, from sub_le_zero_of_le this,
-have (d - c)*rhs ≤ 0, by rw sub_mul; assumption,
-show rhs ≤ 0, from nonpos_of_mul_nonpos_left this h2
-
-theorem lt_gt_rhs (h1 : lhs < c*rhs) (h2 : d - c > 0) : rhs < 0 :=
-have d*rhs < c*rhs, by rw -h; assumption,
-have d*rhs - c*rhs < 0, from sub_lt_zero_of_lt this,
-have (d - c)*rhs < 0, by rw sub_mul; assumption,
-show rhs < 0, from neg_of_mul_neg_left this (le_of_lt h2)
-
-theorem ge_gt_rhs (h1 : lhs ≥ c*rhs) (h2 : d - c > 0) : rhs ≥ 0 :=
-have d*rhs ≥ c*rhs, by rw -h; assumption,
-have d*rhs - c*rhs ≥ 0, from sub_ge_zero_of_ge this,
-have (d - c)*rhs ≥ 0, by rw sub_mul; assumption,
-show rhs ≥ 0, from nonneg_of_mul_nonneg_left this h2
-
-theorem gt_gt_rhs (h1 : lhs > c*rhs) (h2 : d - c > 0) : rhs > 0 :=
-have d*rhs > c*rhs, by rw -h; assumption,
-have d*rhs - c*rhs > 0, from sub_gt_zero_of_gt this,
-have (d - c)*rhs > 0, by rw sub_mul; assumption,
-show rhs > 0, from pos_of_mul_pos_left this (le_of_lt h2)
-
-omit h
-theorem sub_lt_of_lt (h1 : lhs < c*rhs) : 1*lhs + (-c)*rhs < 0 :=
-begin
- simp,
- apply sub_neg_of_lt,
- rw mul_comm, assumption
-end
-
-theorem sub_le_of_le (h1 : lhs ≤ c*rhs) : 1*lhs + (-c)*rhs ≤ 0 :=
-begin
- simp,
- apply sub_nonpos_of_le,
- rw mul_comm, assumption
-end
-
-theorem sub_lt_of_gt (h1 : lhs > c*rhs) : (-1)*lhs + c*rhs < 0 :=
-begin
- rw [add_comm, -neg_mul_eq_neg_mul, one_mul],
- apply sub_neg_of_lt,
- assumption
-end
-
-theorem sub_le_of_ge (h1 : lhs ≥ c*rhs) : (-1)*lhs + c*rhs ≤ 0 :=
-begin
- rw [add_comm, -neg_mul_eq_neg_mul, one_mul],
- apply sub_nonpos_of_le,
- assumption
-end
-
-
-theorem mul_lt_of_gt (h1 : lhs > 0) : (-1)*lhs < 0 :=
-by simp; apply neg_neg_of_pos h1
-
-theorem mul_le_of_ge (h1 : lhs ≥ 0) : (-1)*lhs ≤ 0 :=
-by simp; apply neg_nonpos_of_nonneg h1
-
-theorem mul_lt_of_lt (h1 : lhs < 0) : 1*lhs < 0 :=
-by simp; assumption
-
-theorem mul_le_of_le (h1 : lhs ≤ 0) : 1*lhs ≤ 0 :=
-by simp; assumption
-
-end
-
-
-meta def sum_form_name_of_comp_single : comp → name
-| comp.lt := ``mul_lt_of_lt
-| comp.le := ``mul_le_of_le
-| comp.gt := ``mul_lt_of_gt
-| comp.ge := ``mul_le_of_ge
-
-meta def sum_form_name_of_comp : comp → name
-| comp.lt := ``sub_lt_of_lt
-| comp.le := ``sub_le_of_le
-| comp.gt := ``sub_lt_of_gt
-| comp.ge := ``sub_le_of_ge
-
-theorem gt_self_contr {e : ℚ} (h : e > 1*e) : false :=
-begin apply lt_irrefl, rw one_mul at h, assumption end
-
-theorem lt_self_contr {e : ℚ} (h : e < 1*e) : false :=
-begin apply lt_irrefl, rw one_mul at h, assumption end
-
-theorem le_gt_contr {e : ℚ} (h1 : e ≤ 0) (h2 : e > 0) : false :=
-not_le_of_gt h2 h1
-
-theorem ge_lt_contr {e : ℚ} (h1 : e ≥ 0) (h2 : e < 0) : false :=
-not_le_of_gt h2 h1
-
-
-end arith_thms
 
 open expr tactic diseq_proof
 
@@ -310,10 +76,28 @@ do guard (bnot i.strict),
    else
      mk_mapp ``op_ineq [none, none, none, some pr2, some pr1]
 
-meta def reconstruct_aux : Π {lhs rhs : expr} {c : ℚ}, eq_proof lhs rhs c → tactic expr
+private theorem eq_sub_of_add_eq_facs {c1 c2 e1 e2 : ℚ} (hc1 : c1 ≠ 0) (h : c1 * e1 + c2 * e2 = 0) : e1 = -(c2/c1) * e2 :=
+sorry
+
+
+private meta def reconstruct_of_sum_form_proof (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) : expr → expr → ℚ → Π {sf},
+       Π (sp : sum_form_proof ⟨sf, spec_comp.eq⟩), tactic expr | lhs rhs c sf sp :=
+if rhs.lt lhs then 
+  reconstruct_of_sum_form_proof rhs lhs (1/c) sp
+else do
+  guard $ (sf.contains lhs) && (sf.contains rhs),
+  let a := sf.get_coeff lhs in let b := sf.get_coeff rhs in do
+  guard $ c = -(b/a),
+  pf ← sfpr sp,
+  nez ← mk_ne_zero_pf a,
+  mk_app ``eq_sub_of_add_eq_facs [nez, pf] 
+--  fail "eq_proof.reconstruct_of_sum_proof not implemented yet"
+
+meta def reconstruct_aux (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) : Π {lhs rhs : expr} {c : ℚ}, eq_proof lhs rhs c → tactic expr
 | .(_) .(_) .(_) (hyp (lhs) (rhs) (c) e) := reconstruct_hyp lhs rhs c e
 | .(_) .(_) .(_) (@sym lhs rhs c dp) := reconstruct_sym @reconstruct_aux dp
 | .(_) .(_) .(_) (@of_opp_ineqs lhs rhs i c iep iepr) := reconstruct_of_opp_ineqs_aux @iepr_fn c iep iepr
+| .(_) .(_) .(_) (@of_sum_form_proof lhs rhs c _ sp) := reconstruct_of_sum_form_proof @sfpr lhs rhs c sp
 | .(_) .(_) .(_) (adhoc _ _ _ t) := t
 
 end eq_proof
@@ -351,7 +135,8 @@ match iq.to_slope with
 | slope.horiz  := fail "reconstruct_sym failed on horiz slope"
 | slope.some m := 
   do symp ← rc ip, sgnp ← mk_sign_pf m,
-     mk_mapp (name_of_c_and_comp m iq.to_comp) [none, none, none, some sgnp, some symp]
+     --mk_mapp (name_of_c_and_comp m iq.to_comp) [none, none, none, some sgnp, some symp]
+     mk_app (if m < 0 then ``sym_op_neg else ``sym_op_pos) [sgnp, symp]
 end
 
 -- x ≥ 2y and x ≠ 2y implies x > 2y
@@ -402,13 +187,53 @@ else do spp ← rcs sp, mk_app (zero_mul_name_of_comp iq.to_comp) [rhs, spp]
 
 end
 
-meta def reconstruct_aux (rcs : Π {e gc}, sign_proof e gc → tactic expr) :  Π {lhs rhs : expr} {iq : ineq}, ineq_proof lhs rhs iq → tactic expr
+/-
+private theorem eq_sub_of_add_eq_facs {c1 c2 e1 e2 : ℚ} (hc1 : c1 ≠ 0) (h : c1 * e1 + c2 * e2 = 0) : e1 = -(c2/c1) * e2 :=
+sorry
+
+
+private meta def reconstruct_of_sum_form_proof (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) : expr → expr → ℚ → Π {sf},
+       Π (sp : sum_form_proof ⟨sf, spec_comp.eq⟩), tactic expr | lhs rhs c sf sp :=
+if rhs.lt lhs then 
+  reconstruct_of_sum_form_proof rhs lhs (1/c) sp
+else do
+  guard $ (sf.contains lhs) && (sf.contains rhs),
+  let a := sf.get_coeff lhs in let b := sf.get_coeff rhs in do
+  guard $ c = -(b/a),
+  pf ← sfpr sp,
+  nez ← mk_ne_zero_pf a,
+  mk_app ``eq_sub_of_add_eq_facs [nez, pf] 
+-/
+
+-- TODO
+
+private meta def reconstruct_of_sum_form_proof  (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) :
+        expr → expr → ineq → Π {sfc}, sum_form_proof sfc → tactic expr | lhs rhs i sfc sp :=
+if rhs.lt lhs then
+  reconstruct_of_sum_form_proof rhs lhs i.reverse sp
+else match i.to_slope with
+| slope.some m := do
+  guard $ (sfc.sf.contains lhs) && (sfc.sf.contains rhs),
+  guard $ sfc.sf.keys.length = 2,
+  let a := sfc.sf.get_coeff lhs in let b := sfc.sf.get_coeff rhs in do
+  guard $ m = -(b/a),
+  guard $ if a < 0 then sfc.c.to_comp = i.to_comp.reverse else sfc.c.to_comp = i.to_comp,
+  rhs' ← to_expr `(%%(quote m) * %%rhs),
+  tp ← i.to_comp.to_function lhs rhs',
+  to_expr `(sorry : %%tp)
+--  fail "ineq_proof.reconstruct_of_sum_proof not implemented yet"
+| slope.horiz := fail "ineq_proof.reconstruct_of_sum_proof failed, cannot turn a sum into a horiz slope"
+end
+
+meta def reconstruct_aux (rcs : Π {e gc}, sign_proof e gc → tactic expr) (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) :
+     Π {lhs rhs : expr} {iq : ineq}, ineq_proof lhs rhs iq → tactic expr
 | .(_) .(_) .(_) (hyp (lhs) (rhs) (iq) e) := reconstruct_hyp lhs rhs iq e
 | .(_) .(_) .(_) (@sym lhs rhs c ip) := reconstruct_sym @reconstruct_aux ip
 | .(_) .(_) .(_) (@of_ineq_proof_and_diseq lhs rhs iq c ip dp) := reconstruct_ineq_diseq @reconstruct_aux ip dp
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_lhs lhs rhs iq c ip sp) := reconstruct_ineq_sign_lhs @reconstruct_aux @rcs ip sp
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_rhs lhs rhs iq c ip sp) := reconstruct_ineq_sign_rhs @reconstruct_aux @rcs ip sp
 | .(_) .(_) .(_) (@zero_comp_of_sign_proof lhs c rhs iq sp) := reconstruct_zero_comp_of_sign @rcs rhs iq sp
+| .(_) .(_) .(_) (@of_sum_form_proof lhs rhs i _ sp) := reconstruct_of_sum_form_proof @sfpr lhs rhs i sp
 | .(_) .(_) .(_) (adhoc _ _ _ t) := t
 
 end ineq_proof
@@ -427,8 +252,9 @@ end in do tp ← infer_type pf, to_expr pex >>= unify tp >> return pf
 
 section
 parameter rc : Π {e c}, sign_proof e c → tactic expr
-private meta def rci := @ineq_proof.reconstruct_aux @rc
-private meta def rce := @eq_proof.reconstruct_aux @rci
+parameter sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr
+private meta def rci := @ineq_proof.reconstruct_aux @rc @sfpr
+private meta def rce := @eq_proof.reconstruct_aux @rci @sfpr
 
 -- x ≤ 0*y to x ≤ 0
 private meta def reconstruct_ineq_lhs (c : gen_comp) {lhs rhs iqp} (ip : ineq_proof lhs rhs iqp) : tactic expr :=
@@ -470,38 +296,59 @@ fail "reconstruct_ineq_of_ineq_and_eq_zero not implemented"
 
 end
 
-meta def reconstruct : Π {e c}, sign_proof e c → tactic expr
+-- TODO
+private meta def reconstruct_of_sum_form_proof (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) (e : expr) (c : gen_comp) {sfc}
+        (sp : sum_form_proof sfc) : tactic expr :=
+fail "sign_proof.reconstruct_of_sum_form_proof failed, not implemented yet"
+
+meta def reconstruct_aux (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) : Π {e c}, sign_proof e c → tactic expr
 | .(_) .(_) (hyp e c pf) := reconstruct_hyp e c pf
-| .(_) .(_) (@ineq_lhs c _ _ _ ip) := reconstruct_ineq_lhs @reconstruct c ip
-| .(_) .(_) (@ineq_rhs c _ _ _ ip) := reconstruct_ineq_rhs @reconstruct c ip
-| .(_) .(_) (@eq_of_two_eqs_lhs _ _ _ _ ep1 ep2) := reconstruct_eq_of_two_eqs_lhs @reconstruct ep1 ep2
-| .(_) .(_) (@eq_of_two_eqs_rhs _ _ _ _ ep1 ep2) := reconstruct_eq_of_two_eqs_rhs @reconstruct ep1 ep2
+| .(_) .(_) (@ineq_lhs c _ _ _ ip) := reconstruct_ineq_lhs @reconstruct_aux @sfpr c ip
+| .(_) .(_) (@ineq_rhs c _ _ _ ip) := reconstruct_ineq_rhs @reconstruct_aux @sfpr c ip
+| .(_) .(_) (@eq_of_two_eqs_lhs _ _ _ _ ep1 ep2) := reconstruct_eq_of_two_eqs_lhs @reconstruct_aux @sfpr ep1 ep2
+| .(_) .(_) (@eq_of_two_eqs_rhs _ _ _ _ ep1 ep2) := reconstruct_eq_of_two_eqs_rhs @reconstruct_aux @sfpr ep1 ep2
 | .(_) .(_) (@diseq_of_diseq_zero _ _ dp) := reconstruct_diseq_of_diseq_zero dp
-| .(_) .(_) (@eq_of_eq_zero _ _ ep) := reconstruct_eq_of_eq_zero @reconstruct ep
+| .(_) .(_) (@eq_of_eq_zero _ _ ep) := reconstruct_eq_of_eq_zero @reconstruct_aux @sfpr ep
 | .(_) .(_) (@ineq_of_eq_and_ineq_lhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_lhs c' ep ip
 | .(_) .(_) (@ineq_of_eq_and_ineq_rhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_rhs c' ep ip
 | .(_) .(_) (@ineq_of_ineq_and_eq_zero_rhs _ _ _ c ip sp) := reconstruct_ineq_of_ineq_and_eq_zero_rhs c ip sp
+| .(_) .(_) (@of_sum_form_proof e c _ sp) := reconstruct_of_sum_form_proof @sfpr e c sp
 | .(_) .(_) (adhoc _ _ t) := t
 
 end sign_proof
 
-meta def ineq_proof.reconstruct := @ineq_proof.reconstruct_aux @sign_proof.reconstruct
-
-meta def eq_proof.reconstruct := @eq_proof.reconstruct_aux @ineq_proof.reconstruct
 
 namespace sum_form_proof
+section  
+parameter sfrc : Π {sfc}, sum_form_proof sfc → tactic expr
+private meta def sprc := @sign_proof.reconstruct_aux @sfrc
+private meta def iprc := @ineq_proof.reconstruct_aux @sprc @sfrc
+private meta def eprc := @eq_proof.reconstruct_aux @iprc @sfrc
 
 -- assumes lhs < rhs
-private meta def reconstruct_of_ineq_proof : Π {lhs rhs iq}, ineq_proof lhs rhs iq → tactic expr | lhs rhs iq ip :=
+private meta def reconstruct_of_ineq_proof  : 
+        Π {lhs rhs iq}, ineq_proof lhs rhs iq → tactic expr | lhs rhs iq ip :=
 if expr.lt rhs lhs then reconstruct_of_ineq_proof ip.sym else 
 match iq.to_slope with
 | slope.horiz := 
-  do ipp ← ip.reconstruct,
+  do ipp ← iprc ip,
      tactic.mk_app (sum_form_name_of_comp_single iq.to_comp) [ipp]
 | slope.some m := 
-  do ipp ← ip.reconstruct, trace ("ipp", ip, ipp), infer_type ipp >>= trace,
+  do ipp ← iprc ip, trace ("ipp", ip, ipp), infer_type ipp >>= trace,
      tactic.mk_app ((if m = 0 then sum_form_name_of_comp_single else sum_form_name_of_comp) iq.to_comp) [ipp]
 end
+
+include sfrc
+-- TODO
+private meta def reconstruct_of_eq_proof  : 
+        Π {lhs rhs c}, eq_proof lhs rhs c → tactic expr | lhs rhs c ep :=
+fail "sum_form_proof.reconstruct_of_eq_proof not implemented yet"
+
+-- TODO
+private meta def reconstruct_of_sign_proof :
+        Π {e c}, sign_proof e c → tactic expr | e c sp :=
+fail "sum_form_proof.reconstruct_of_sign_proof not implemented yet"
+omit sfrc 
 
 meta def expr_coeff_list_to_expr : list (expr × ℚ) → tactic expr
 | [] := to_expr `(0 : ℚ)
@@ -516,17 +363,17 @@ expr_coeff_list_to_expr sf.to_list
 -- TODO
 private theorem reconstruct_of_add_factor_aux (P : Prop) {Q R : Prop} (h : Q) (h2 : R) : P := sorry
 
-private meta def reconstruct_of_add_factor_same_comp (rct : Π {sfc}, sum_form_proof sfc → tactic expr) {lhs rhs c1 c2} (m : ℚ) 
+private meta def reconstruct_of_add_factor_same_comp {lhs rhs c1 c2} (m : ℚ) 
         (sfpl : sum_form_proof ⟨lhs, c1⟩) (sfpr : sum_form_proof ⟨rhs, c2⟩) : tactic expr :=
 let sum := lhs + rhs.scale m in
 do tp ← sum_form.to_expr sum,
    tp' ← (spec_comp.strongest c1 c2).to_comp.to_function tp ```(0 : ℚ),
-   pf1 ← rct sfpl, pf2 ← rct sfpr,
+   pf1 ← sfrc sfpl, pf2 ← sfrc sfpr,
    mk_mapp ``reconstruct_of_add_factor_aux [some tp', none, none, some pf1, some pf2] --to_expr `(sorry : %%tp)    
 --fail "reconstruct_of_add_factor_same_comp failed, not implemented yet"
 
 private theorem reconstruct_of_scale_aux (P : Prop) {Q : Prop} (h : Q) : P := sorry
---TODO
+
 private meta def reconstruct_of_scale (rct : Π {sfc}, sum_form_proof sfc → tactic expr) 
         {sfc} (m : ℚ) (sfp : sum_form_proof sfc) : tactic expr :=
 do tp ← sum_form.to_expr (sfc.sf.scale m),
@@ -534,22 +381,19 @@ do tp ← sum_form.to_expr (sfc.sf.scale m),
    pf ← rct sfp,
    mk_app ``reconstruct_of_scale_aux [tp', pf] -- to_expr `(sorry : %%tp')
    
---fail "reconstruct_of_scale failed, not implemented yet"
+end 
 
--- commented for now, fake one below 
 meta def reconstruct : Π {sfc}, sum_form_proof sfc → tactic expr
-| .(_) (@of_ineq_proof _ _ _ ip) := reconstruct_of_ineq_proof ip
-| .(_) (@of_add_factor_same_comp _ _ _ _ m sfpl sfpr) := reconstruct_of_add_factor_same_comp @reconstruct m sfpl sfpr
+| .(_) (@of_ineq_proof _ _ _ ip) := reconstruct_of_ineq_proof @reconstruct ip
+| .(_) (@of_eq_proof _ _ _ ep) := reconstruct_of_eq_proof @reconstruct ep
+| .(_) (@of_sign_proof _ _ sp) := reconstruct_of_sign_proof @reconstruct sp
+| .(_) (@of_add_factor_same_comp _ _ _ _ m sfpl sfpr) := 
+  reconstruct_of_add_factor_same_comp @reconstruct m sfpl sfpr 
 | .(_) (@of_scale _ m sfp) := reconstruct_of_scale @reconstruct m sfp
 | .(_) (@fake sd) := fail "cannot reconstruct a fake proof"
 
 
-meta def ineq_data.to_expr {lhs rhs} (id : ineq_data lhs rhs) : tactic expr :=
-match id.inq.to_slope with
-| slope.horiz := id.inq.to_comp.to_function rhs ```(0 : ℚ)
-| slope.some m := if m = 0 then id.inq.to_comp.to_function lhs ```(0 : ℚ)
-                  else do rhs' ← to_expr `(%%(quote m)*%%rhs), id.inq.to_comp.to_function lhs rhs'
-end
+
 
 /-meta def reconstruct : Π {sfc}, sum_form_proof sfc → tactic expr | sfc sfp :=
 if sfc.sf.keys.length = 0 then do
@@ -562,6 +406,19 @@ match sfcd.to_ineq_data with
 end-/
 
 end sum_form_proof
+
+
+meta def sign_proof.reconstruct := @sign_proof.reconstruct_aux @sum_form_proof.reconstruct
+meta def ineq_proof.reconstruct := @ineq_proof.reconstruct_aux @sign_proof.reconstruct @sum_form_proof.reconstruct
+meta def eq_proof.reconstruct := @eq_proof.reconstruct_aux @ineq_proof.reconstruct @sum_form_proof.reconstruct
+
+
+meta def ineq_data.to_expr {lhs rhs} (id : ineq_data lhs rhs) : tactic expr :=
+match id.inq.to_slope with
+| slope.horiz := id.inq.to_comp.to_function rhs ```(0 : ℚ)
+| slope.some m := if m = 0 then id.inq.to_comp.to_function lhs ```(0 : ℚ)
+                  else do rhs' ← to_expr `(%%(quote m)*%%rhs), id.inq.to_comp.to_function lhs rhs'
+end
 
 namespace contrad
 
@@ -695,7 +552,7 @@ run_cmd reconstruct (sym ip3) >>= infer_type >>= trace
 
 meta def ip4 : ineq_proof _ _ _ := of_ineq_proof_and_diseq ip dp
 
-run_cmd reconstruct ip4 >>= infer_type >>= trace
+--run_cmd reconstruct ip4 >>= infer_type >>= trace
 
 parameter hxy2 : x ≤ 0*y
 meta def ip5 : ineq_proof _ _ _ := hyp x' y' (ineq.of_comp_and_slope comp.le (slope.some 0)) ```(hxy2)

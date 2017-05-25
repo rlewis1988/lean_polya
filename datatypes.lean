@@ -339,6 +339,114 @@ def two_imply (i1 i2 : ineq) (ninq : ineq) : bool :=
 
 end ineq
 
+@[reducible]
+meta def sum_form := rb_map expr ℚ
+
+namespace sum_form
+
+meta def zero : sum_form := rb_map.mk _ _
+meta instance : has_zero sum_form := ⟨sum_form.zero⟩
+
+meta def of_expr (e : expr) : sum_form := 
+mk_rb_map.insert e 1
+
+meta def get_coeff (sf : sum_form) (e : expr) : ℚ :=
+match sf.find e with
+| some q := q
+| none := 0
+end
+
+meta def get_nonzero_factors (sf : sum_form) : list (expr × ℚ) :=
+sf.to_list
+
+meta def add_coeff (sf : sum_form) (e : expr) (c : ℚ) : sum_form :=
+if (sf.get_coeff e) + c = 0 then sf.erase e
+else sf.insert e ((sf.get_coeff e) + c)
+
+meta def add (lhs rhs : sum_form) : sum_form :=
+rhs.fold lhs (λ e q sf, sf.add_coeff e q)
+
+meta def scale (sf : sum_form) (c : ℚ) : sum_form :=
+sf.map (λ q, if q=1/c then 1 else c*q) -- replace this with a real implementation of ℚ
+
+meta def sub (lhs rhs : sum_form) : sum_form :=
+lhs.add (rhs.scale (-1))
+
+meta def negate (lhs : sum_form) : sum_form :=
+lhs.scale (-1)
+
+meta instance : has_add sum_form := ⟨sum_form.add⟩
+meta instance : has_sub sum_form := ⟨sum_form.sub⟩
+
+meta def add_factor (lhs rhs : sum_form) (c : ℚ) : sum_form :=
+lhs + (rhs.scale c)
+
+meta def normalize (sf : sum_form) : sum_form :=
+match rb_map.to_list sf with
+| [] := sf
+| (_, m)::t := if abs m = 1 then sf else sf.scale (abs (1/m))
+end
+
+meta def is_normalized (sd : sum_form) : bool :=
+match rb_map.to_list sd with
+| [] := tt
+| (_, m)::t := abs m = 1
+end
+
+
+end sum_form
+
+meta structure sum_form_comp :=
+(sf : sum_form) (c : spec_comp) 
+
+namespace sum_form_comp
+
+
+meta instance sum_form_comp.has_to_format : has_to_format sum_form_comp :=
+⟨λ sfc, "{" ++ to_fmt (sfc.sf) ++ to_fmt sfc.c ++ "0}"⟩
+
+/--
+ This is only valid for positive m
+-/
+meta def scale (m : ℚ) : sum_form_comp → sum_form_comp
+| ⟨sf, c⟩ := ⟨sf.scale m, c⟩
+
+
+meta def normalize : sum_form_comp → sum_form_comp
+| ⟨sf, c⟩ := ⟨sf.normalize, c⟩
+
+meta def is_normalized : sum_form_comp → bool
+| ⟨sf, _⟩ := sf.is_normalized
+
+meta def is_contr : sum_form_comp → bool
+| ⟨sf, c⟩ := (c = spec_comp.lt) && (sf.keys.length = 0)
+
+
+meta def of_ineq (lhs rhs : expr) (id : ineq) : sum_form_comp :=
+match id.to_slope, spec_comp_and_flipped_of_comp id.to_comp with
+| slope.horiz, (cmp, flp) := ⟨if flp then (sum_form.of_expr rhs).negate else sum_form.of_expr rhs, cmp⟩
+| slope.some m, (cmp, flp) := 
+   let nsfc := (sum_form.of_expr lhs).add_factor (sum_form.of_expr rhs) (-m) in
+   ⟨if flp then nsfc.negate else nsfc, cmp⟩
+end
+
+meta def of_eq (lhs rhs : expr) (c : ℚ) : sum_form_comp :=
+⟨(sum_form.of_expr lhs).add_factor (sum_form.of_expr rhs) (-c), spec_comp.eq⟩
+
+meta def of_sign (e : expr) : gen_comp → sum_form_comp
+| gen_comp.ne := ⟨mk_rb_map, spec_comp.eq⟩
+| gen_comp.eq := ⟨sum_form.of_expr e, spec_comp.eq⟩
+| gen_comp.le := ⟨sum_form.of_expr e, spec_comp.le⟩
+| gen_comp.lt := ⟨sum_form.of_expr e, spec_comp.lt⟩
+| gen_comp.ge := ⟨(sum_form.of_expr e).scale (-1), spec_comp.le⟩
+| gen_comp.gt := ⟨(sum_form.of_expr e).scale (-1), spec_comp.lt⟩
+
+
+--(sum_form_comp.of_eq lhs rhs c
+
+end sum_form_comp
+
+
 section proof_objs
 
 meta inductive diseq_proof : expr → expr → ℚ → Type
@@ -369,12 +477,13 @@ meta inductive sign_proof : expr → gen_comp → Type
 | hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
 | sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)-/
 
-meta mutual inductive eq_proof, ineq_proof, sign_proof 
+meta mutual inductive eq_proof, ineq_proof, sign_proof, sum_form_proof
 with eq_proof : expr → expr → ℚ → Type
 | hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
 | sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)
 | of_opp_ineqs : Π {lhs rhs i}, Π c,
   ineq_proof lhs rhs i → ineq_proof lhs rhs (i.reverse) → eq_proof lhs rhs c
+| of_sum_form_proof : Π lhs rhs c {sf}, sum_form_proof ⟨sf, spec_comp.eq⟩ → eq_proof lhs rhs c
 | adhoc : Π lhs rhs c, tactic expr → eq_proof lhs rhs c
 
 with ineq_proof : expr → expr → ineq → Type
@@ -386,7 +495,7 @@ with ineq_proof : expr → expr → ineq → Type
     ineq_proof lhs rhs i → sign_proof lhs c → ineq_proof lhs rhs (i.strengthen)
 | of_ineq_proof_and_sign_rhs : Π {lhs rhs i c},
     ineq_proof lhs rhs i → sign_proof rhs c → ineq_proof lhs rhs (i.strengthen)
-| zero_comp_of_sign_proof : Π {lhs c} rhs i, sign_proof lhs c → ineq_proof lhs rhs i
+| zero_comp_of_sign_proof : Π {lhs c} rhs i, sign_proof lhs c → ineq_proof lhs rhs i| of_sum_form_proof : Π lhs rhs i {sfc}, sum_form_proof sfc → ineq_proof lhs rhs i
 | adhoc : Π lhs rhs i, tactic expr → ineq_proof lhs rhs i
 
 with sign_proof : expr → gen_comp → Type
@@ -405,7 +514,19 @@ with sign_proof : expr → gen_comp → Type
     eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof rhs c'
 | ineq_of_ineq_and_eq_zero_rhs : Π {lhs rhs i}, Π c, 
     ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
+| of_sum_form_proof : Π e c {sfc}, sum_form_proof sfc → sign_proof e c
 | adhoc : Π e c, tactic expr → sign_proof e c
+
+with sum_form_proof : sum_form_comp → Type
+| of_ineq_proof : Π {lhs rhs iq}, Π id : ineq_proof lhs rhs iq,
+    sum_form_proof (sum_form_comp.of_ineq lhs rhs iq)
+| of_eq_proof : Π {lhs rhs c}, Π id : eq_proof lhs rhs c,
+    sum_form_proof (sum_form_comp.of_eq lhs rhs c)
+| of_sign_proof : Π {e c}, Π id : sign_proof e c, sum_form_proof (sum_form_comp.of_sign e c)
+| of_add_factor_same_comp : Π {lhs rhs c1 c2}, Π m : ℚ, -- assumes m is positive
+  sum_form_proof ⟨lhs, c1⟩ → sum_form_proof ⟨rhs, c2⟩ → sum_form_proof ⟨lhs.add_factor rhs m, spec_comp.strongest c1 c2⟩ 
+| of_scale : Π {sfc}, Π m, sum_form_proof sfc → sum_form_proof (sfc.scale m)
+| fake : Π sd, sum_form_proof sd
 
 
 open ineq_proof
@@ -679,108 +800,13 @@ ii.implies_ineq id.inq
 
 end two_var_ineqs
 
-@[reducible]
-meta def sum_form := rb_map expr ℚ
-
-namespace sum_form
-
-meta def zero : sum_form := rb_map.mk _ _
-meta instance : has_zero sum_form := ⟨sum_form.zero⟩
-
-meta def of_expr (e : expr) : sum_form := 
-mk_rb_map.insert e 1
-
-meta def get_coeff (sf : sum_form) (e : expr) : ℚ :=
-match sf.find e with
-| some q := q
-| none := 0
-end
-
-meta def get_nonzero_factors (sf : sum_form) : list (expr × ℚ) :=
-sf.to_list
-
-meta def add_coeff (sf : sum_form) (e : expr) (c : ℚ) : sum_form :=
-if (sf.get_coeff e) + c = 0 then sf.erase e
-else sf.insert e ((sf.get_coeff e) + c)
-
-meta def add (lhs rhs : sum_form) : sum_form :=
-rhs.fold lhs (λ e q sf, sf.add_coeff e q)
-
-meta def scale (sf : sum_form) (c : ℚ) : sum_form :=
-sf.map (λ q, if q=1/c then 1 else c*q) -- replace this with a real implementation of ℚ
-
-meta def sub (lhs rhs : sum_form) : sum_form :=
-lhs.add (rhs.scale (-1))
-
-meta def negate (lhs : sum_form) : sum_form :=
-lhs.scale (-1)
-
-meta instance : has_add sum_form := ⟨sum_form.add⟩
-meta instance : has_sub sum_form := ⟨sum_form.sub⟩
-
-meta def add_factor (lhs rhs : sum_form) (c : ℚ) : sum_form :=
-lhs + (rhs.scale c)
-
-meta def normalize (sf : sum_form) : sum_form :=
-match rb_map.to_list sf with
-| [] := sf
-| (_, m)::t := if abs m = 1 then sf else sf.scale (abs (1/m))
-end
-
-meta def is_normalized (sd : sum_form) : bool :=
-match rb_map.to_list sd with
-| [] := tt
-| (_, m)::t := abs m = 1
-end
-
-
-end sum_form
-
-meta structure sum_form_comp :=
-(sf : sum_form) (c : spec_comp) 
-
 namespace sum_form_comp
 
-
-meta instance sum_form_comp.has_to_format : has_to_format sum_form_comp :=
-⟨λ sfc, "{" ++ to_fmt (sfc.sf) ++ to_fmt sfc.c ++ "0}"⟩
-
-/--
- This is only valid for positive m
--/
-meta def scale (m : ℚ) : sum_form_comp → sum_form_comp
-| ⟨sf, c⟩ := ⟨sf.scale m, c⟩
-
-meta def of_ineq_data {lhs rhs} (id : ineq_data lhs rhs) : sum_form_comp :=
-match id.inq.to_slope, spec_comp_and_flipped_of_comp id.inq.to_comp with
-| slope.horiz, (cmp, flp) := ⟨if flp then (sum_form.of_expr rhs).negate else sum_form.of_expr rhs, cmp⟩
-| slope.some m, (cmp, flp) := 
-   let nsfc := (sum_form.of_expr lhs).add_factor (sum_form.of_expr rhs) (-m) in
-   ⟨if flp then nsfc.negate else nsfc, cmp⟩
-end
-
+-- is this needed?
 meta def of_ineq_proof {lhs rhs id} (ip : ineq_proof lhs rhs id) : sum_form_comp :=
-sum_form_comp.of_ineq_data ⟨_, ip⟩
+sum_form_comp.of_ineq lhs rhs id
 
-meta def normalize : sum_form_comp → sum_form_comp
-| ⟨sf, c⟩ := ⟨sf.normalize, c⟩
-
-meta def is_normalized : sum_form_comp → bool
-| ⟨sf, _⟩ := sf.is_normalized
-
-meta def is_contr : sum_form_comp → bool
-| ⟨sf, c⟩ := (c = spec_comp.lt) && (sf.keys.length = 0)
-
-end sum_form_comp
-  
--- some of these are unused
-meta inductive sum_form_proof : sum_form_comp → Type
-| of_ineq_proof : Π {lhs rhs iq}, Π id : ineq_proof lhs rhs iq,
-    sum_form_proof (sum_form_comp.of_ineq_proof id)
-| of_add_factor_same_comp : Π {lhs rhs c1 c2}, Π m : ℚ, -- assumes m is positive
-  sum_form_proof ⟨lhs, c1⟩ → sum_form_proof ⟨rhs, c2⟩ → sum_form_proof ⟨lhs.add_factor rhs m, spec_comp.strongest c1 c2⟩ 
-| of_scale : Π {sfc}, Π m, sum_form_proof sfc → sum_form_proof (sfc.scale m)
-| fake : Π sd, sum_form_proof sd
+end sum_form_comp  
 
 meta structure sum_form_comp_data :=
 (sfc : sum_form_comp) (prf : sum_form_proof sfc) (elim_list : rb_set expr)
