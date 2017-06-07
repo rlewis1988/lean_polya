@@ -159,7 +159,7 @@ meta def get_sign_info (e : expr) : polya_state (sign_info e) :=
 blackboard.get_sign_info e
 
 meta def assert_contradiction (ctr : contrad) : polya_state unit :=
-↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := (trace_val ("contr:", ctr)).2})
+↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := ctr})
 
 meta def get_expr_list : polya_state (list expr) :=
 blackboard.get_expr_list
@@ -255,7 +255,7 @@ end
 private meta def add_sign_aux (add_ineq : Π l r, ineq_data l r → polya_state unit) 
         {e} (sd : sign_data e) : polya_state unit :=
 do si ← get_sign_info e, 
-return $ trace_val ("si:", si),
+--return $ trace_val ("si:", si),
 match si with
 | none := ((λ bb, bb.insert_sign e sd) : polya_state unit) >> add_zero_ineqs add_ineq sd
 | some osd := 
@@ -351,7 +351,7 @@ private meta def add_implied_signs_from_eq_and_ineq_aux (as : Π {e}, sign_data 
          (ed : eq_data lhs rhs) (id : ineq_data lhs rhs) : polya_state unit :=
 do (si1, si2) ← return $ ed.get_implied_sign_info_from_ineq id,
    match si1, si2 with
-   | some sd1, some sd2 := as (trace_val sd1) >> as sd2
+   | some sd1, some sd2 := as sd1 >> as sd2
    | some sd1, none     := as sd1
    | none, some sd2     := as sd2
    | none, none         := skip
@@ -475,8 +475,6 @@ meta def get_comps_of_mul (e : expr) : tactic (expr × ℚ) := match e with
 | f := return (f, 1)
 end
 
-#print expr_form
-#check blackboard.add_expr
 meta def process_expr_tac : blackboard → expr → tactic blackboard | bb e := 
 if is_sum e then 
   let scs := get_sum_components e in do
@@ -492,7 +490,6 @@ else if is_prod e then -- TODO
   monad.foldl process_expr_tac bb' scs -- this is wrong!
 else return $ bb.add_expr e (expr_form.atom_f e)
 
-#check add_eq
 meta def tac_add_eq {lhs rhs} (bb : blackboard) (ed : eq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
    return (add_eq ed bb').2

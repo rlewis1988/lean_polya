@@ -25,19 +25,19 @@ meta def expr_to_sign : expr → tactic (expr × gen_comp)
 meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard :=
 (do (x, y, ie1) ← expr_to_ineq e,
     id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
-    trace "tac_add_ineq",
+--    trace "tac_add_ineq",
     tac_add_ineq b id)
 --    return (add_ineq id b).2)
 <|>
 (do (x, y, ie1) ← expr_to_eq e,
     id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
-    trace "tac_add_eq",
+--    trace "tac_add_eq",
     tac_add_eq b id)
     --return (add_eq id b).2)
 <|>
 (do (x, c) ← expr_to_sign e,
     sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
-    trace "calling tac-add-sign",
+--    trace "calling tac-add-sign",
     bb ← tac_add_sign b sd,
     trace "tac_add_sign done", return bb)
 <|>
@@ -45,7 +45,7 @@ fail "add_comp_to_blackboard failed"
 
 meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
 (do (x, y, ie1) ← infer_type e >>= expr_to_ineq,
-    trace x, trace y, trace ie1,
+--    trace x, trace y, trace ie1,
     id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
     --return (add_ineq id b).2)
     tac_add_ineq b id)
@@ -57,9 +57,10 @@ meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard
 <|>
 (do (x, c) ← infer_type e >>= expr_to_sign,
     sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
-    trace "calling tac-add-sign",
+--    trace "calling tac-add-sign",
     bb ← tac_add_sign b sd,
-    trace "tac_add_sign done", return bb)
+--    trace "tac_add_sign done",
+    return bb)
 <|>
 fail "add_comp_to_blackboard failed"
 
@@ -158,8 +159,7 @@ trace $ ("contr found", bb.contr_found),
 bb.contr.reconstruct >>= trace,
 triv-/
 
-example (e1 : x < 1*y) (e2 : z < 1*y) (e3 : x + z > 3*y) (e4 : x + z >0) : false :=
- by do 
+example (e1 : x < 1*y) (e2 : z < 1*y) (e3 : x + z > 3*y) (e4 : x + z >0) : false := by do 
 e1 ← get_local `e1, e2 ← get_local `e2, e3 ← get_local `e3, e4 ← get_local `e4, 
 bb ← add_proofs_to_blackboard blackboard.mk_empty [e1, e2, e3, e4], 
 bb.trace_exprs, 
@@ -167,7 +167,6 @@ bb.trace_exprs,
 bb.trace, 
 trace $ ("contr found", bb.contr_found),
 pf ← bb.contr.reconstruct,
--- >>= instantiate_mvars, 
 trace pf, apply pf
 
 --triv
@@ -182,9 +181,6 @@ bb.trace,
 trace $ ("contr found", bb.contr_found),
 pf ← bb.contr.reconstruct,
 apply pf
--- >>= trace,
---triv
-
 
 example (e1 : x = 2*y) (e2 : x > 1*y) (e3 : y < 0)  : false := by do
 e1 ← get_local `e1, e2 ← get_local `e2, e3 ← get_local `e3,-- e4 ← get_local `e4,
@@ -192,7 +188,6 @@ bb ← add_proofs_to_blackboard blackboard.mk_empty [e1, e2],
 bb.trace,
 bb ← add_proofs_to_blackboard bb [e3],
 bb.trace,
---(_, bb) ← return $ add_new_ineqs bb,
 trace $ ("contr found", bb.contr_found),
 pf ← bb.contr.reconstruct,
 apply pf

@@ -1,6 +1,22 @@
 import .datatypes
 namespace polya
 
+
+theorem eq_or_gt_of_ge {α} [decidable_linear_order α] {a b : α} (h : a ≥ b) : a = b ∨ a > b :=
+have h1 : ¬ b > a, from not_lt_of_ge h,
+eq_or_lt_of_not_lt h1
+
+theorem eq_or_lt_of_le {α} [decidable_linear_order α] {a b : α} (h : a ≤ b) : a = b ∨ a < b :=
+have h1 : ¬ b < a, from not_lt_of_ge h,
+have h2 : b = a ∨ a < b, from eq_or_lt_of_not_lt h1,
+h2.elim (λ e, or.inl (e.symm)) or.inr
+
+theorem le_of_eq_or_lt {α} [decidable_linear_order α] {a b : α} (h : a = b ∨ a < b) : a ≤ b :=
+h.elim (λ e, by rw e; reflexivity) le_of_lt
+
+theorem ge_of_eq_or_gt {α} [decidable_linear_order α] {a b : α} (h : a = b ∨ a > b) : a ≥ b :=
+h.elim (λ e, by rw e; change b ≤ b; reflexivity) le_of_lt
+
 class comp_op (op : ℚ → ℚ → Prop) :=
 (rev_op : ℚ → ℚ → Prop)
 (rev_op_is_rev : ∀ {x y}, rev_op y x ↔ op x y)
@@ -13,31 +29,31 @@ class weak_comp_op (op) extends comp_op op :=
 
 instance colt : comp_op (@has_lt.lt ℚ _) :=
 {rev_op := @gt ℚ _,
- rev_op_is_rev := sorry,
- rel_of_sub_rel_zero := sorry,
- op_mul := sorry}
+ rev_op_is_rev := by intros; reflexivity,
+ rel_of_sub_rel_zero := begin intros, constructor, apply lt_of_sub_neg, apply sub_neg_of_lt end,
+ op_mul := begin intros, apply mul_lt_mul_of_pos_left, repeat {assumption} end}
 
 instance cole : weak_comp_op (@has_le.le ℚ _) :=
 {rev_op := @ge ℚ _,
- rev_op_is_rev := sorry,
- rel_of_sub_rel_zero := sorry,
- op_mul := sorry,
+ rev_op_is_rev := by intros; reflexivity,
+ rel_of_sub_rel_zero := begin intros, constructor, apply le_of_sub_nonpos, apply sub_nonpos_of_le end,
+ op_mul := begin intros, apply mul_le_mul_of_nonneg_left, assumption, apply le_of_lt, assumption end,
  strict_op := @has_lt.lt ℚ _,
- disj := sorry}
+ disj := begin intros, constructor, apply eq_or_lt_of_le, apply le_of_eq_or_lt end}
 
 instance cogt : comp_op (@gt ℚ _) :=
 {rev_op := @has_lt.lt ℚ _,
- rev_op_is_rev := sorry,
- rel_of_sub_rel_zero := sorry,
- op_mul := sorry}
+ rev_op_is_rev := by intros; reflexivity,
+ rel_of_sub_rel_zero := begin intros, constructor, apply lt_of_sub_pos, apply sub_pos_of_lt end,
+ op_mul := begin intros, apply mul_lt_mul_of_pos_left, repeat {assumption} end}
 
 instance coge : weak_comp_op (@ge ℚ _) :=
 {rev_op := @has_le.le ℚ _,
- rev_op_is_rev := sorry,
- rel_of_sub_rel_zero := sorry,
- op_mul := sorry,
+ rev_op_is_rev := by intros; reflexivity,
+ rel_of_sub_rel_zero := begin intros, constructor, apply le_of_sub_nonneg, apply sub_nonneg_of_le end,
+ op_mul := begin intros, apply mul_le_mul_of_nonneg_left, assumption, apply le_of_lt, assumption end,
  strict_op := @gt ℚ _,
- disj := sorry}
+ disj := begin intros, constructor, apply eq_or_gt_of_ge, apply ge_of_eq_or_gt end}
 
 
 @[reducible] private def rev := comp_op.rev_op
@@ -161,8 +177,9 @@ cases (weak_comp_op.disj o).mp h,
 repeat {cc}
 end
 
-theorem op_ineq {lhs rhs c : ℚ} (h1 : lhs ≤ c*rhs) (h2 : lhs ≥ c*rhs) : lhs = rhs :=
-sorry
+theorem op_ineq {lhs rhs c : ℚ} (h1 : lhs ≤ c*rhs) (h2 : lhs ≥ c*rhs) : lhs = c*rhs :=
+have h : lhs = c*rhs ∨ lhs < c*rhs, from eq_or_lt_of_le h1,
+h.elim id (λ e, absurd h2 (not_le_of_gt e))
 
 section
 variables {lhs : ℚ} (rhs : ℚ)

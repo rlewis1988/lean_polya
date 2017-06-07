@@ -27,15 +27,6 @@ quot.lift num_denum.to_expr num_denum_to_expr_wf
 meta instance rat.reflect : has_reflect rat :=
 λ q, unchecked_cast $ q.to_expr
 
---set_option pp.all true
-@[reducible] meta def g (q : ℚ) : expr := `(q)
-def q : rat := 0
-run_cmd tactic.trace  $  g (1/2)
-run_cmd tactic.infer_type (g (1/2)) >>= tactic.trace
-
-#eval g (1/2)
-
-def gv : ℚ := by do tactic.apply $ g (1/2)
 
 /-set_option pp.all true
 run_cmd  tactic.trace $ (↑`(-5 : ℤ) : expr)

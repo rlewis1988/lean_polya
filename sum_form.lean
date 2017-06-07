@@ -198,7 +198,7 @@ sfcd.vars.foldr (λ e rv, elim_expr_from_comp_data_filtered sfcd cmps e rv) mk_r
 meta def elim_list_into_set : rb_set sum_form_comp_data → list sum_form_comp_data → rb_set sum_form_comp_data
 | cmps [] := cmps
 | cmps (sfcd::new_cmps) :=
-   if (trace_val (cmps.contains (trace_val sfcd)) : bool) then elim_list_into_set cmps new_cmps else
+   if cmps.contains sfcd then elim_list_into_set cmps new_cmps else
    let new_gen := (new_exprs_from_comp_data_set sfcd.normalize cmps).keys in
    elim_list_into_set (cmps.insert sfcd) (new_cmps.append new_gen)
 
@@ -253,7 +253,7 @@ meta def mk_eqs_of_expr_sum_form_pair : expr × sum_form → sum_form_comp_data
   ⟨⟨sf', spec_comp.eq⟩, sum_form_proof.of_expr_def e sf', mk_rb_set⟩
 
 private meta def mk_sfcd_list : polya_state (list sum_form_comp_data) :=
-do il ← get_ineq_list, il ← return (trace_val ("il",il)).2, el ← get_eq_list, sl ← get_sign_list, dfs ← get_add_defs,
+do il ← get_ineq_list, /-il ← return (trace_val ("il",il)).2,-/ el ← get_eq_list, sl ← get_sign_list, dfs ← get_add_defs,
    let il' := il.map (λ ⟨lhs, rhs, id⟩, sum_form_comp_data.of_ineq_data id) in
    let el' := el.map (λ ⟨_, _, ed⟩, sum_form_comp_data.of_eq_data ed) in
    let sl' := sl.map (λ ⟨_, sd⟩, sum_form_comp_data.of_sign_data sd) in
@@ -264,12 +264,12 @@ do il ← get_ineq_list, il ← return (trace_val ("il",il)).2, el ← get_eq_li
 private meta def mk_ineq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, ineq_data lhs rhs :=
 let il := cmps.map (λ sfcd, sfcd.to_ineq_data) in
 reduce_option_list il
-#check @monad.mapm'
+
 meta def add_new_ineqs : polya_state unit :=
 do sfcds ← mk_sfcd_list,
    let ineqs := mk_ineq_list $ elim_list sfcds in
    monad.mapm' 
-  (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq (trace_val ("derived ineq", s.2.2)).2)
+  (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq s.2.2)
 --  (λ ⟨lhs, rhs,id⟩ : Σ lhs rhs, ineq_data lhs rhs, add_ineq id)
  ineqs
 
