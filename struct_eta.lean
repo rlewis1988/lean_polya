@@ -25,8 +25,8 @@ namespace tactic.interactive
   meta def congr_args : tactic unit :=
   do tgt ← target,
      (lhs, rhs) ← match tgt with
-     | ```(%%lhs = %%rhs) := pure (lhs, rhs)
-     | ```(%%lhs == %%rhs) := pure (lhs, rhs)
+     | `(%%lhs = %%rhs) := pure (lhs, rhs)
+     | `(%%lhs == %%rhs) := pure (lhs, rhs)
      | _ := fail "goal is not an equality"
      end,
      pre ← common_app_prefix lhs rhs,
@@ -37,11 +37,11 @@ namespace tactic.interactive
   /-- Given a goal that equates two structure values, this tactic breaks it down to subgoals equating each
       pair of fields. -/
   meta def congr_struct : tactic unit :=
-  do ```(%%lhs = %%rhs) ← target | fail "goal is not an equality",
+  do `(%%lhs = %%rhs) ← target | fail "goal is not an equality",
      ty ← infer_type lhs,
      eta ← mk_struct_eta ty,
      apply ``(@eq.rec _ _ (λ lhs, lhs = %%rhs) _ _ %%(app eta lhs)),
-     ```(%%new_lhs = %%rhs) ← target,
+     `(%%new_lhs = %%rhs) ← target,
      apply ``(@eq.rec _ _ (λ rhs, %%new_lhs = rhs) _ _ %%(app eta rhs)),
      congr_args
 end tactic.interactive

@@ -33,7 +33,7 @@ meta def sum_form_comp_data.to_ineq_data : sum_form_comp_data → option (Σ lhs
 | ⟨sfc, prf, _⟩ := 
   match sfc.sf.get_nonzero_factors with
   | [(rhs, cr), (lhs, cl)] := 
-    if lhs.lt rhs then mk_ineq_data_of_lhs_rhs lhs rhs cl cr (sfc.c.to_comp) prf
+    if rhs.lt lhs then mk_ineq_data_of_lhs_rhs lhs rhs cl cr (sfc.c.to_comp) prf
     else  mk_ineq_data_of_lhs_rhs rhs lhs cr cl (sfc.c.to_comp) prf
   | _ := none
   end
@@ -41,7 +41,7 @@ meta def sum_form_comp_data.to_ineq_data : sum_form_comp_data → option (Σ lhs
 meta def sum_form_comp_data.to_eq_data : sum_form_comp_data → option (Σ lhs rhs, eq_data lhs rhs)
 | ⟨⟨sf, spec_comp.eq⟩, prf, _⟩ :=
   match sf.get_nonzero_factors with
-  | [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.hyp _ _ _ ```(0)⟩⟩ -- TODO
+  | [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.hyp _ _ _ `(0 : ℚ)⟩⟩ -- TODO
   | _ := none
   end
 | _ := none 
@@ -58,6 +58,10 @@ let cf1 := sf1.get_coeff pvt,
     fac := (-cf1/cf2) in
 if (fac > 0) then
   some ⟨_, sum_form_proof.of_add_factor_same_comp fac prf1 prf2, (rb_set.union elim_list1 elim_list2).insert pvt⟩
+else if hce : c1 = spec_comp.eq then
+  some ⟨_, sum_form_proof.of_add_eq_factor_op_comp fac prf2 (by rw -hce; apply prf1), (rb_set.union elim_list1 elim_list2).insert pvt⟩ 
+else if hce' : c2 = spec_comp.eq then
+  some ⟨_, sum_form_proof.of_add_eq_factor_op_comp fac prf1 (by rw -hce'; apply prf2), (rb_set.union elim_list1 elim_list2).insert pvt⟩
 else none
 
 meta def sum_form_comp_data.elim_expr (sfcd1 sfcd2 : sum_form_comp_data) (pvt : expr) : option sum_form_comp_data :=
@@ -65,7 +69,7 @@ if sfcd1.get_coeff pvt = 0 then some sfcd1
 else if sfcd2.get_coeff pvt = 0 then none
 else sum_form_comp_data.elim_expr_aux sfcd1 sfcd2 pvt
 
-private meta def compare_coeffs (sf1 sf2 : sum_form) (h : expr) : ordering :=
+/-private meta def compare_coeffs (sf1 sf2 : sum_form) (h : expr) : ordering :=
 let c1 := sf1.get_coeff h, c2 := sf2.get_coeff h in
 if c1 < c2 then ordering.lt else if c2 < c1 then ordering.gt else ordering.eq
 
@@ -89,7 +93,7 @@ meta def sum_form_comp.order : sum_form_comp → sum_form_comp → ordering
 
 -- TODO: do we need to take elim_vars into account for this order?
 meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data → ordering
-| ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2
+| ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2-/
 
 -- this is a crazy hack.
 /-meta def sum_form_comp_data.order :=
@@ -97,8 +101,6 @@ meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data �
 -/
  
 
-meta instance : has_ordering sum_form_comp_data := 
-⟨sum_form_comp_data.order⟩
 
 /-meta def sum_form_comp_data.elim_into (sfcd1 sfcd2 : sum_form_comp_data) (pvt : expr)
      (rv : list sum_form_comp_data) : list sum_form_comp_data :=
@@ -221,9 +223,13 @@ def list.first {α} (P : α → bool) : list α → option α
 | [] := none
 | (h::t) := if P h then some h else list.first t
 
+
 meta def find_contrad_sfcd_in_sfcd_set (cmps : rb_set sum_form_comp_data) : option sum_form_comp_data :=
 let elimd := (vars_of_sfcd_set cmps).fold cmps (λ s cmps', elim_expr_from_comp_data_set cmps' s) in
 list.first sum_form_comp_data.is_contr elimd.keys -- dot notation doesn't work here??
+
+meta def find_contrad_sfcd_in_sfcd_list (cmps : list sum_form_comp_data) : option sum_form_comp_data :=
+find_contrad_sfcd_in_sfcd_set (rb_set.of_list cmps)
 
 meta def find_contrad_in_sfcd_set (cmps : rb_set sum_form_comp_data) : option contrad :=
 do sfcd ← find_contrad_sfcd_in_sfcd_set cmps,
@@ -241,15 +247,19 @@ is_inconsistent $ rb_set.of_list cmps
 
 section bb_process
 
--- do eqs too
+meta def mk_eqs_of_expr_sum_form_pair : expr × sum_form → sum_form_comp_data
+| (e, sf) := 
+  let sf' := sf - (sum_form.of_expr e) in
+  ⟨⟨sf', spec_comp.eq⟩, sum_form_proof.of_expr_def e sf', mk_rb_set⟩
+
 private meta def mk_sfcd_list : polya_state (list sum_form_comp_data) :=
-do il ← get_ineq_list,
-   return $ il.map (λ ⟨lhs, rhs, id⟩, sum_form_comp_data.of_ineq_data id) 
-   
-private meta def reduce_option_list {α} : list (option α) → list α
-| [] := []
-| (none::l) := reduce_option_list l
-| (some a::l) := a::reduce_option_list l
+do il ← get_ineq_list, il ← return (trace_val ("il",il)).2, el ← get_eq_list, sl ← get_sign_list, dfs ← get_add_defs,
+   let il' := il.map (λ ⟨lhs, rhs, id⟩, sum_form_comp_data.of_ineq_data id) in
+   let el' := el.map (λ ⟨_, _, ed⟩, sum_form_comp_data.of_eq_data ed) in
+   let sl' := sl.map (λ ⟨_, sd⟩, sum_form_comp_data.of_sign_data sd) in
+   let dfs' := dfs.map mk_eqs_of_expr_sum_form_pair in
+   return $ (((il'.append el').append sl').append dfs').qsort (λ a b, if has_ordering.cmp a b = ordering.lt then tt else ff)
+
 
 private meta def mk_ineq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, ineq_data lhs rhs :=
 let il := cmps.map (λ sfcd, sfcd.to_ineq_data) in
@@ -259,20 +269,35 @@ meta def add_new_ineqs : polya_state unit :=
 do sfcds ← mk_sfcd_list,
    let ineqs := mk_ineq_list $ elim_list sfcds in
    monad.mapm' 
-  (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq s.2.2)
+  (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq (trace_val ("derived ineq", s.2.2)).2)
 --  (λ ⟨lhs, rhs,id⟩ : Σ lhs rhs, ineq_data lhs rhs, add_ineq id)
  ineqs
 
 end bb_process
 
 end polya
-
+#exit
 section tests
+#print instances reflected
+--set_option pp.all true
+#check `(ℚ) 
 
 variables x y z : ℚ
-meta def x' := ```(x)
-meta def y' := ```(y)
-meta def z' := ```(z)
+/-meta def x' : expr := `(x)
+meta def y' : expr := `(y)
+meta def z' : expr := `(z)-/
+
+
+open tactic
+#print declaration
+#check reducibility_hints
+include x y z
+def aux : ℕ := by do x ← get_local `x, 
+match x with
+| expr.local_const nm ppnm bi tp :=
+ (add_decl $ declaration.defn `x' [] `(expr) `(expr.local_const nm ppnm bi tp) reducibility_hints.abbrev ff) >> apply ↑`(0)
+| _ := apply ↑`(0)
+end
 
 open tactic polya rb_map
 meta def e1 : sum_form := of_list [(x', 3), (y', 2), (z', 1)] -- 3x + 2y + z

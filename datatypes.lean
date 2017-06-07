@@ -1,5 +1,11 @@
 import data.hash_map .rat_additions
 
+   
+meta def reduce_option_list {α} : list (option α) → list α
+| [] := []
+| (none::l) := reduce_option_list l
+| (some a::l) := a::reduce_option_list l
+
 meta def rb_set.insert_list {α : Type} (s : rb_set α) (l : list α) : rb_set α :=
 l.foldr (λ a s', s'.insert a) s
 
@@ -77,18 +83,18 @@ meta def to_gen_comp : comp → gen_comp
 | gt := gen_comp.gt
 
 meta def to_pexpr : comp → pexpr
-| le := `(has_le.le)
-| lt := `(has_lt.lt)
-| ge := `(ge)
-| gt := `(gt)
+| le := ``(has_le.le)
+| lt := ``(has_lt.lt)
+| ge := ``(ge)
+| gt := ``(gt)
 
 section
 open tactic
 meta def to_function (lhs rhs : expr) : comp → tactic expr
-| lt := to_expr `(%%lhs < %%rhs)
-| le := to_expr `(%%lhs ≤ %%rhs)
-| gt := to_expr `(%%lhs > %%rhs)
-| ge := to_expr `(%%lhs ≥ %%rhs)
+| lt := to_expr ``(%%lhs < %%rhs)
+| le := to_expr ``(%%lhs ≤ %%rhs)
+| gt := to_expr ``(%%lhs > %%rhs)
+| ge := to_expr ``(%%lhs ≥ %%rhs)
 end
 
 meta instance : has_coe comp gen_comp :=
@@ -118,6 +124,14 @@ def reverse : gen_comp → gen_comp
 | gt := lt
 | eq := eq
 | ne := ne
+
+def negate : gen_comp → gen_comp
+| le := gt
+| lt := ge
+| ge := lt
+| gt := le
+| eq := ne
+| ne := eq
 
 def is_strict : gen_comp → bool
 | lt := tt
@@ -525,7 +539,10 @@ with sum_form_proof : sum_form_comp → Type
 | of_sign_proof : Π {e c}, Π id : sign_proof e c, sum_form_proof (sum_form_comp.of_sign e c)
 | of_add_factor_same_comp : Π {lhs rhs c1 c2}, Π m : ℚ, -- assumes m is positive
   sum_form_proof ⟨lhs, c1⟩ → sum_form_proof ⟨rhs, c2⟩ → sum_form_proof ⟨lhs.add_factor rhs m, spec_comp.strongest c1 c2⟩ 
+| of_add_eq_factor_op_comp : Π {lhs rhs c1}, Π m : ℚ, -- assumes m is negative
+  sum_form_proof ⟨lhs, c1⟩ → sum_form_proof ⟨rhs, spec_comp.eq⟩ → sum_form_proof ⟨lhs.add_factor rhs m, c1⟩ 
 | of_scale : Π {sfc}, Π m, sum_form_proof sfc → sum_form_proof (sfc.scale m)
+| of_expr_def : Π (e : expr) (sf : sum_form),  sum_form_proof ⟨sf, spec_comp.eq⟩ 
 | fake : Π sd, sum_form_proof sd
 
 
@@ -533,8 +550,19 @@ open ineq_proof
 meta def ineq_proof.to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
 | p := "proof"
 
+meta def ineq_proof.to_format2 :
+     Π {lhs rhs : expr} {iq : ineq}, ineq_proof lhs rhs iq → format
+| .(_) .(_) .(_) (hyp (lhs) (rhs) (iq) e) := "hyp"
+| .(_) .(_) .(_) (@sym lhs rhs c ip) := "sym"
+| .(_) .(_) .(_) (@of_ineq_proof_and_diseq lhs rhs iq c ip dp) := "of_ineq_proof_and_diseq"
+| .(_) .(_) .(_) (@of_ineq_proof_and_sign_lhs lhs rhs iq c ip sp) := "of_ineq_proof_and_sign_lhs"
+| .(_) .(_) .(_) (@of_ineq_proof_and_sign_rhs lhs rhs iq c ip sp) :=  "of_ineq_proof_and_sign_rhs"
+| .(_) .(_) .(_) (@zero_comp_of_sign_proof lhs c rhs iq sp) := "zero_comp_of_sign"
+| .(_) .(_) .(_) (@of_sum_form_proof lhs rhs i _ sp) := "of_sum_form"
+| .(_) .(_) .(_) (adhoc _ _ _ t) := "adhoc"
+
 meta instance ineq_proof.has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
-⟨ineq_proof.to_format⟩
+⟨ineq_proof.to_format2⟩
 
 end proof_objs
 
@@ -561,9 +589,10 @@ open tactic
 -- TODO : add proof argument and move
 meta def ineq.to_type (id : ineq) (lhs rhs : expr) : tactic expr :=
 match id.to_slope with
-| slope.horiz := id.to_comp.to_function rhs ```(0 : ℚ) --, to_expr `(fake_ineq_to_expr_proof %%tp)
+| slope.horiz := id.to_comp.to_function rhs `(0 : ℚ) --, to_expr `(fake_ineq_to_expr_proof %%tp)
 | slope.some m := 
-  do rhs' ← to_expr (if m=0 then `(0 : ℚ) else `(%%(quote m)*%%rhs)),
+ -- let rhs' : expr := (if m=0 then `(0 : ℚ) else `(m*%%rhs : ℚ)) in
+do rhs' ← to_expr (if m=0 then ``(0 : ℚ) else ``(%%(↑(reflect m) : expr)*%%rhs : ℚ)),
      id.to_comp.to_function lhs rhs'
      --to_expr `(fake_ineq_to_expr_proof %%tp)
 end 
@@ -816,6 +845,12 @@ namespace sum_form_comp_data
 meta def of_ineq_data {lhs rhs} (id : ineq_data lhs rhs) : sum_form_comp_data :=
 ⟨_, sum_form_proof.of_ineq_proof id.prf, mk_rb_set⟩
 
+meta def of_eq_data {lhs rhs} (ed : eq_data lhs rhs) : sum_form_comp_data :=
+⟨_, sum_form_proof.of_eq_proof ed.prf, mk_rb_set⟩
+
+meta def of_sign_data {e} (sd : sign_data e) : sum_form_comp_data :=
+⟨_, sum_form_proof.of_sign_proof sd.prf, mk_rb_set⟩
+
 meta def vars (sfcd : sum_form_comp_data) : list expr :=
 sfcd.sfc.sf.keys
 
@@ -843,6 +878,39 @@ meta def is_contr : sum_form_comp_data → bool
 | ⟨sfc, _, _⟩ := sfc.is_contr
 
 end sum_form_comp_data
+
+private meta def compare_coeffs (sf1 sf2 : sum_form) (h : expr) : ordering :=
+let c1 := sf1.get_coeff h, c2 := sf2.get_coeff h in
+if c1 < c2 then ordering.lt else if c2 < c1 then ordering.gt else ordering.eq
+
+private meta def compare_coeff_lists (sf1 sf2 : sum_form) : list expr → list expr → ordering
+| [] [] := ordering.eq
+| [] _ := ordering.lt
+| _ [] := ordering.gt
+| (h1::t1) (h2::t2) := 
+   if h1 = h2 then let ccomp := compare_coeffs sf1 sf2 h1 in
+     if ccomp = ordering.eq then compare_coeff_lists t1 t2 else ccomp
+   else has_ordering.cmp h1 h2
+
+
+meta def sum_form.order (sf1 sf2 : sum_form) : ordering :=
+compare_coeff_lists sf1 sf2 sf1.keys sf2.keys
+
+meta def sum_form_comp.order : sum_form_comp → sum_form_comp → ordering
+| ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.le⟩ := ordering.lt
+| ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
+| ⟨_, spec_comp.le⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
+| ⟨sf1, _⟩ ⟨sf2, _⟩ := sum_form.order sf1.normalize sf2.normalize
+
+-- TODO: do we need to take elim_vars into account for this order?
+meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data → ordering
+| ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2
+
+meta instance sum_form.has_ordering : has_ordering sum_form :=
+⟨sum_form.order⟩
+
+meta instance sum_form_comp_data.has_ordering : has_ordering sum_form_comp_data := 
+⟨sum_form_comp_data.order⟩
 
 meta inductive contrad
 | none : contrad
