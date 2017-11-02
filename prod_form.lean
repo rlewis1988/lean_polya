@@ -402,6 +402,8 @@ meta def elim_list_into_set : rb_set prod_form_comp_data → list prod_form_comp
       let new_gen := new_gen.keys in 
       elim_list_into_set (cmps.insert sfcd) (new_cmps.append new_gen)
 
+meta def elim_list_set (cmps : list prod_form_comp_data) (start : rb_set prod_form_comp_data := mk_rb_set) : mul_state (rb_set prod_form_comp_data) :=
+elim_list_into_set start cmps
 
 meta def elim_list (cmps : list prod_form_comp_data) : mul_state (list prod_form_comp_data) :=
 rb_set.to_list <$> elim_list_into_set mk_rb_set cmps
@@ -639,22 +641,24 @@ do il ← cmps.mmap (λ pfcd, pfcd.to_eq_data),
    return $ reduce_option_list il
 
 
-private meta def mk_ineq_list_of_unelimed (cmps : list prod_form_comp_data) : mul_state (list Σ lhs rhs, ineq_data lhs rhs) :=
-do l ← trace_val <$> prod_form.elim_list cmps,
-   mk_ineq_list l
+private meta def mk_ineq_list_of_unelimed (cmps : list prod_form_comp_data) (start : rb_set prod_form_comp_data := mk_rb_set) : mul_state (rb_set prod_form_comp_data × list Σ lhs rhs, ineq_data lhs rhs) :=
+do s ← prod_form.elim_list_set cmps start,
+   l ← mk_ineq_list s.to_list,
+   return (s, l)
 
-meta def prod_form.add_new_ineqs : polya_state unit :=
+meta def prod_form.add_new_ineqs (start : rb_set prod_form_comp_data := mk_rb_set) : polya_state (rb_set prod_form_comp_data) :=
 do --new_sign_info ← gather_new_sign_info,
    --new_sign_info.mmap (λ sig, add_sign sig.2),
    is_contr ← contr_found,
-   if is_contr then skip else do
+   if is_contr then return start else do
    gather_new_sign_info >>= list.mmap (λ sig, add_sign $ trace_val sig.2),
    sfcds ← trace_val <$> mk_pfcd_list,
    ms ← mk_mul_state,
-   let (ineqs, _) := (trace_val ("found ineqs:", mk_ineq_list_of_unelimed sfcds ms)).2 in 
+   let ((pfcs, ineqs), _) := mk_ineq_list_of_unelimed sfcds start ms,
    monad.mapm' 
     (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq s.2.2)
-    ineqs
+    ineqs,
+   return pfcs -- TODO: FIX RETURN 
 
 end bb_process
 

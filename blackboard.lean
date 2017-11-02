@@ -30,7 +30,7 @@ meta instance expr_form.has_to_format : has_to_format expr_form := ⟨expr_form.
 
 end
 
-meta structure blackboard :=
+meta structure blackboard : Type :=
 (ineqs : hash_map (expr×expr) (λ p, ineq_info p.1 p.2))
 (diseqs : hash_map (expr×expr) (λ p, diseq_info p.1 p.2))
 (signs : hash_map expr sign_info)
