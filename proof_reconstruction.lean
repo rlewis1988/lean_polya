@@ -30,6 +30,16 @@ meta def mk_ne_pf (q1 q2 : ℚ) : tactic expr :=
    to_expr `(fake_ne_pf %%q1e %%q2e)-/
 return `(fake_ne_pf q1 q2)
 
+meta def mk_int_sign_pf (z : ℤ) : tactic expr :=
+if z > 0 then return `(sorry : z > 0)
+else if z < 0 then return `(sorry : z < 0)
+else return `(sorry : z = 0)
+
+-- proves z % 2 = 0 or z % 2 = 1
+meta def mk_int_mod_pf (z : ℤ) : tactic expr :=
+if z % 2 = 0 then return `(sorry : z % 2 = 0)
+else return `(sorry : z % 2 = 1)
+
 namespace diseq_proof
 private meta def reconstruct_hyp (lhs rhs : expr) (c : ℚ) (pf : expr) : tactic expr :=
 do mvc ← mk_mvar,
@@ -214,7 +224,6 @@ else do
   mk_app ``eq_sub_of_add_eq_facs [nez, pf] 
 -/
 
--- TODO
 
 private meta def reconstruct_of_sum_form_proof  (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) :
         expr → expr → ineq → Π {sfc}, sum_form_proof sfc → tactic expr | lhs rhs i sfc sp :=
@@ -317,9 +326,9 @@ end
 -/
 
 
-private theorem {u} ge_of_not_lt {α : Type u} [linear_strong_order_pair α] {a b : α} (h : ¬ a < b) : (a ≥ b) := le_of_not_gt h
+private theorem {u} ge_of_not_lt {α : Type u} [linear_order α] {a b : α} (h : ¬ a < b) : (a ≥ b) := le_of_not_gt h
 
-private theorem {u} gt_of_not_le {α : Type u} [linear_strong_order_pair α] {a b : α} (h : ¬ a ≤ b) : (a > b) := lt_of_not_ge h
+private theorem {u} gt_of_not_le {α : Type u} [linear_order α] {a b : α} (h : ¬ a ≤ b) : (a > b) := lt_of_not_ge h
 
 
 private meta def neg_op_lemma_name : comp → name
@@ -369,11 +378,18 @@ reconstruct_ineq_of_eq_and_ineq_aux c' ep ip rhs
    return notpf-/
 --   fail "reconstruct_ineq_of_eq_and_ineq not implemented"
 
+-- TODO
 private meta def reconstruct_ineq_of_ineq_and_eq_zero_rhs {lhs rhs iq} (c : gen_comp) (ip : ineq_proof lhs rhs iq) (sp : sign_proof lhs gen_comp.eq) : tactic expr :=
 fail "reconstruct_ineq_of_ineq_and_eq_zero not implemented"
    
+private meta def reconstruct_diseq_of_strict_ineq {e c} (sp : sign_proof e c) : tactic expr :=
+if c.is_strict then do
+  spp ← rc sp,
+  mk_app ``ne_of_strict_op [spp]
+else fail "reconstruct_diseq_of_strict_ineq failed, comp is not strict"
 
 end
+
 
 -- TODO
 private meta def reconstruct_of_sum_form_proof (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) (e : expr) (c : gen_comp) {sfc}
@@ -391,6 +407,7 @@ meta def reconstruct_aux (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic ex
 | .(_) .(_) (@ineq_of_eq_and_ineq_lhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_lhs @sfpr c' ep ip
 | .(_) .(_) (@ineq_of_eq_and_ineq_rhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_rhs @sfpr c' ep ip
 | .(_) .(_) (@ineq_of_ineq_and_eq_zero_rhs _ _ _ c ip sp) := reconstruct_ineq_of_ineq_and_eq_zero_rhs c ip sp
+| .(_) .(_) (@diseq_of_strict_ineq _ _ sp) := reconstruct_diseq_of_strict_ineq @reconstruct_aux sp
 | .(_) .(_) (@of_sum_form_proof e c _ sp) := reconstruct_of_sum_form_proof @sfpr e c sp
 | .(_) .(_) (adhoc _ _ t) := t
 
@@ -404,23 +421,28 @@ private meta def sprc := @sign_proof.reconstruct_aux @sfrc
 private meta def iprc := @ineq_proof.reconstruct_aux @sprc @sfrc
 private meta def eprc := @eq_proof.reconstruct_aux @iprc @sfrc
 
+
 -- assumes lhs < rhs
 private meta def reconstruct_of_ineq_proof  : 
         Π {lhs rhs iq}, ineq_proof lhs rhs iq → tactic expr | lhs rhs iq ip :=
 if expr.lt lhs rhs then reconstruct_of_ineq_proof ip.sym else 
+trace "ipp is:" >> iprc ip >>= infer_type >>= trace >> trace "const is:" >> infer_type ↑`(@polya.mul_lt_of_lt) >>= trace >>
 match iq.to_slope with
 | slope.horiz := 
   do ipp ← iprc ip, 
-     tactic.mk_app (sum_form_name_of_comp_single iq.to_comp) [ipp]
+     tactic.mk_mapp (sum_form_name_of_comp_single iq.to_comp) [none, none, ipp]
 | slope.some m := 
   do ipp ← iprc ip, 
---trace ("ipp", ip, ipp), infer_type ipp >>= trace, trace ("comp", iq.to_comp), trace ("iq", iq),
-     tactic.mk_app ((if m = 0 then sum_form_name_of_comp_single else sum_form_name_of_comp) iq.to_comp) [ipp]
+trace ("ipp", ip, ipp), infer_type ipp >>= trace, trace ("comp", iq.to_comp), trace ("iq", iq),
+     if m = 0 then
+       tactic.mk_mapp (sum_form_name_of_comp_single iq.to_comp) [none, none, ipp]
+     else
+       tactic.mk_mapp (sum_form_name_of_comp iq.to_comp) [none, none, none, ipp]
+--     tactic.mk_mapp ((if m = 0 then sum_form_name_of_comp_single else sum_form_name_of_comp) iq.to_comp) [none, none, ipp]
 end
-
 --include sfrc
+#check sub_lt_of_gt
 
--- TODO
 private meta def reconstruct_of_eq_proof  : 
         Π {lhs rhs c}, eq_proof lhs rhs c → tactic expr | lhs rhs c ep :=
 if expr.lt lhs rhs then reconstruct_of_eq_proof ep.sym else
@@ -428,12 +450,12 @@ do ipp ← eprc ep,
    mk_app ``sub_eq_zero_of_eq [ipp]
 --fail "sum_form_proof.reconstruct_of_eq_proof not implemented yet"
 
--- TODO
 private meta def reconstruct_of_sign_proof :
         Π {e c}, sign_proof e c → tactic expr | e c sp :=
 if c.is_less then sprc sp 
 else do spp ← sprc sp,
-  mk_app ``rev_op_zero_of_op [spp]
+  trace "spp type is", infer_type spp >>= trace,
+  mk_mapp ``rev_op_zero_of_op [none, none, none, some spp]
 --fail "sum_form_proof.reconstruct_of_sign_proof not implemented yet"
 
 
@@ -485,6 +507,7 @@ do tp ← sum_form.to_expr (sfc.sf.scale m),
    
 end 
 
+-- TODO (alg norm)
 theorem reconstruct_of_expr_def_aux (P : Prop) : P := sorry
 
 private meta def reconstruct_of_expr_def (e : expr) (sf : sum_form) : tactic expr :=
@@ -625,6 +648,296 @@ meta def reconstruct : contrad → tactic expr
 
 end contrad
 
+namespace prod_form_proof
+
+meta def expr_coeff_list_to_expr : list (expr × ℤ) → tactic expr
+| [] := return `(1 : ℚ)
+| [(e, z)] := to_expr ``(rat.pow %%e %%(z.reflect : expr))
+| ((e, z)::t) := do e' ← expr_coeff_list_to_expr t, h ← to_expr ``(rat.pow %%e %%(z.reflect : expr)), to_expr ``(%%h * %%e')
+
+meta def prod_form.to_expr (sf : prod_form) : tactic expr := 
+do trace "in prod_form.to_expr", exp ← expr_coeff_list_to_expr sf.exps.to_list,
+   trace "****",
+   let cf : expr := sf.coeff.reflect,
+   trace "cf, exp", trace (cf, exp),
+   to_expr ``(%%cf * %%exp : ℚ)
+
+
+/-private meta def mk_prod_ne_zero_prf_aux : expr → list (Σ e : expr, sign_proof e gen_comp.ne) → tactic expr
+| e [] := return e
+| e (⟨e', sp⟩::t) := do ene ← sp.reconstruct, pf ← mk_app ``mul_ne_zero [e, ene], mk_prod_ne_zero_prf_aux pf t
+
+private meta def mk_prod_ne_zero_prf (c : ℚ) : list (Σ e : expr, sign_proof e gen_comp.ne) → tactic expr 
+| [] := if c = 0 then fail "mk_prod_ne_zero_prf failed, c = 0" else mk_app ``fake_ne_zero_pf [`(c)]
+| (⟨e, sp⟩::t) :=
+  if c = 0 then fail "mk_prod_ne_zero_prf failed, c = 0" else
+  do cprf ← mk_app ``fake_ne_zero_pf [`(c)],
+     hpf ← sp.reconstruct,
+     prodprf ← mk_prod_ne_zero_prf_aux hpf t,
+     mk_app ``mul_ne_zero [hpf, prodprf]
+-/
+/-#check spec_comp_and_flipped_of_comp
+-- not finished: need to orient c
+private meta def reconstruct_of_ineq_proof_pos_lhs {lhs rhs iq} (id : ineq_proof lhs rhs iq)  
+        (sp : sign_proof lhs gen_comp.gt) (nzprs : hash_map expr (λ e, sign_proof e gen_comp.ne)) : tactic expr :=
+match (spec_comp_and_flipped_of_comp iq.to_comp), iq.to_slope with
+| _, slope.horiz := fail "reconstruct_of_ineq_proof_pos_lhs failed, cannot make a prod_form with 0 slope"
+| (c, flipped), slope.some m := 
+  if m = 0 then fail "reconstruct_of_ineq_proof_pos_lhs failed, cannot make a prod_form with 0 slope"
+  else do -- lhs c m*rhs --> 1 c m*(lhs⁻¹*rhs)
+     idp ← id.reconstruct,
+     spp ← sp.reconstruct,
+     opp ← mk_app ``one_op_inv_mul_of_op_of_pos [idp, spp], -- 1 r lhs⁻¹*rhs
+     if bnot flipped then 
+        return opp
+     else do
+        mprf ← mk_sign_pf m,
+        failed
+end-/
+        
+#print spec_comp
+private meta def reconstruct_of_ineq_proof_aux {lhs rhs iq c1 c2} (id : ineq_proof lhs rhs iq)  
+        (spl : sign_proof lhs c1) (spr : sign_proof rhs c2) (fail_cond : ℚ → bool) 
+        (unflipped_name flipped_name : name) --flipped_lt_name flipped_le_name : name) 
+       : tactic expr :=
+match (spec_comp_and_flipped_of_comp iq.to_comp), iq.to_slope with
+| _, slope.horiz := fail "reconstruct_of_ineq_proof_pos_pos failed, cannot make a prod_form with 0 slope"
+| (c, flipped), slope.some m := trace "okay, roipa" >> trace flipped >>
+   if fail_cond m then fail "reconstruct_of_ineq_proof_aux failed check" 
+   else do
+     idp ← id.reconstruct, trace "idp_type:", infer_type idp >>= trace,
+     splp ← spl.reconstruct, trace "splp_type:", infer_type splp >>= trace, trace "c1 is:", trace c1, trace spl,
+     opp ← mk_app unflipped_name [idp, splp],
+     trace "opp", infer_type opp >>= trace,
+     if bnot flipped then return opp
+     else do
+        msgn ← mk_sign_pf m,
+        sprp ← spr.reconstruct,
+        mk_app flipped_name-- (if c=spec_comp.lt then flipped_lt_name else flipped_le_name) 
+               [opp, splp, sprp, msgn]
+end
+
+#check one_op_inv_mul_of_op_of_pos
+
+private meta def reconstruct_of_ineq_proof_pos_pos {lhs rhs iq} (id : ineq_proof lhs rhs iq)  
+        (spl : sign_proof lhs gen_comp.gt) (spr : sign_proof rhs gen_comp.gt) : tactic expr :=  trace "111" >>
+reconstruct_of_ineq_proof_aux id spl spr (λ m, m ≤ 0)
+  ``one_op_inv_mul_of_op_of_pos ``one_op_inv_mul_of_lt_of_pos_pos_flipped' -- ``one_le_inv_mul_of_le_of_pos_pos_flipped
+/-match (spec_comp_and_flipped_of_comp iq.to_comp), iq.to_slope with
+| _, slope.horiz := fail "reconstruct_of_ineq_proof_pos_pos failed, cannot make a prod_form with 0 slope"
+| (c, flipped), slope.some m := 
+   if m ≤ 0 then fail "reconstruct_of_ineq_proof_pos_pos failed, m ≤ 0"
+   else do
+     idp ← id.reconstruct,
+     splp ← spl.reconstruct,
+     opp ← mk_app ``one_op_inv_mul_of_op_of_pos [idp, splp],
+     if bnot flipped then return opp
+     else do
+        msgn ← mk_sign_pf m,
+        sprp ← spr.reconstruct,
+        mk_app (if c=spec_comp.lt then ``one_lt_inv_mul_of_lt_of_pos_flipped 
+                 else ``one_le_inv_mul_of_le_of_pos_flipped) 
+               [opp, splp, sprp, msgn]
+end-/ 
+
+
+
+private meta def reconstruct_of_ineq_proof_pos_neg {lhs rhs iq} (id : ineq_proof lhs rhs iq)  
+        (spl : sign_proof lhs gen_comp.gt) (spr : sign_proof rhs gen_comp.lt) : tactic expr := trace "222" >>
+reconstruct_of_ineq_proof_aux id spl spr (λ m, m ≥ 0)
+  ``one_op_inv_mul_of_op_of_pos ``one_op_inv_mul_of_lt_of_pos_neg_flipped -- ``one_le_inv_mul_of_le_of_pos_neg_flipped
+
+
+
+private meta def reconstruct_of_ineq_proof_neg_pos {lhs rhs iq} (id : ineq_proof lhs rhs iq)  
+        (spl : sign_proof lhs gen_comp.lt) (spr : sign_proof rhs gen_comp.gt) : tactic expr := trace "333" >>
+reconstruct_of_ineq_proof_aux id spl spr (λ m, m ≥ 0)
+  ``one_op_inv_mul_of_op_of_neg ``one_op_inv_mul_of_lt_of_neg_pos_flipped -- ``one_le_inv_mul_of_le_of_neg_flipped
+
+
+private meta def reconstruct_of_ineq_proof_neg_neg {lhs rhs iq} (id : ineq_proof lhs rhs iq)  
+        (spl : sign_proof lhs gen_comp.lt) (spr : sign_proof rhs gen_comp.lt) : tactic expr := trace "444" >>
+reconstruct_of_ineq_proof_aux id spl spr (λ m, m ≤ 0)
+  ``one_op_inv_mul_of_op_of_neg ``one_op_inv_mul_of_lt_of_neg_neg_flipped
+
+/-
+pos_neg
+cmatch (spec_comp_and_flipped_of_comp iq.to_comp), iq.to_slope with
+| _, slope.horiz := fail "reconstruct_of_ineq_proof_pos_pos failed, cannot make a prod_form with 0 slope"
+| (c, flipped), slope.some m := 
+   if m ≥ 0 then fail "reconstruct_of_ineq_proof_pos_neg failed, m ≥ 0"
+   else do
+     idp ← id.reconstruct,
+     splp ← spl.reconstruct,
+     opp ← mk_app ``one_op_inv_mul_of_op_of_pos [idp, splp],
+     if bnot flipped then return opp
+     else do
+        msgn ← mk_sign_pf m,
+        sprp ← spr.reconstruct,
+        mk_app (if c=spec_comp.lt then ``one_lt_inv_mul_of_lt_of_pos_flipped 
+                 else ``one_le_inv_mul_of_le_of_pos_flipped) 
+               [opp, splp, sprp, msgn]
+end -/
+
+private meta def reconstruct_of_ineq_proof {lhs rhs iq} (id : ineq_proof lhs rhs iq) :
+        Π {cl cr}, sign_proof lhs cl → sign_proof rhs cr → tactic expr
+| gen_comp.gt gen_comp.gt spl spr := reconstruct_of_ineq_proof_pos_pos id spl spr
+| gen_comp.gt gen_comp.lt spl spr := reconstruct_of_ineq_proof_pos_neg id spl spr
+| gen_comp.lt gen_comp.gt spl spr := reconstruct_of_ineq_proof_neg_pos id spl spr
+| gen_comp.lt gen_comp.lt spl spr := reconstruct_of_ineq_proof_neg_neg id spl spr
+| _ _ _ _ := fail "reconstruct_of_ineq_proof failed, need to know signs of components"
+
+/-
+-- TODO
+private meta def reconstruct_of_ineq_proof_neg_lhs {lhs rhs iq} (id : ineq_proof lhs rhs iq)  
+        (sp : sign_proof lhs gen_comp.lt) (nzprs : hash_map expr (λ e, sign_proof e gen_comp.ne)) : tactic expr :=
+match iq.to_slope with
+| slope.horiz := fail "reconstruct_of_ineq_proof_neg_lhs failed, cannot make a prod_form with 0 slope"
+| slope.some m := 
+  if m = 0 then fail "reconstruct_of_ineq_proof_pos_lhs failed, cannot make a prod_form with 0 slope"
+  else
+  failed
+end-/
+
+private meta def reconstruct_of_eq_proof {lhs rhs c} (id : eq_proof lhs rhs c) 
+        (lhsne : sign_proof lhs gen_comp.ne) : tactic expr :=
+if c = 0 then fail "reconstruct_of_eq_proof failed, cannot make a prod_form with 0 slope"
+else do
+  lhsnep ← lhsne.reconstruct,
+  idpf ← id.reconstruct,
+  mk_app ``one_eq_div_of_eq [idpf, lhsnep]
+
+theorem reconstruct_of_expr_def_aux (P : Prop) : P := sorry
+
+/-
+
+-- TODO
+
+private meta def reconstruct_of_expr_def (e : expr) (sf : sum_form) : tactic expr :=
+do tp ← sum_form.to_expr sf,
+   tp' ← to_expr ``(%%tp = 0),
+--   (_, pf) ← solve_aux tp' (simp >> done),
+   mk_app ``reconstruct_of_expr_def_aux [tp']
+--   instantiate_mvars pf
+--fail "reconstruct_of_expr_def failed, not implemented yet"
+-/
+
+-- TODO (alg_nom)
+private meta def reconstruct_of_expr_def (e : expr) (pf : prod_form) : tactic expr :=
+do trace "in reconstruct_of_expr_def",
+   tp ← prod_form.to_expr pf,
+   trace "tp:", trace tp,
+   tp' ← to_expr ``(1 = %%tp),
+   trace "tp':", trace tp',
+--   (_, pf) ← solve_aux tp' (simp >> done),
+   mk_app ``reconstruct_of_expr_def_aux [tp']
+
+section
+variable (rct : Π {pfc}, prod_form_proof pfc → tactic expr) 
+
+private meta def simp_pow_expr (pf tgt : expr) : tactic expr :=
+do sls ← (simp_lemmas.mk.add_simp ``rat.mul_pow_rev) >>= λ t, t.add pf,
+   trace "target", trace tgt,
+   trace "pf tp", infer_type pf >>= trace,
+   (do (_, npf) ← simplify sls [] tgt,-- <|> do rpr ← to_expr ``(eq.refl %%tgt), return (`(()), rpr),
+   --(_, npf) ← solve_aux tgt (simp_target sls >> done),
+   return npf) <|> to_expr ``(eq.refl %%tgt)
+
+
+private meta def simp_pow_expr' (tgt : expr) : tactic expr :=
+do sls ← (simp_lemmas.mk.add_simp ``rat.mul_pow_rev) >>= (λ s, simp_lemmas.add_simp s ``rat.pow_one) >>= (λ s, simp_lemmas.add_simp s ``rat.pow_neg_one),
+   trace "target", trace tgt,
+--   trace "pf tp", infer_type pf >>= trace,
+--   (do (_, npf) ← simplify sls [] tgt,-- <|> do rpr ← to_expr ``(eq.refl %%tgt), return (`(()), rpr),
+   (_, npf) ← solve_aux tgt (simp_target sls >> reflexivity), -- `[simp [rat.mul_pow_rev, rat.pow_one], done],
+   return npf
+
+#check @lt_pos_pow'
+section
+open expr
+private meta def reconstruct_of_pow_pos {pfc} (z : ℤ) (pfp : prod_form_proof pfc) : tactic expr :=
+if z ≤ 0 then fail "reconstruct_of_pow_pos failed, given negative exponent" else
+do zsn ← mk_int_sign_pf z,
+   pf1 ← rct pfp,
+   trace "here", trace pfc, trace z, infer_type pf1 >>= trace,
+   pf2 ← mk_mapp (if pfc.c = spec_comp.lt then ``lt_pos_pow' else ``le_pos_pow') [none, pf1, none, zsn],
+   trace "pf2tp", infer_type pf2 >>= trace,
+   pf2tp ← infer_type pf2,
+   match pf2tp with
+   | app (app (app o i) lhs) rhs := do tgt ← prod_form.to_expr (pfc.pf.pow z), pf ← to_expr ``(%%rhs = %%tgt) >>= simp_pow_expr',
+    trace "pf2tp", trace pf2tp, trace "pftp", infer_type pf >>= trace,
+    trace "o", trace o,
+--    trace `(%%o %%lhs %%tgt),
+    tgt' ← return $ app (app (app o i) lhs) tgt,--to_expr ``(%%o %%lhs %%tgt),
+    trace "new tgt:", trace tgt',
+    pf1 ← to_expr ``(eq.symm %%pf),
+    (_, pf') ← solve_aux tgt' (rewrite_target pf1 >> apply pf2),
+    trace "proved", infer_type pf' >>= trace,
+    return pf'
+   | _ := failed
+   end
+--   tgt ← prod_form.to_expr (pfc.pf.pow z),
+--   simp_pow_expr pf2 tgt
+end
+
+/-private meta def reconstruct_of_pow_neg {pfc} (z : ℤ) (pfp : prod_form_proof pfc) : tactic expr :=
+if z ≥ 0 then fail "reconstruct_of_pow_neg failed, given positive exponent" else
+failed-/
+
+#check eq_pow
+
+private meta def reconstruct_of_pow_eq {pfc} (z : ℤ) (pfp : prod_form_proof pfc) : tactic expr :=
+do trace "pfp is:", trace pfp, pf1 ← rct pfp, trace "reconstructed", infer_type pf1 >>= trace,
+   tpf ← mk_app ``eq_pow [pf1, `(z)],
+   tpf' ← mk_app ``eq_pow' [tpf],
+   tpf_tp ← infer_type tpf',
+   tgt ← prod_form.to_expr (pfc.pf.pow z),
+   trace "target is:", trace tgt,
+   tgt' ← to_expr ``(1 = %%tgt),
+   trace "tgt', tpf", trace tgt', infer_type tpf >>= trace,
+   (_, pf') ← solve_aux tgt' (assertv `h tpf_tp tpf' >> `[simp only [rat.mul_pow, rat.pow_pow], simp only [rat.mul_pow, rat.pow_pow] at h, apply h] >> done),
+   return pf'
+--   simp_pow_expr tpf tgt
+
+private meta def reconstruct_of_pow {pfc} (z : ℤ) (pfp : prod_form_proof pfc) : tactic expr :=
+if pfc.c = spec_comp.eq then reconstruct_of_pow_eq @rct z pfp else reconstruct_of_pow_pos @rct z pfp
+
+private theorem reconstruct_of_mul_aux (P : Prop) {Q R : Prop} : Q → R → P := sorry
+
+private meta def reconstruct_of_mul (rct : Π {pfc}, prod_form_proof pfc → tactic expr) 
+        {lhs rhs c1 c2} (pfp1 : prod_form_proof ⟨lhs, c1⟩) (pfp2 : prod_form_proof ⟨rhs, c2⟩)
+        (sgns : list Σ e : expr, sign_proof e gen_comp.ne) : tactic expr :=
+let prod := lhs * rhs in
+do trace "in reconstruct_of_mul",
+   trace prod,
+   tp  ← prod_form.to_expr prod,
+   trace tp,
+   tp' ← (spec_comp.strongest c1 c2).to_comp.to_function `(1 : ℚ) tp,
+   trace tp',
+   pf1 ← rct pfp1, pf2 ← rct pfp2, trace "**",
+   mk_mapp ``reconstruct_of_mul_aux [tp', none, none, pf1, pf2]
+/-
+let sum := lhs + rhs.scale m in
+do tp ← sum_form.to_expr sum,
+   tp' ← (spec_comp.strongest c1 c2).to_comp.to_function tp `(0 : ℚ),
+   pf1 ← sfrc sfpl, pf2 ← sfrc sfpr,
+   mk_mapp ``reconstruct_of_add_factor_aux [some tp', none, none, some pf1, some pf2] 
+-/
+
+end
+#check @prod_form_proof.of_ineq_proof
+
+meta def reconstruct : Π {pfc}, prod_form_proof pfc → tactic expr
+--| .(_) (@of_ineq_proof_pos_lhs _ _ _ id sp nzprs) := reconstruct_of_ineq_proof_pos_lhs id sp nzprs
+--| .(_) (@of_ineq_proof_neg_lhs _ _ _ id sp nzprs) := reconstruct_of_ineq_proof_neg_lhs id sp nzprs
+| .(_) (@of_ineq_proof _ _ _ _ _ id spl spr) := reconstruct_of_ineq_proof id spl spr
+| .(_) (@of_eq_proof _ _ _ id lhsne) := reconstruct_of_eq_proof id lhsne
+| .(_) (@of_expr_def e pf) := reconstruct_of_expr_def e pf
+| .(_) (@of_pow _ z pfp) := reconstruct_of_pow @reconstruct z pfp
+| .(_) (@of_mul _ _ _ _ pfp1 pfp2 sgns) := reconstruct_of_mul @reconstruct pfp1 pfp2 sgns
+| .(_) (fake _) := fail "prod_form_proof.reconstruct failed: cannot reconstruct fake"
+
+end prod_form_proof
 
 end polya
 

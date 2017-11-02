@@ -1,5 +1,20 @@
 import data.hash_map .rat_additions
 
+def {u} list.bfilter {α : Type u} (p : α → bool) : list α → list α
+| [] := []
+| (h::t) := if p h then h::list.bfilter t else list.bfilter t
+
+def {u v} list.mfoldl' {m : Type u → Type v} [monad m] {s : Type u} : (s → s → m s) → s → list s → m s
+| f s [] := return s
+| f s [a] := return a
+| f s (h :: r) := do
+  s' ← f s h,
+  list.mfoldl f s' r
+
+instance group_has_pow_int {α} [group α] : has_pow_int α :=
+⟨gpow⟩
+
+local infix `^` := rat.pow
    
 meta def reduce_option_list {α} : list (option α) → list α
 | [] := []
@@ -9,8 +24,8 @@ meta def reduce_option_list {α} : list (option α) → list α
 meta def rb_set.insert_list {α : Type} (s : rb_set α) (l : list α) : rb_set α :=
 l.foldr (λ a s', s'.insert a) s
 
-instance : has_ordering ℚ :=
-⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩
+/-instance : has_ordering ℚ :=
+⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩-/
 
 namespace hash_map
 def {u v} find' {α : Type u} {β : α → Type v} [decidable_eq α] (m : hash_map α β) (a : α) [inhabited (β a)] : β a :=
@@ -31,14 +46,26 @@ s1.fold s2 (λ s c, c.insert s)
 
 namespace polya
 
+@[derive decidable_eq]
 inductive comp
 | le | lt | ge | gt
 
+@[derive decidable_eq]
 inductive gen_comp
 | le | lt | ge | gt | eq | ne
 
+@[derive decidable_eq]
+inductive spec_comp
+| lt | le | eq
+
 namespace comp
-instance : decidable_eq comp := by tactic.mk_dec_eq_instance
+--instance : decidable_eq comp := by tactic.mk_dec_eq_instance
+
+def dir : comp → ℤ
+| le := -1
+| lt := -1
+| ge := 1
+| gt := 1
 
 def reverse : comp → comp
 | le := ge
@@ -106,7 +133,8 @@ meta instance : has_to_format comp :=
 end comp
 
 namespace gen_comp
-instance : decidable_eq gen_comp := by tactic.mk_dec_eq_instance
+--instance : decidable_eq gen_comp := by tactic.mk_dec_eq_instance
+instance : inhabited gen_comp := ⟨eq⟩
 
 def dir : gen_comp → ℤ
 | le := -1
@@ -169,6 +197,30 @@ def implies_aux : gen_comp → gen_comp → bool
 def implies (c1 c2 : gen_comp) : bool :=
 (c1 = c2) || implies_aux c1 c2 
 
+def prod : gen_comp → gen_comp → option gen_comp
+| ne ne := ne
+| ne eq := eq
+| eq ne := eq
+| ne gt := ne
+| ne lt := ne
+| gt ne := ne
+| lt ne := ne
+| ne a := none
+| a ne := none
+| gt a := a
+| a gt := a
+| eq a := eq
+| a eq := eq
+| ge ge := ge
+| ge le := le
+| le ge := le
+| ge lt := le
+| lt ge := le
+| le le := ge
+| le lt := ge
+| lt le := ge
+| lt lt := gt
+
 
 meta def to_format : gen_comp → format
 | le := "≤"
@@ -188,13 +240,30 @@ meta def to_comp : gen_comp → comp
 | gt := comp.gt
 | _  := comp.ge
 
+/--
+ Be careful. This only matches strength
+-/
+meta def to_spec_comp : gen_comp → spec_comp
+| le := spec_comp.le
+| ge := spec_comp.le
+| lt := spec_comp.lt
+| gt := spec_comp.lt
+| _ := spec_comp.eq
+
+meta def to_function (lhs rhs : expr) : gen_comp → tactic expr
+| le := tactic.to_expr ``(%%lhs ≤ %%rhs)
+| lt := tactic.to_expr ``(%%lhs < %%rhs)
+| ge := tactic.to_expr ``(%%lhs ≥ %%rhs)
+| gt := tactic.to_expr ``(%%lhs > %%rhs)
+| eq := tactic.to_expr ``(%%lhs = %%rhs)
+| ne := tactic.to_expr ``(%%lhs ≠ %%rhs)
+
 meta instance : has_to_format gen_comp :=
 ⟨to_format⟩
 
+
 end gen_comp
 
-inductive spec_comp
-| lt | le | eq
 
 def spec_comp_and_flipped_of_comp : comp → spec_comp × bool
 | comp.lt := (spec_comp.lt, ff)
@@ -204,7 +273,7 @@ def spec_comp_and_flipped_of_comp : comp → spec_comp × bool
 
 namespace spec_comp
 
-instance : decidable_eq spec_comp := by tactic.mk_dec_eq_instance
+--instance : decidable_eq spec_comp := by tactic.mk_dec_eq_instance
 
 def strongest : spec_comp → spec_comp → spec_comp
 | spec_comp.lt _ := spec_comp.lt
@@ -221,6 +290,11 @@ def to_comp : spec_comp → comp
 | spec_comp.le := comp.le
 | spec_comp.eq := comp.gt
 
+def to_gen_comp : spec_comp → gen_comp
+| spec_comp.lt := gen_comp.lt
+| spec_comp.le := gen_comp.le
+| spec_comp.eq := gen_comp.eq
+
 meta def to_format : spec_comp → format
 | spec_comp.lt := "<"
 | spec_comp.le := "≤"
@@ -234,11 +308,12 @@ end spec_comp
 /--
  This does not represent the traditional slope, but (x/y) if (x, y) is a point on the line
 -/
+@[derive decidable_eq]
 inductive slope
 | horiz : slope
 | some : rat → slope
 
-instance slope.decidable_eq : decidable_eq slope := by tactic.mk_dec_eq_instance
+--instance slope.decidable_eq : decidable_eq slope := by tactic.mk_dec_eq_instance
 
 meta def slope.to_format : slope → format
 | slope.horiz := "horiz"
@@ -247,10 +322,15 @@ meta def slope.to_format : slope → format
 meta instance : has_to_format slope :=
 ⟨slope.to_format⟩ 
 
+meta def slope.invert : slope → slope
+| slope.horiz := slope.some 0
+| (slope.some m) := if m = 0 then slope.horiz else slope.some (1/m)
+
 /--
  An inequality (str, a, b) represents the halfplane counterclockwise from the vector (a, b).
  If str is true, it is strict (ie, it doesn't include the line bx-ay=0).
 -/
+@[derive decidable_eq]
 structure ineq :=
 (strict : bool)
 (x y : ℚ)
@@ -460,6 +540,117 @@ meta def of_sign (e : expr) : gen_comp → sum_form_comp
 
 end sum_form_comp
 
+meta structure prod_form := 
+(coeff : ℚ)
+(exps : rb_map expr ℤ)
+
+namespace prod_form
+protected meta def one : prod_form := ⟨1, mk_rb_map⟩
+
+meta instance : has_one prod_form := ⟨prod_form.one⟩
+
+meta def get_exp (pf : prod_form) (e : expr) := 
+match pf.exps.find e with
+| some z := z
+| none := 0
+end
+
+-- this assumes e ≠ 0
+meta def mul_exp (pf : prod_form) (e : expr) (c : ℤ) : prod_form :=
+if pf.get_exp e + c = 0 then {pf with exps := pf.exps.erase e}
+else {pf with exps := pf.exps.insert e ((pf.get_exp e) + c)}
+
+protected meta def mul (lhs rhs : prod_form) : prod_form :=
+{rhs.exps.fold lhs (λ e q pf, pf.mul_exp e q) with coeff := lhs.coeff * rhs.coeff}
+
+meta def scale (pf : prod_form) (q : ℚ) : prod_form :=
+{pf with coeff := pf.coeff * q}
+
+meta def pow (pf : prod_form) (z : ℤ) : prod_form :=
+{coeff := pf.coeff^z, exps := pf.exps.map (λ q, q*z)}
+
+meta instance : has_mul prod_form := ⟨prod_form.mul⟩ 
+
+meta def of_expr (e : expr) : prod_form :=
+{coeff := 1, exps := mk_rb_map.insert e 1}
+
+meta def get_nonone_factors (pf : prod_form) : list (expr × ℤ) :=
+pf.exps.to_list
+
+meta instance : has_to_format prod_form :=
+⟨λ pf, to_fmt pf.coeff ++ "*" ++ to_fmt pf.exps⟩
+
+end prod_form
+
+-- 1 c pf
+meta structure prod_form_comp :=
+(pf : prod_form) (c : spec_comp)
+
+namespace prod_form_comp
+
+meta def default : prod_form_comp := ⟨prod_form.one, spec_comp.eq⟩
+
+meta instance has_to_format : has_to_format prod_form_comp :=
+⟨λ sfc, "{1" ++ to_fmt sfc.c ++ to_fmt sfc.pf.coeff ++ "*" ++ to_fmt (sfc.pf.exps) ++  "}"⟩
+
+meta def is_contr : prod_form_comp → bool
+| ⟨sf, c⟩ := (sf.exps.keys.length = 0) &&
+    (((c = spec_comp.lt) && (sf.coeff ≥ 0)) || ((c = spec_comp.le) && (sf.coeff > 0)))
+
+/-
+-- assumes that lhs is positive
+meta def of_ineq_pos_lhs (lhs rhs : expr) (id : ineq) : prod_form_comp :=
+match id.to_slope, spec_comp_and_flipped_of_comp id.to_comp with
+| slope.horiz, (cmp, flp) := default
+| slope.some m, (cmp, flp) := 
+   if m = 0 then default else
+   let nsfc := ((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs) in
+   ⟨if flp then (nsfc.scale m).pow (-1) else nsfc.scale m, cmp⟩
+end
+
+-- assumes that lhs is negative
+meta def of_ineq_neg_lhs (lhs rhs : expr) (id : ineq) : prod_form_comp :=
+match id.to_slope, spec_comp_and_flipped_of_comp id.to_comp with
+| slope.horiz, (cmp, flp) := default
+| slope.some m, (cmp, flp) := 
+   if m = 0 then default else
+   let nsfc := ((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs) in
+   ⟨if flp then nsfc.scale m else (nsfc.scale m).pow (-1), cmp⟩--⟨nsfc.scale (if flp then m else -m), cmp⟩
+end
+-/
+
+-- is_redundant_data cmp is_pos_coeff s_lhs s_rhs assumes lhs has sign s_lhs, rhs has sign s_rhs, c has sign is_pos_coeff,
+-- and returns true if lhs cmp 0 cmp c*rhs
+private meta def is_redundant_data (cmp : comp) (is_pos_coeff : bool) (s_lhs s_rhs : gen_comp) : bool :=
+if s_lhs.is_less = s_rhs.is_less then 
+   if is_pos_coeff then ff else cmp.is_less
+else if s_lhs.is_less then 
+   if is_pos_coeff then cmp.is_less else ff
+else 
+   if is_pos_coeff then bnot cmp.is_less else ff 
+
+
+-- lhs cl 0 and rhs cr 0, and iq lhs rhs. cl and cr should be strict ineqs
+meta def of_ineq (lhs rhs : expr) (cl cr : gen_comp) (iq : ineq) : prod_form_comp :=
+match (trace_val ("iq slope, lhs, rhs:", iq.to_slope, lhs, rhs)).2.1, (trace_val ("iq comp:", iq.to_comp)).2 with
+| slope.horiz, _ := default
+| slope.some m, cmp := 
+   if (m = 0) || (is_redundant_data cmp (m > 0) cl cr) then (trace_val ("redundant", default)).2 else
+   let nsfc := trace_val $ (((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs)).scale m,
+       (sc, flp) := spec_comp_and_flipped_of_comp cmp in
+   ⟨if ((bnot cl.is_less) = flp) then nsfc.pow (-1) else nsfc, sc⟩
+end
+
+
+--    Π (id : ineq_proof lhs rhs iq) (spl : sign_proof lhs cl) (spr : sign_proof rhs cr), prod_form_proof (prod_form_comp.of_ineq lhs rhs cl cr iq)
+
+meta def of_eq (lhs rhs : expr) (c : ℚ) : prod_form_comp :=
+⟨(((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs)).scale c, spec_comp.eq⟩
+
+meta def pow (pfc : prod_form_comp) (z : ℤ) : prod_form_comp :=
+⟨pfc.pf.pow z, pfc.c⟩
+
+end prod_form_comp
 
 section proof_objs
 
@@ -528,6 +719,7 @@ with sign_proof : expr → gen_comp → Type
     eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof rhs c'
 | ineq_of_ineq_and_eq_zero_rhs : Π {lhs rhs i}, Π c, 
     ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
+| diseq_of_strict_ineq : Π {e c}, sign_proof e c → sign_proof e gen_comp.ne 
 | of_sum_form_proof : Π e c {sfc}, sum_form_proof sfc → sign_proof e c
 | adhoc : Π e c, tactic expr → sign_proof e c
 
@@ -544,6 +736,22 @@ with sum_form_proof : sum_form_comp → Type
 | of_scale : Π {sfc}, Π m, sum_form_proof sfc → sum_form_proof (sfc.scale m)
 | of_expr_def : Π (e : expr) (sf : sum_form),  sum_form_proof ⟨sf, spec_comp.eq⟩ 
 | fake : Π sd, sum_form_proof sd
+
+meta inductive prod_form_proof : prod_form_comp → Type
+/-| of_ineq_proof_pos_lhs : Π {lhs rhs iq}, 
+    Π (id : ineq_proof lhs rhs iq) (sp : sign_proof lhs gen_comp.gt) (nzprs : hash_map expr (λ e, sign_proof e gen_comp.ne)),
+    prod_form_proof (prod_form_comp.of_ineq_pos_lhs lhs rhs iq)
+| of_ineq_proof_neg_lhs : Π {lhs rhs iq}, 
+    Π (id : ineq_proof lhs rhs iq) (sp : sign_proof lhs gen_comp.lt) (nzprs : hash_map expr (λ e, sign_proof e gen_comp.ne)),
+    prod_form_proof (prod_form_comp.of_ineq_neg_lhs lhs rhs iq)-/
+| of_ineq_proof : Π {lhs rhs iq cl cr},
+    Π (id : ineq_proof lhs rhs iq) (spl : sign_proof lhs cl) (spr : sign_proof rhs cr), prod_form_proof (prod_form_comp.of_ineq lhs rhs cl cr iq)
+| of_eq_proof : Π {lhs rhs c}, Π (id : eq_proof lhs rhs c) (lhsne : sign_proof lhs gen_comp.ne),
+    prod_form_proof (prod_form_comp.of_eq lhs rhs c)
+| of_expr_def : Π (e : expr) (pf : prod_form), prod_form_proof ⟨pf, spec_comp.eq⟩
+| of_pow : Π {pfc}, Π z, prod_form_proof pfc → prod_form_proof (pfc.pow z)
+| of_mul : Π {lhs rhs c1 c2}, prod_form_proof ⟨lhs, c1⟩ → prod_form_proof ⟨rhs, c2⟩ → (list Σ e : expr, sign_proof e gen_comp.ne) → prod_form_proof ⟨lhs*rhs, spec_comp.strongest c1 c2⟩ 
+| fake : Π pd, prod_form_proof pd
 
 
 open ineq_proof
@@ -564,6 +772,47 @@ meta def ineq_proof.to_format2 :
 meta instance ineq_proof.has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
 ⟨ineq_proof.to_format2⟩
 
+/-with sign_proof : expr → gen_comp → Type
+| hyp  : Π e c, expr → sign_proof e c
+| ineq_lhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof lhs c
+| ineq_rhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof rhs c
+| eq_of_two_eqs_lhs : Π {lhs rhs eqp1 eqp2}, 
+    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof lhs gen_comp.eq
+| eq_of_two_eqs_rhs : Π {lhs rhs eqp1 eqp2}, 
+    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof rhs gen_comp.eq
+| diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
+| eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq
+| ineq_of_eq_and_ineq_lhs : Π {lhs rhs i c}, Π c', 
+    eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof lhs c'
+| ineq_of_eq_and_ineq_rhs : Π {lhs rhs i c}, Π c', 
+    eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof rhs c'
+| ineq_of_ineq_and_eq_zero_rhs : Π {lhs rhs i}, Π c, 
+    ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
+| diseq_of_strict_ineq : Π {e c}, sign_proof e c → sign_proof e gen_comp.ne 
+| of_sum_form_proof : Π e c {sfc}, sum_form_proof sfc → sign_proof e c
+| adhoc : Π e c, tactic expr → sign_proof e c
+-/
+
+section
+open sign_proof
+meta def sign_proof.to_format : Π {e c}, sign_proof e c → format
+| (_) (_) (hyp _ _ _) := "hyp"
+| (_) (_) (ineq_lhs _ _) := "ineq_lhs"
+| (_) (_) (ineq_rhs _ _) := "ineq_rhs"
+| (_) (_) (eq_of_two_eqs_rhs _ _) := "eq_of_two_eqs_rhs"
+| (_) (_) (eq_of_two_eqs_lhs _ _) := "eq_of_two_eqs_lhs"
+| (_) (_) (diseq_of_diseq_zero _) := "diseq_of_diseq_zero"
+| (_) (_) (eq_of_eq_zero _) := "eq_of_eq_zero"
+| (_) (_) (ineq_of_eq_and_ineq_lhs _ _ _) := "ineq_of_eq_and_ineq_lhs"
+| (_) (_) (ineq_of_eq_and_ineq_rhs _ _ _) := "ineq_of_eq_and_ineq_rhs"
+| (_) (_) (ineq_of_ineq_and_eq_zero_rhs _ _ _) := "ineq_of_ineq_and_eq_zero_rhs"
+| (_) (_) (diseq_of_strict_ineq _) := "diseq_of_strict_ineq"
+| (_) (_) (of_sum_form_proof _ _ _) := "of_sum_form_proof"
+| (_) (_) (adhoc _ _ _) := "adhoc"
+
+meta instance sign_proof.has_to_format {e c} : has_to_format (sign_proof e c) := ⟨sign_proof.to_format⟩
+end
+
 end proof_objs
 
 section data_objs
@@ -580,6 +829,9 @@ meta def ineq_data.to_format {lhs rhs} : ineq_data lhs rhs → format
 
 meta instance ineq_data.has_to_format (lhs rhs) : has_to_format (ineq_data lhs rhs) :=
 ⟨ineq_data.to_format⟩
+
+/-meta instance ineq_data.has_decidable_eq (lhs rhs) : decidable_eq (ineq_data lhs rhs) :=
+by tactic.mk_dec_eq_instance-/
 
 -- TODO
 section
@@ -742,7 +994,7 @@ if ed.c > 0 then
       pr2 := sign_proof.ineq_rhs cmp prf in
   (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
 else if h : ed.c = 0 then
-  let pr1 := sign_proof.eq_of_eq_zero (by rw -h; apply ed.prf),
+  let pr1 := sign_proof.eq_of_eq_zero (by rw ←h; apply ed.prf),
       pr2 := sign_proof.ineq_rhs (mk_cmp_aux (id.x ≥ 0) id.strict) prf in
   (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
 else 
@@ -760,7 +1012,7 @@ if ed.c > 0 then
       pr2 := sign_proof.ineq_of_eq_and_ineq_rhs cmp ed.prf prf in
       (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
 else if h : ed.c = 0 then
-  let pr1 := sign_proof.eq_of_eq_zero (by rw -h; apply ed.prf),
+  let pr1 := sign_proof.eq_of_eq_zero (by rw ←h; apply ed.prf),
       pr2 := sign_proof.ineq_of_ineq_and_eq_zero_rhs cmp prf pr1 in
       (some ⟨_, pr1⟩, some ⟨_, pr2⟩)
 else
@@ -840,6 +1092,9 @@ end sum_form_comp
 meta structure sum_form_comp_data :=
 (sfc : sum_form_comp) (prf : sum_form_proof sfc) (elim_list : rb_set expr)
 
+meta structure prod_form_comp_data :=
+(pfc : prod_form_comp) (prf : prod_form_proof pfc) (elim_list : rb_set expr)
+
 namespace sum_form_comp_data
 
 meta def of_ineq_data {lhs rhs} (id : ineq_data lhs rhs) : sum_form_comp_data :=
@@ -854,10 +1109,7 @@ meta def of_sign_data {e} (sd : sign_data e) : sum_form_comp_data :=
 meta def vars (sfcd : sum_form_comp_data) : list expr :=
 sfcd.sfc.sf.keys
 
-
-  
-
-meta instance : has_to_format sum_form_comp_data :=
+meta instance has_to_format : has_to_format sum_form_comp_data :=
 ⟨λ sfcd, to_fmt sfcd.sfc⟩
 
 meta def get_coeff (sfcd : sum_form_comp_data) (e : expr) : ℚ :=
@@ -878,6 +1130,36 @@ meta def is_contr : sum_form_comp_data → bool
 | ⟨sfc, _, _⟩ := sfc.is_contr
 
 end sum_form_comp_data
+
+namespace prod_form_comp_data
+
+meta def vars (pfcd : prod_form_comp_data) : list expr :=
+pfcd.pfc.pf.exps.keys
+
+meta def of_ineq_data {lhs rhs cl cr} (id : ineq_data lhs rhs) (spl : sign_proof lhs cl) (spr : sign_proof rhs cr) : prod_form_comp_data :=
+⟨_, prod_form_proof.of_ineq_proof id.prf spl spr, mk_rb_set⟩
+
+meta def of_eq_data {lhs rhs} (ed : eq_data lhs rhs) (sp : sign_proof lhs gen_comp.ne) : prod_form_comp_data :=
+⟨_, prod_form_proof.of_eq_proof ed.prf sp, mk_rb_set⟩
+
+meta instance has_to_format : has_to_format prod_form_comp_data :=
+⟨λ sfcd, to_fmt sfcd.pfc⟩
+
+end prod_form_comp_data
+
+meta def prod_form_proof.to_format {pfc} (pfp : prod_form_proof pfc) : format :=
+begin
+cases pfp,
+exact "of_ineq_proof",
+exact "of_eq_proof",
+exact "of_expr_def",
+exact "of_pow",
+exact "of_mul",
+exact "fake"
+end
+
+meta instance prod_form_proof.has_to_format {pfc} : has_to_format (prod_form_proof pfc) :=
+⟨prod_form_proof.to_format⟩
 
 private meta def compare_coeffs (sf1 sf2 : sum_form) (h : expr) : ordering :=
 let c1 := sf1.get_coeff h, c2 := sf2.get_coeff h in

@@ -7,27 +7,13 @@ namespace polya
 
 section sfcd_to_ineq
 
-/-theorem fake_ineq_to_expr_proof (P : Prop) {Q : Prop} (h : Q) : P := sorry
-
-meta def ineq.to_expr (lhs rhs : expr) (id : ineq) {s} (pf : sum_form_proof s) : tactic expr :=
-do tp ← id.to_type lhs rhs,
-   prf ← pf.reconstruct,
-   tactic.mk_app ``fake_ineq_to_expr_proof [tp, prf]-/
-
  -- assumes lhs < rhs as exprs. cl*lhs + cr*rhs R 0 ==> ineq_data
 private meta def mk_ineq_data_of_lhs_rhs (lhs rhs : expr) (cl cr : ℚ) (c : comp) {s} (pf : sum_form_proof s) :
         Σ l r, ineq_data l r :=
 let c' := if cl > 0 then c else c.reverse,
     iq := ineq.of_comp_and_slope (c') (slope.some (-cr/cl)) in
-⟨lhs, rhs, ⟨iq, ineq_proof.of_sum_form_proof lhs rhs iq pf⟩⟩ --_ _ _ (iq.to_expr lhs rhs pf)⟩⟩ -- TODO
---⟨lhs, rhs, ⟨iq, ineq_proof.hyp _ _ _ ```(0)⟩⟩ -- TODO
+⟨lhs, rhs, ⟨iq, ineq_proof.of_sum_form_proof lhs rhs iq pf⟩⟩
 
-/--- assumes lhs < rhs as exprs. cl*lhs + cr*rhs R 0 ==> ineq_data
-private meta def mk_ineq_of_lhs_rhs (cl cr : ℚ) (c : comp) : ineq :=
-let c' := if cl > 0 then c else c.reverse in
-ineq.of_comp_and_slope (c') (slope.some (-cr/cl))-/
-
--- we need a proof constructor for ineq and eq
 meta def sum_form_comp_data.to_ineq_data : sum_form_comp_data → option (Σ lhs rhs, ineq_data lhs rhs) 
 | ⟨⟨sf, spec_comp.eq⟩, prf, _⟩ := none
 | ⟨sfc, prf, _⟩ := 
@@ -46,6 +32,18 @@ meta def sum_form_comp_data.to_eq_data : sum_form_comp_data → option (Σ lhs r
   end
 | _ := none 
 
+#print sign_data
+
+meta def sum_form_comp_data.to_sign_data : sum_form_comp_data → option Σ e, sign_data e
+| ⟨sfc, prf, _⟩ := 
+  match sfc.sf.get_nonzero_factors with
+  | [(e, n)] := 
+   let c := if n < 0 then sfc.c.to_gen_comp.reverse else sfc.c.to_gen_comp in
+   some ⟨e, ⟨c, sign_proof.adhoc _ _ (tactic.fail "sum_form_comp_data.to_sign_data not implemented")⟩⟩
+  | _ := none
+  end
+
+
 end sfcd_to_ineq
 
 
@@ -59,62 +57,15 @@ let cf1 := sf1.get_coeff pvt,
 if (fac > 0) then
   some ⟨_, sum_form_proof.of_add_factor_same_comp fac prf1 prf2, (rb_set.union elim_list1 elim_list2).insert pvt⟩
 else if hce : c1 = spec_comp.eq then
-  some ⟨_, sum_form_proof.of_add_eq_factor_op_comp fac prf2 (by rw -hce; apply prf1), (rb_set.union elim_list1 elim_list2).insert pvt⟩ 
+  some ⟨_, sum_form_proof.of_add_eq_factor_op_comp fac prf2 (by rw ←hce; apply prf1), (rb_set.union elim_list1 elim_list2).insert pvt⟩ 
 else if hce' : c2 = spec_comp.eq then
-  some ⟨_, sum_form_proof.of_add_eq_factor_op_comp fac prf1 (by rw -hce'; apply prf2), (rb_set.union elim_list1 elim_list2).insert pvt⟩
+  some ⟨_, sum_form_proof.of_add_eq_factor_op_comp fac prf1 (by rw ←hce'; apply prf2), (rb_set.union elim_list1 elim_list2).insert pvt⟩
 else none
 
 meta def sum_form_comp_data.elim_expr (sfcd1 sfcd2 : sum_form_comp_data) (pvt : expr) : option sum_form_comp_data :=
-if sfcd1.get_coeff pvt = 0 then some sfcd1
+if sfcd1.get_coeff pvt = 0 then some ⟨sfcd1.sfc, sfcd1.prf, sfcd1.elim_list.insert pvt⟩
 else if sfcd2.get_coeff pvt = 0 then none
 else sum_form_comp_data.elim_expr_aux sfcd1 sfcd2 pvt
-
-/-private meta def compare_coeffs (sf1 sf2 : sum_form) (h : expr) : ordering :=
-let c1 := sf1.get_coeff h, c2 := sf2.get_coeff h in
-if c1 < c2 then ordering.lt else if c2 < c1 then ordering.gt else ordering.eq
-
-private meta def compare_coeff_lists (sf1 sf2 : sum_form) : list expr → list expr → ordering
-| [] [] := ordering.eq
-| [] _ := ordering.lt
-| _ [] := ordering.gt
-| (h1::t1) (h2::t2) := 
-   if h1 = h2 then let ccomp := compare_coeffs sf1 sf2 h1 in
-     if ccomp = ordering.eq then compare_coeff_lists t1 t2 else ccomp
-   else has_ordering.cmp h1 h2
-
-meta def sum_form.order (sf1 sf2 : sum_form) : ordering :=
-compare_coeff_lists sf1 sf2 sf1.keys sf2.keys
-
-meta def sum_form_comp.order : sum_form_comp → sum_form_comp → ordering
-| ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.le⟩ := ordering.lt
-| ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
-| ⟨_, spec_comp.le⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
-| ⟨sf1, _⟩ ⟨sf2, _⟩ := sum_form.order sf1.normalize sf2.normalize
-
--- TODO: do we need to take elim_vars into account for this order?
-meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data → ordering
-| ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2-/
-
--- this is a crazy hack.
-/-meta def sum_form_comp_data.order :=
-λ c1 c2 : sum_form_comp_data, has_ordering.cmp ((to_fmt c1).to_string options.mk).to_name ((to_fmt c2).to_string options.mk).to_name
--/
- 
-
-
-/-meta def sum_form_comp_data.elim_into (sfcd1 sfcd2 : sum_form_comp_data) (pvt : expr)
-     (rv : list sum_form_comp_data) : list sum_form_comp_data :=
-match sfcd1.elim_expr sfcd2 pvt with
-| none := rv
-| some sfcd := sfcd::rv
-end
-
-meta def elim_expr_from_comp_data (sfcd : sum_form_comp_data) (cmps : list sum_form_comp_data) 
-         (e : expr) (rv : list sum_form_comp_data) : list sum_form_comp_data :=
-cmps.foldr (λ c rv', sfcd.elim_into c e rv') rv
-
-meta def elim_expr_from_comp_data_set (cmps : list sum_form_comp_data) (e : expr) : list sum_form_comp_data :=
-cmps.foldr (λ c rv, elim_expr_from_comp_data c cmps e rv) []-/
 
 meta def sum_form_comp_data.elim_into (sfcd1 sfcd2 : sum_form_comp_data) (pvt : expr)
      (rv : rb_set sum_form_comp_data) : rb_set sum_form_comp_data :=
@@ -147,21 +98,6 @@ sfcd.vars.foldr (λ e rv, elim_expr_from_comp_data sfcd cmps e rv) mk_rb_set
 meta def elim_expr_from_comp_data_list (cmps : list sum_form_comp_data) (e : expr) : list sum_form_comp_data :=
 (elim_expr_from_comp_data_set (rb_set.of_list cmps) e).to_list
 
-/-
-/--
- Adds sfcd to comps. Then generates all new comparisons between sfcd and comps, and recursively adds those.
--/
-meta def elim_and_add : sum_form_comp_data → rb_set sum_form_comp_data → rb_set sum_form_comp_data | sfcd cmps :=
-let new_comps := new_exprs_from_comp_data_set sfcd cmps in
-(trace_val new_comps).fold (cmps.insert sfcd) elim_and_add
-
-meta def elim_set (cmps : rb_set sum_form_comp_data) : rb_set sum_form_comp_data :=
-cmps.fold mk_rb_set elim_and_add
-
-meta def elim_list (cmps : list sum_form_comp_data) : list sum_form_comp_data :=
-(elim_set (rb_set.of_list cmps)).to_list
--/
-
 private meta def check_elim_lists_aux (sfcd1 sfcd2 : sum_form_comp_data) : bool :=
 sfcd1.vars.all (λ e, bnot (sfcd2.elim_list.contains e))
 
@@ -179,14 +115,6 @@ meta def elim_expr_from_comp_data_filtered (sfcd : sum_form_comp_data) (cmps : r
          (e : expr) (rv : rb_set sum_form_comp_data) : rb_set sum_form_comp_data :=
 cmps.fold rv (λ c rv', if sfcd.needs_elim_against c e then sfcd.elim_into c e rv' else rv')
 
-/-
-/--
- Eliminates the expression e from all comparisons in cmps in all possible ways
--/
-meta def elim_expr_from_comp_data_set (cmps : rb_set sum_form_comp_data) (e : expr) : rb_set sum_form_comp_data :=
-cmps.fold mk_rb_set (λ c rv, elim_expr_from_comp_data c cmps (trace_val e) rv)
--/
-
 
 /--
  Performs all possible eliminations with sfcd on cmps. Returns a set of all new comps, NOT including the old ones.
@@ -198,22 +126,16 @@ sfcd.vars.foldr (λ e rv, elim_expr_from_comp_data_filtered sfcd cmps e rv) mk_r
 meta def elim_list_into_set : rb_set sum_form_comp_data → list sum_form_comp_data → rb_set sum_form_comp_data
 | cmps [] := cmps
 | cmps (sfcd::new_cmps) :=
-   if cmps.contains sfcd then elim_list_into_set cmps new_cmps else
+   if cmps.contains sfcd then elim_list_into_set cmps (new_cmps.length, new_cmps).2 else
    let new_gen := (new_exprs_from_comp_data_set sfcd.normalize cmps).keys in
    elim_list_into_set (cmps.insert sfcd) (new_cmps.append new_gen)
 
 
-/-
+meta def elim_list_set (cmps : list sum_form_comp_data) (start : rb_set sum_form_comp_data := mk_rb_set) : rb_set sum_form_comp_data :=
+elim_list_into_set start cmps
 
-meta def elim_list_into_set : rb_set sum_form_comp_data → list sum_form_comp_data → rb_set sum_form_comp_data
-| cmps [] := cmps
-| cmps (sfcd::new_cmps) :=
-   if (trace_val (cmps.contains (trace_val sfcd)) : bool) then elim_list_into_set cmps new_cmps else
-   let new_gen := (new_exprs_from_comp_data_set sfcd.normalize cmps).keys in
-   elim_list_into_set (rb_set.insert_list (cmps.insert sfcd) new_gen) new_cmps -- (new_cmps.append new_gen)-/
-
-meta def elim_list (cmps : list sum_form_comp_data) : list sum_form_comp_data :=
-(elim_list_into_set mk_rb_set cmps).to_list
+meta def elim_list (cmps : list sum_form_comp_data) (start : rb_set sum_form_comp_data := mk_rb_set) : list sum_form_comp_data :=
+(elim_list_into_set start cmps).to_list
 
 meta def vars_of_sfcd_set (cmps : rb_set sum_form_comp_data) : rb_set expr :=
 cmps.fold mk_rb_set (λ sfcd s, s.insert_list sfcd.vars)
@@ -253,25 +175,41 @@ meta def mk_eqs_of_expr_sum_form_pair : expr × sum_form → sum_form_comp_data
   ⟨⟨sf', spec_comp.eq⟩, sum_form_proof.of_expr_def e sf', mk_rb_set⟩
 
 private meta def mk_sfcd_list : polya_state (list sum_form_comp_data) :=
-do il ← get_ineq_list, /-il ← return (trace_val ("il",il)).2,-/ el ← get_eq_list, sl ← get_sign_list, dfs ← get_add_defs,
+  do il ← get_ineq_list,  el ← get_eq_list, sl ← get_sign_list, dfs ← get_add_defs,
    let il' := il.map (λ ⟨lhs, rhs, id⟩, sum_form_comp_data.of_ineq_data id) in
    let el' := el.map (λ ⟨_, _, ed⟩, sum_form_comp_data.of_eq_data ed) in
    let sl' := sl.map (λ ⟨_, sd⟩, sum_form_comp_data.of_sign_data sd) in
    let dfs' := dfs.map mk_eqs_of_expr_sum_form_pair in
    return $ (((il'.append el').append sl').append dfs').qsort (λ a b, if has_ordering.cmp a b = ordering.lt then tt else ff)
 
+private meta def mk_eq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, eq_data lhs rhs :=
+let il := cmps.map (λ sfcd, sfcd.to_eq_data) in
+reduce_option_list il
 
 private meta def mk_ineq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, ineq_data lhs rhs :=
 let il := cmps.map (λ sfcd, sfcd.to_ineq_data) in
 reduce_option_list il
 
-meta def add_new_ineqs : polya_state unit :=
-do sfcds ← mk_sfcd_list,
-   let ineqs := mk_ineq_list $ elim_list sfcds in
-   monad.mapm' 
-  (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq s.2.2)
---  (λ ⟨lhs, rhs,id⟩ : Σ lhs rhs, ineq_data lhs rhs, add_ineq id)
- ineqs
+private meta def mk_sign_list (cmps : list sum_form_comp_data) : list Σ e, sign_data e :=
+let il := cmps.map (λ sfcd, sfcd.to_sign_data) in
+reduce_option_list il
+
+#check list.mmap'
+
+meta def sum_form.add_new_ineqs (start : rb_set sum_form_comp_data := mk_rb_set) : polya_state (rb_set sum_form_comp_data) :=
+do is_contr ← contr_found,
+   if is_contr then return start else do
+   sfcds ← mk_sfcd_list, 
+   let elim_set := elim_list_set sfcds start,
+   let elims := elim_set.to_list, 
+   let ineqs := mk_ineq_list elims,
+   let eqs   := mk_eq_list elims,
+   let signs := mk_sign_list elims,
+   ineqs.mmap' (λ s, add_ineq s.2.2),
+   eqs.mmap' (λ s, add_eq s.2.2),
+   signs.mmap' (λ s, add_sign s.2),
+   return elim_set
+
 
 end bb_process
 

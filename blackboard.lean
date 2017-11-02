@@ -1,8 +1,6 @@
 import .datatypes
 namespace polya
 
-meta def prod_form := unit
-
 meta inductive expr_form
 | sum_f : sum_form → expr_form
 | prod_f : prod_form → expr_form
@@ -22,15 +20,23 @@ meta def expr_form.order : expr_form → expr_form → ordering
 
 
 meta instance expr_form.has_ordering : has_ordering expr_form := ⟨expr_form.order⟩
+
+meta def expr_form.format : expr_form → format
+| (sum_f sf) := "sum:" ++ to_fmt sf
+| (prod_f pf) := "prod:" ++ to_fmt pf
+| (atom_f e) := "atom:" ++ to_fmt e
+
+meta instance expr_form.has_to_format : has_to_format expr_form := ⟨expr_form.format⟩
+
 end
 
 meta structure blackboard :=
 (ineqs : hash_map (expr×expr) (λ p, ineq_info p.1 p.2))
 (diseqs : hash_map (expr×expr) (λ p, diseq_info p.1 p.2))
-(signs : hash_map expr (λ e, sign_info e))
-(extra_ineqs : list Σ lhs rhs, ineq_data lhs rhs)
+(signs : hash_map expr sign_info)
 (exprs : rb_set (expr × expr_form))
 (contr : contrad)
+(changed : bool := ff)
 
 namespace blackboard
 
@@ -40,13 +46,15 @@ meta def expr_pair_hash : expr × expr → ℕ
 meta def mk_empty : blackboard :=
 {ineqs       := mk_hash_map expr_pair_hash, 
  diseqs      := mk_hash_map expr_pair_hash, 
- signs       := mk_hash_map expr.hash, 
- extra_ineqs := [],
+ signs       := mk_hash_map expr.hash,
  exprs       := mk_rb_set, 
  contr       := contrad.none}
 
 section accessors
 variables (lhs rhs : expr) (bb : blackboard)
+
+meta def is_changed : bool :=
+bb.changed
 
 meta def get_ineqs : ineq_info lhs rhs :=
 if expr.lt rhs lhs then bb.ineqs.find' (lhs, rhs) else (bb.ineqs.find' (rhs, lhs)).reverse
@@ -61,6 +69,28 @@ meta def get_sign_comp : option gen_comp :=
 match get_sign_info lhs bb with
 | none := none
 | some sd := some sd.c
+end
+
+meta def has_sign_info : bool :=
+match get_sign_info lhs bb with
+| some _ := tt
+| none := ff
+end
+
+meta def has_strict_sign_info : bool :=
+match get_sign_info lhs bb with
+| some ⟨gen_comp.lt, _⟩ := tt
+| some ⟨gen_comp.gt, _⟩ := tt
+| _ := ff
+end
+
+meta def has_weak_sign_info : bool :=
+match get_sign_info lhs bb with
+| some ⟨gen_comp.lt, _⟩ := tt
+| some ⟨gen_comp.gt, _⟩ := tt
+| some ⟨gen_comp.ge, _⟩ := tt
+| some ⟨gen_comp.le, _⟩ := tt
+| _ := ff
 end
 
 meta def get_expr_list : list expr :=
@@ -91,32 +121,35 @@ trace_ineqs bb bb.get_expr_list >> trace_signs bb bb.get_expr_list
 meta def trace_exprs : tactic unit :=
 tactic.trace $ bb.get_expr_list
 
+meta def trace_expr_pairs : tactic unit :=
+tactic.trace $ bb.get_expr_expr_form_list
+
 end accessors
 
 
 section manipulators
 
 meta def add_expr (e : expr) (ef : expr_form) (bb : blackboard) : blackboard :=
-{bb with exprs := bb.exprs.insert (e, ef)}
+{bb with exprs := bb.exprs.insert (e, ef), changed := tt}
 
 meta def add_two_exprs (e1 e2 : expr) (ef1 ef2 : expr_form) (bb : blackboard) : blackboard :=
-(bb.add_expr e1 ef1).add_expr e2 ef2
+{(bb.add_expr e1 ef1).add_expr e2 ef2 with changed := tt}
 
 meta def insert_sign (e : expr) (si : sign_data e) (bb : blackboard) : blackboard :=
-{bb with signs := bb.signs.insert e (some si)}
+{bb with signs := bb.signs.insert e (some si), changed := tt}
 
 meta def insert_diseq {lhs rhs} (dd : diseq_data lhs rhs) (bb : blackboard) : blackboard :=
 let dsq := bb.get_diseqs lhs rhs in
-{bb with diseqs := bb.diseqs.insert (lhs, rhs) (dsq.insert dd.c dd)}
+{bb with diseqs := bb.diseqs.insert (lhs, rhs) (dsq.insert dd.c dd), changed := tt}
 
 meta def insert_ineq_info {lhs rhs} (ii : ineq_info lhs rhs) (bb : blackboard) : blackboard :=
-{bb with ineqs := bb.ineqs.insert (lhs, rhs) ii}
-
-meta def clear_extra_ineqs (bb : blackboard) : blackboard :=
-{bb with extra_ineqs := []}
+{bb with ineqs := bb.ineqs.insert (lhs, rhs) ii, changed := tt}
 
 meta def get_contr (bb : blackboard) : contrad :=
 bb.contr
+
+meta def set_changed (b : bool) (bb : blackboard) : blackboard :=
+{bb with changed := b}
 
 end manipulators
 
@@ -158,11 +191,29 @@ blackboard.get_ineqs lhs rhs
 meta def get_sign_info (e : expr) : polya_state (sign_info e) :=
 blackboard.get_sign_info e
 
+meta def has_sign_info (e : expr) : polya_state bool :=
+blackboard.has_sign_info e
+
+meta def has_strict_sign_info (e : expr) : polya_state bool :=
+blackboard.has_strict_sign_info e
+
+meta def has_weak_sign_info (e : expr) : polya_state bool :=
+blackboard.has_weak_sign_info e
+
 meta def assert_contradiction (ctr : contrad) : polya_state unit :=
 ↑(λ bb : blackboard, if bb.contr_found then bb else {bb with contr := ctr})
 
 meta def get_expr_list : polya_state (list expr) :=
 blackboard.get_expr_list
+
+meta def get_unsigned_exprs : polya_state (list expr) :=
+get_expr_list >>= mfilter (λ e, bnot <$> has_weak_sign_info e)
+
+meta def get_strict_signed_exprs : polya_state (list expr) :=
+get_expr_list >>= mfilter has_strict_sign_info
+
+meta def get_weak_signed_exprs : polya_state (list expr) :=
+get_expr_list >>= mfilter has_weak_sign_info
 
 meta def get_expr_expr_form_list : polya_state (list (expr × expr_form)) :=
 blackboard.get_expr_expr_form_list
@@ -172,6 +223,12 @@ blackboard.contr_found
 
 meta def get_contr : polya_state contrad :=
 blackboard.get_contr
+
+meta def is_changed : polya_state bool :=
+blackboard.is_changed
+
+meta def set_changed (b : bool): polya_state unit :=
+blackboard.set_changed b
 
 meta def is_nondeg_slope (id : Σ lhs rhs, ineq_data lhs rhs) : bool :=
 match id.2.2.inq.to_slope with
@@ -222,9 +279,17 @@ private meta def is_sum_form : expr × expr_form → option (expr × sum_form)
 | ⟨e, (expr_form.sum_f s)⟩ := some (e, s)
 | _ := none
 
+private meta def is_prod_form : expr × expr_form → option (expr × prod_form)
+| ⟨e, (expr_form.prod_f s)⟩ := some (e, s)
+| _ := none
+
 meta def get_add_defs : polya_state (list (expr × sum_form)) :=
 do exprs ← get_expr_expr_form_list,
-   return $ reduce_option_list (exprs.map (is_sum_form))
+   return $ reduce_option_list (exprs.map is_sum_form)
+
+meta def get_mul_defs : polya_state (list (expr × prod_form)) :=
+do exprs ← get_expr_expr_form_list,
+   return $ reduce_option_list (exprs.map is_prod_form)
 
 section
 variables {lhs rhs : expr}
@@ -239,7 +304,7 @@ match di.find ed.c with
 | some dd := assert_contradiction $ contrad.eq_diseq ed dd
 end
 
-meta def add_zero_ineqs (add_ineq : Π l r, ineq_data l r → polya_state unit) 
+meta def add_zero_ineqs_aux (add_ineq : Π l r, ineq_data l r → polya_state unit) 
         {e} (sd : sign_data e) : polya_state unit :=
 match sd.c with
 | gen_comp.eq := skip
@@ -257,10 +322,10 @@ private meta def add_sign_aux (add_ineq : Π l r, ineq_data l r → polya_state 
 do si ← get_sign_info e, 
 --return $ trace_val ("si:", si),
 match si with
-| none := ((λ bb, bb.insert_sign e sd) : polya_state unit) >> add_zero_ineqs add_ineq sd
+| none := ((λ bb, bb.insert_sign e sd) : polya_state unit) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
 | some osd := 
   if osd.c.implies sd.c then skip
-  else if sd.c.implies osd.c then ((λ bb, bb.insert_sign e sd) : polya_state unit) >> add_zero_ineqs add_ineq sd
+  else if sd.c.implies osd.c then ((λ bb, bb.insert_sign e sd) : polya_state unit) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
   else let ctr := contrad.sign sd osd in
        assert_contradiction ctr 
 end
@@ -366,10 +431,11 @@ else skip
 
 open ineq_info
 meta def add_ineq : Π {lhs rhs}, ineq_data lhs rhs → polya_state unit | lhs rhs id :=
+if (trace_val ("in add_ineq", id, lhs, rhs)).2.1.inq ≠ id.inq then skip else
 if expr.lt lhs rhs then add_ineq id.reverse else
-if h : lhs = rhs then @add_self_ineq lhs (by rw -h at id; apply id) else
+if h : lhs = rhs then @add_self_ineq lhs (by rw ←h at id; apply id) else
 do ii ← get_ineqs lhs rhs,
-   if ii.implies id then skip
+   if ( ("implies", ii, id, ii.implies id)).2.2.2 then skip
    else if ii.implies_ineq id.inq.negate then assert_contradiction $ contrad.ineqs ii id
    else match ii with
    | no_comps := add_ineq_no_comps id
@@ -377,6 +443,8 @@ do ii ← get_ineqs lhs rhs,
    | two_comps id1 id2 := add_ineq_two_comps id id1 id2
    | equal ed := add_implied_signs_from_eq_and_ineq_aux (@add_sign_aux @add_ineq) ed id
    end
+
+meta def add_zero_ineq := @add_zero_ineqs_aux @add_ineq
 
 meta def add_sign := @add_sign_aux @add_ineq 
 
@@ -410,7 +478,7 @@ meta def add_eq : Π {lhs rhs}, eq_data lhs rhs → polya_state unit
 | lhs rhs ed :=
 if lhs.lt rhs then add_eq ed.reverse else
 if h : ed.c = 0 then
- let prf := sign_proof.eq_of_eq_zero (begin rw -h, apply ed.prf end) in
+ let prf := sign_proof.eq_of_eq_zero (begin rw ←h, apply ed.prf end) in
  add_sign ⟨_, prf⟩
 else
  do ei ← get_ineqs lhs rhs,
@@ -436,7 +504,7 @@ meta def add_diseq : Π {lhs rhs}, diseq_data lhs rhs → polya_state unit
 | lhs rhs dd :=
 if lhs.lt rhs then add_diseq dd.reverse else
 if h : dd.c = 0 then
- let prf := sign_proof.diseq_of_diseq_zero (begin rw -h, apply dd.prf end) in
+ let prf := sign_proof.diseq_of_diseq_zero (begin rw ←h, apply dd.prf end) in
  add_sign ⟨_, prf⟩
 else
  do di ← get_diseqs lhs rhs,
@@ -445,7 +513,30 @@ else
  | some _ := skip
  end
 
+
+
 end
+
+
+meta def add_old_sign_info_to_new_ineq (new_e : expr) {old_e : expr} : sign_data old_e → polya_state unit
+| ⟨gen_comp.ne, prf⟩ := skip
+| ⟨gen_comp.eq, prf⟩ := skip
+| ⟨c, prf⟩ := 
+  let y : ℚ := if c.is_less then 1 else -1,
+      inq : ineq := ⟨c.is_strict, 0, y⟩,
+      inq' := if old_e.lt new_e then inq.reverse else inq in
+  add_ineq $ trace_val $ ⟨inq', ineq_proof.zero_comp_of_sign_proof new_e _ prf⟩
+
+meta def add_expr_and_update_ineqs (e : expr) (ef : expr_form) : polya_state unit :=
+do es ← get_expr_list,
+   if e ∈ es then skip else do
+   add_expr (trace_val ("adding expr and updating:", e)).2 ef,
+   es.mmap' (λ e',
+    do si ← get_sign_info e',
+    match si with
+    | some sd := add_old_sign_info_to_new_ineq e (trace_val ("adding old sign info to:", e, sd)).2.2
+    | none := skip
+    end)
 
 /-meta def process_expr : expr → expr_form → polya_state unit :=
 λ e ef, add_expr e ef >>
@@ -456,18 +547,18 @@ match e with
 end-/
 
 meta def get_sum_components : expr → list expr
-| `(%%lhs + %%rhs) := lhs::(get_sum_components rhs)
+| `(%%lhs + %%rhs) := rhs::(get_sum_components lhs)
 | a := [a]
 
 meta def get_prod_components : expr → list expr
-| `(%%lhs * %%rhs) := lhs::(get_sum_components rhs)
+| `(%%lhs * %%rhs) := rhs::(get_prod_components lhs)
 | a := [a]
 
 meta def is_sum (e : expr) : bool :=
 e.is_app_of ``has_add.add
 
 meta def is_prod (e : expr) : bool :=
-e.is_app_of ``has_mul.mul
+e.is_app_of ``has_mul.mul || e.is_app_of ``rat.pow
 
 open tactic
 meta def get_comps_of_mul (e : expr) : tactic (expr × ℚ) := match e with
@@ -475,20 +566,27 @@ meta def get_comps_of_mul (e : expr) : tactic (expr × ℚ) := match e with
 | f := return (f, 1)
 end
 
+meta def get_comps_of_exp (e : expr) : tactic (expr × ℤ) := match e with
+| `(rat.pow %%base %%exp) := (do z ← eval_expr ℤ exp, return (base, z)) <|> return (e, 1)
+| f := return (f, 1)
+end
+
 meta def process_expr_tac : blackboard → expr → tactic blackboard | bb e := 
 if is_sum e then 
   let scs := get_sum_components e in do
   sum_components ← monad.mapm get_comps_of_mul scs,
-  let sf : sum_form := rb_map.of_list sum_components in
-  let bb' := bb.add_expr e (expr_form.sum_f sf) in 
+  let sf : sum_form := rb_map.of_list sum_components,
+  let (_, bb') := add_expr_and_update_ineqs e (expr_form.sum_f sf) bb, 
   monad.foldl process_expr_tac bb' (sum_components.map prod.fst)
-else if is_prod e then -- TODO
+else if is_prod e then 
+  trace "is_prod:" >> trace e >>
   let scs := get_prod_components e in do
- -- sum_components ← monad.mapm get_comps_of_mul scs,
- -- let sf : sum_form := rb_map.of_list sum_components in
-  let bb' := bb.add_expr e (expr_form.prod_f ()) in 
-  monad.foldl process_expr_tac bb' scs -- this is wrong!
-else return $ bb.add_expr e (expr_form.atom_f e)
+  trace ("scs", scs),
+  prod_components ← monad.mapm get_comps_of_exp scs,
+  let sf : prod_form := ⟨1, rb_map.of_list prod_components⟩,
+  let (_, bb') := add_expr_and_update_ineqs e (expr_form.prod_f sf) bb,
+  monad.foldl process_expr_tac bb' (prod_components.map prod.fst)--scs 
+else do trace "atom", trace e, return $ prod.snd $ add_expr_and_update_ineqs e (expr_form.atom_f e) bb
 
 meta def tac_add_eq {lhs rhs} (bb : blackboard) (ed : eq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
