@@ -13,7 +13,7 @@ meta instance int.reflect : has_reflect int
 /-meta def f (z : ℤ) : expr := `(z)
 set_option pp.all true
 run_cmd tactic.trace $ f (-10)-/
-#print rat
+
 --def rat_of_int (i : ℤ) : ℚ := --⟦⟨i, 1, zero_lt_one⟩⟧
 --{ num := i, denom := 1, 
 
@@ -29,8 +29,25 @@ meta instance rat.reflect : has_reflect rat :=
 λ q, unchecked_cast $ q.to_expr
 -/
 
-meta def rat.to_expr (q : ℚ) : expr := 
-`(rat.mk_nat  %%(int.reflect q.num) %%(nat.reflect q.denom))
+private meta def nat_to_rat_expr : nat → expr | n :=
+if n = 0 then `(0 : ℚ)
+else if n = 1 then `(1 : ℚ)
+else if n % 2 = 0 then `(@bit0 ℚ _ %%(nat_to_rat_expr (n/2)))
+else `(@bit1 ℚ _ _ %%(nat_to_rat_expr (n/2)))
+
+private meta def int_to_rat_expr : int → expr | n :=
+if n = 0 then `(0 : ℚ)
+else if n < 0 then `(-%%(int_to_rat_expr (-n)) : ℚ)
+else if n = 1 then `(1 : ℚ)
+else if n % 2 = 0 then `(@bit0 ℚ _ %%(int_to_rat_expr (n/2)))
+else `(@bit1 ℚ _ _ %%(int_to_rat_expr (n/2)))
+
+meta def rat.to_expr (q : ℚ) : expr :=
+if q.denom = 1 then
+  `(%%(int_to_rat_expr q.num) : ℚ) 
+else 
+  `(%%(int_to_rat_expr q.num) / %%(nat_to_rat_expr q.denom) : ℚ)
+--`(rat.mk_nat %%(int.reflect q.num) %%(nat.reflect q.denom))
 
 meta instance rat.reflect : has_reflect rat :=
 λ q, unchecked_cast $ q.to_expr
@@ -155,15 +172,25 @@ else to_fmt num ++ "/" ++ to_fmt denum
 
 --meta def num_denum_quote_wf : Π a b : rat.num_denum, rat.rel a b → num_denum_quote a = num_denum_quote b := sorry
 
-meta def rat_format (q : ℚ) : format :=
+meta def rat.to_string (q : ℚ) : string :=
 if q.denom = 1 then
+  to_string q.num
+else
+  to_string q.num ++ " / " ++ to_string q.denom
+
+
+meta def rat.to_format (q : ℚ) : format :=
+/-if q.denom = 1 then
   to_fmt q.num
 else
-  to_fmt q.num ++ " / " ++ to_fmt q.denom
+  to_fmt q.num ++ " / " ++ to_fmt q.denom-/
+rat.to_string q
 
 meta instance : has_to_format ℚ :=
-⟨rat_format⟩
+⟨rat.to_format⟩
 
+meta instance : has_repr ℚ :=
+⟨rat.to_string⟩
 /-meta instance : has_to_pexpr ℚ :=
 ⟨quot.lift num_denum_quote num_denum_quote_wf⟩
 -/
@@ -190,10 +217,11 @@ change (1 : ℤ) with int.of_nat 1,
 simp [rat.pow]
 end
 
-lemma rat.mul_pow (a b : ℚ) (z : ℤ) : rat.pow (a*b) z = rat.pow a z * rat.pow b z :=
-sorry
-
 lemma rat.pow_pow (a : ℚ) (z1 z2 : ℤ) : rat.pow (rat.pow a z1) z2 = rat.pow a (z1*z2) := sorry
+
+
+lemma rat.one_div_pow (q : ℚ) (z : ℤ) : rat.pow (1/q) z = rat.pow q (-z) := sorry
+
 
 namespace int
 open nat

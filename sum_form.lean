@@ -1,4 +1,4 @@
-import .datatypes .struct_eta .blackboard  --.proof_reconstruction
+import .datatypes .struct_eta .blackboard 
 
 -- TODO: maybe more of this can move to datatypes
 
@@ -27,22 +27,21 @@ meta def sum_form_comp_data.to_ineq_data : sum_form_comp_data → option (Σ lhs
 meta def sum_form_comp_data.to_eq_data : sum_form_comp_data → option (Σ lhs rhs, eq_data lhs rhs)
 | ⟨⟨sf, spec_comp.eq⟩, prf, _⟩ :=
   match sf.get_nonzero_factors with
-  | [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.hyp _ _ _ `(0 : ℚ)⟩⟩ -- TODO
+  | [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.of_sum_form_proof _ _ _ prf⟩⟩--eq_proof.hyp _ _ _ `(0 : ℚ)⟩⟩ -- TODO
   | _ := none
   end
 | _ := none 
 
-#print sign_data
+
 
 meta def sum_form_comp_data.to_sign_data : sum_form_comp_data → option Σ e, sign_data e
 | ⟨sfc, prf, _⟩ := 
   match sfc.sf.get_nonzero_factors with
   | [(e, n)] := 
    let c := if n < 0 then sfc.c.to_gen_comp.reverse else sfc.c.to_gen_comp in
-   some ⟨e, ⟨c, sign_proof.adhoc _ _ (tactic.fail "sum_form_comp_data.to_sign_data not implemented")⟩⟩
+   some ⟨e, ⟨c, sign_proof.of_sum_form_proof _ _ prf⟩⟩ --sign_proof.adhoc _ _ (prf.reconstruct >>= tactic.trace, tactic.fail "sum_form_comp_data.to_sign_data not implemented")⟩⟩
   | _ := none
   end
-
 
 end sfcd_to_ineq
 
@@ -194,17 +193,15 @@ private meta def mk_sign_list (cmps : list sum_form_comp_data) : list Σ e, sign
 let il := cmps.map (λ sfcd, sfcd.to_sign_data) in
 reduce_option_list il
 
-#check list.mmap'
-
 meta def sum_form.add_new_ineqs (start : rb_set sum_form_comp_data := mk_rb_set) : polya_state (rb_set sum_form_comp_data) :=
 do is_contr ← contr_found,
-   if is_contr then return start else do
+   if (/-trace_val-/ ("is_contr", is_contr)).2 then return start else do
    sfcds ← mk_sfcd_list, 
    let elim_set := elim_list_set sfcds start,
    let elims := elim_set.to_list, 
    let ineqs := mk_ineq_list elims,
    let eqs   := mk_eq_list elims,
-   let signs := mk_sign_list elims,
+   let signs := (/-trace_val-/ ("found signs:", mk_sign_list elims)).2,
    ineqs.mmap' (λ s, add_ineq s.2.2),
    eqs.mmap' (λ s, add_eq s.2.2),
    signs.mmap' (λ s, add_sign s.2),
@@ -214,73 +211,3 @@ do is_contr ← contr_found,
 end bb_process
 
 end polya
-#exit
-section tests
-#print instances reflected
---set_option pp.all true
-#check `(ℚ) 
-
-variables x y z : ℚ
-/-meta def x' : expr := `(x)
-meta def y' : expr := `(y)
-meta def z' : expr := `(z)-/
-
-
-open tactic
-#print declaration
-#check reducibility_hints
-include x y z
-def aux : ℕ := by do x ← get_local `x, 
-match x with
-| expr.local_const nm ppnm bi tp :=
- (add_decl $ declaration.defn `x' [] `(expr) `(expr.local_const nm ppnm bi tp) reducibility_hints.abbrev ff) >> apply ↑`(0)
-| _ := apply ↑`(0)
-end
-
-open tactic polya rb_map
-meta def e1 : sum_form := of_list [(x', 3), (y', 2), (z', 1)] -- 3x + 2y + z
-meta def e2 : sum_form := of_list [(x', -2), (y',1/2)]
-meta def e3 : sum_form := of_list [(y',-5), (z', 4)]
-meta def e4 : sum_form := of_list [(x', 10), (y',-1)]
-meta def e5 : sum_form := of_list [(z', 1), (y',1)]
-meta def e6 : sum_form := of_list [(z', 1)]
-
-meta def c1 : sum_form_comp := ⟨e1, spec_comp.le⟩ -- 3x + 2y + z ≤ 0
-meta def c2 : sum_form_comp := ⟨e2.negate, spec_comp.lt⟩
-meta def c3 : sum_form_comp := ⟨e3.negate, spec_comp.le⟩
-meta def c4 : sum_form_comp := ⟨e4, spec_comp.eq⟩
-meta def c5 : sum_form_comp := ⟨e5.negate, spec_comp.lt⟩
-meta def c6 : sum_form_comp := ⟨e6, spec_comp.lt⟩
-
-meta def d1 : sum_form_comp_data := ⟨c1, sum_form_proof.fake _, mk_rb_set⟩
-meta def d2 : sum_form_comp_data := ⟨c2, sum_form_proof.fake _, mk_rb_set⟩
-meta def d3 : sum_form_comp_data := ⟨c3, sum_form_proof.fake _, mk_rb_set⟩
-meta def d4 : sum_form_comp_data := ⟨c4, sum_form_proof.fake _, mk_rb_set⟩
-meta def d5 : sum_form_comp_data := ⟨c5, sum_form_proof.fake _, mk_rb_set⟩
-meta def d6 : sum_form_comp_data := ⟨c6, sum_form_proof.fake _, mk_rb_set⟩
-
-#eval is_inconsistent_list [d1, d3, d5, d6]
-
-run_cmd trace $ d1.elim_expr d2 y'
-
-run_cmd trace $ 
-elim_expr_from_comp_data_list 
- (elim_expr_from_comp_data_list [d1, d3,  d5, d6] x')
-  y'
-
-run_cmd trace $ 
-elim_expr_from_comp_data_list
- (elim_expr_from_comp_data_list 
-  (elim_expr_from_comp_data_list [d1, d3,  d5, d6] x')
-   y')
-  z'
-
-
-run_cmd trace $
-elim_list [d4, d5, d6]
-
-
-run_cmd trace $
-elim_list  [d1, d3, d5] --[d1, d3,  d5, d6]
-
-end tests

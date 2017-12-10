@@ -46,8 +46,8 @@ meta def expr_pair_hash : expr × expr → ℕ
 meta def mk_empty : blackboard :=
 {ineqs       := mk_hash_map expr_pair_hash, 
  diseqs      := mk_hash_map expr_pair_hash, 
- signs       := mk_hash_map expr.hash,
- exprs       := mk_rb_set, 
+ signs       := (mk_hash_map expr.hash),--.insert `(1 : ℚ) $ some ⟨gen_comp.gt, sign_proof.adhoc _ _ (tactic.to_expr ``(zero_lt_one : (1 : ℚ) > 0))⟩,
+ exprs       := mk_rb_set,--.insert (`(1 : ℚ), expr_form.atom_f `(1 : ℚ)), 
  contr       := contrad.none}
 
 section accessors
@@ -57,7 +57,8 @@ meta def is_changed : bool :=
 bb.changed
 
 meta def get_ineqs : ineq_info lhs rhs :=
-if expr.lt rhs lhs then bb.ineqs.find' (lhs, rhs) else (bb.ineqs.find' (rhs, lhs)).reverse
+if h : lhs = rhs then by rw h; exact (ineq_info.equal $ eq_data.refl rhs)
+else if expr.lt rhs lhs then bb.ineqs.find' (lhs, rhs) else (bb.ineqs.find' (rhs, lhs)).reverse
 
 meta def get_diseqs : diseq_info lhs rhs :=
 if expr.lt rhs lhs then bb.diseqs.find' (lhs, rhs) else (bb.diseqs.find' (rhs, lhs)).reverse
@@ -108,6 +109,9 @@ match bb.contr with
 | _ := tt
 end
 
+meta def get_contr (bb : blackboard) : contrad :=
+bb.contr
+
 private meta def trace_signs : list expr → tactic unit :=
 monad.mapm' (λ e, tactic.trace ("expr", e) >> tactic.trace (get_sign_info e bb))
 
@@ -144,9 +148,6 @@ let dsq := bb.get_diseqs lhs rhs in
 
 meta def insert_ineq_info {lhs rhs} (ii : ineq_info lhs rhs) (bb : blackboard) : blackboard :=
 {bb with ineqs := bb.ineqs.insert (lhs, rhs) ii, changed := tt}
-
-meta def get_contr (bb : blackboard) : contrad :=
-bb.contr
 
 meta def set_changed (b : bool) (bb : blackboard) : blackboard :=
 {bb with changed := b}
@@ -291,6 +292,12 @@ meta def get_mul_defs : polya_state (list (expr × prod_form)) :=
 do exprs ← get_expr_expr_form_list,
    return $ reduce_option_list (exprs.map is_prod_form)
 
+meta def rat_one : expr := `(1 : ℚ)
+
+meta def get_comps_with_one (e : expr) : polya_state (ineq_info e rat_one) :=
+get_ineqs e rat_one
+
+
 section
 variables {lhs rhs : expr}
 meta def first_eq_diseq_match (c : ℚ) : list (diseq_data lhs rhs) → option (diseq_data lhs rhs)
@@ -431,7 +438,7 @@ else skip
 
 open ineq_info
 meta def add_ineq : Π {lhs rhs}, ineq_data lhs rhs → polya_state unit | lhs rhs id :=
-if (trace_val ("in add_ineq", id, lhs, rhs)).2.1.inq ≠ id.inq then skip else
+--if (/-trace_val ("in add_ineq", id, lhs, rhs)).2.1.inq ≠ id.inq then skip else
 if expr.lt lhs rhs then add_ineq id.reverse else
 if h : lhs = rhs then @add_self_ineq lhs (by rw ←h at id; apply id) else
 do ii ← get_ineqs lhs rhs,
@@ -524,17 +531,18 @@ meta def add_old_sign_info_to_new_ineq (new_e : expr) {old_e : expr} : sign_data
 | ⟨c, prf⟩ := 
   let y : ℚ := if c.is_less then 1 else -1,
       inq : ineq := ⟨c.is_strict, 0, y⟩,
-      inq' := if old_e.lt new_e then inq.reverse else inq in
-  add_ineq $ trace_val $ ⟨inq', ineq_proof.zero_comp_of_sign_proof new_e _ prf⟩
+      --inq' := if old_e.lt new_e then inq.reverse else inq in
+      ip := ineq_proof.zero_comp_of_sign_proof new_e inq prf in
+  add_ineq $ /-trace_val-/ ⟨_, ip⟩--⟨inq', ineq_proof.zero_comp_of_sign_proof new_e _ prf⟩
 
 meta def add_expr_and_update_ineqs (e : expr) (ef : expr_form) : polya_state unit :=
 do es ← get_expr_list,
    if e ∈ es then skip else do
-   add_expr (trace_val ("adding expr and updating:", e)).2 ef,
+   add_expr (/-trace_val-/ ("adding expr and updating:", e)).2 ef,
    es.mmap' (λ e',
     do si ← get_sign_info e',
     match si with
-    | some sd := add_old_sign_info_to_new_ineq e (trace_val ("adding old sign info to:", e, sd)).2.2
+    | some sd := add_old_sign_info_to_new_ineq e (/-trace_val-/ ("adding old sign info to:", e, sd)).2.2
     | none := skip
     end)
 
@@ -546,8 +554,11 @@ match e with
 | _ := skip
 end-/
 
+--meta def mk_neg : expr → expr
+
 meta def get_sum_components : expr → list expr
 | `(%%lhs + %%rhs) := rhs::(get_sum_components lhs)
+--| `(%%lhs - %%rhs) := mk_neg rhs::(get_sum_components lhs)
 | a := [a]
 
 meta def get_prod_components : expr → list expr
@@ -579,14 +590,14 @@ if is_sum e then
   let (_, bb') := add_expr_and_update_ineqs e (expr_form.sum_f sf) bb, 
   monad.foldl process_expr_tac bb' (sum_components.map prod.fst)
 else if is_prod e then 
-  trace "is_prod:" >> trace e >>
+  --trace "is_prod:" >> trace e >>
   let scs := get_prod_components e in do
-  trace ("scs", scs),
+  --trace ("scs", scs),
   prod_components ← monad.mapm get_comps_of_exp scs,
   let sf : prod_form := ⟨1, rb_map.of_list prod_components⟩,
   let (_, bb') := add_expr_and_update_ineqs e (expr_form.prod_f sf) bb,
   monad.foldl process_expr_tac bb' (prod_components.map prod.fst)--scs 
-else do trace "atom", trace e, return $ prod.snd $ add_expr_and_update_ineqs e (expr_form.atom_f e) bb
+else do /-trace "atom", trace e,-/ return $ prod.snd $ add_expr_and_update_ineqs e (expr_form.atom_f e) bb
 
 meta def tac_add_eq {lhs rhs} (bb : blackboard) (ed : eq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],

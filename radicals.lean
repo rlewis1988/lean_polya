@@ -1,6 +1,5 @@
-import rat_additions comp_val
+import rat_additions norm_num--comp_val
 open tactic
-
 
 lemma rat_pow_mul (a : ℚ) (e : ℤ) : rat.pow a (e + e) = rat.pow a e * rat.pow a e := sorry
 
@@ -25,33 +24,74 @@ do (lhs, rhs) ← target >>= match_eq,
    (rhsv, rhspf) ← norm_num rhs,
    to_expr ``(eq.trans %%lhspf (eq.symm %%rhspf)) >>= exact
 
+
+lemma f1 (a) : rat.pow a ↑(0 : ℕ) = rat.pow a 0 := sorry
+lemma f2 (a) : rat.pow a ↑(1 : ℕ) = rat.pow a 1 := sorry
+lemma f3 (a b) : rat.pow a ↑(bit1 b : ℕ) = rat.pow a (bit1 ↑b) := sorry
+lemma f4 (a b) : rat.pow a ↑(bit0 b : ℕ) = rat.pow a (bit0 ↑b) := sorry
+
+
+meta def rat_pow_simp_lemmas : tactic simp_lemmas :=
+to_simp_lemmas simp_lemmas.mk [`pow_bit0, `pow_bit1, `rat.pow_zero, `rat.pow_one, `f1, `f2, `f3, `f4]
+
+meta def simp_rat_pow : tactic unit := 
+rat_pow_simp_lemmas >>= simp_target
+
+--`[simp only [pow_bit0, pow_bit1, rat.pow_zero, rat.pow_one, f1, f2, f3, f4]]
+
+
 meta def prove_rat_pow : tactic unit :=
-`[simp only [pow_bit0, pow_bit1, rat.pow_zero, rat.pow_one]] >>  pf_by_norm_num
+simp_rat_pow >>  pf_by_norm_num
 
 example : rat.pow 5 3 = 125 := by prove_rat_pow
 
 inductive approx_dir
 | over | under | none
 
+meta def approx_dir.to_expr : approx_dir → expr
+| approx_dir.over := `(@ge rat _)
+| approx_dir.under := `(@has_le.le rat _)
+| approx_dir.none := `(@eq rat)
+
 meta def correct_offset (A x prec : ℚ) (n : ℤ) : approx_dir → ℚ
 | approx_dir.over := if rat.pow x n ≥ A then x else x + prec
 | approx_dir.under := if rat.pow x n ≤ A then x else x - prec
 | approx_dir.none := x 
 
+meta def round_to_denom (A : ℚ) (denom : ℕ) : ℚ :=
+let num_q := (denom*A.num : ℤ) / A.denom in
+rat.mk num_q denom
 
 namespace rat
 
-meta def nth_root_aux' (A : ℚ) (n : ℤ) (prec : ℚ) (dir : approx_dir) : ℚ → ℚ
+meta def nth_root_aux'' (A : ℚ) (n : ℤ) (prec : ℚ) (dir : approx_dir) : ℚ → ℚ
 | guess := 
   let delta_x := (1/(n : ℚ))*((A / rat.pow guess (n - 1)) - guess),
       x := guess + delta_x in
-  correct_offset A (if abs delta_x < prec then x else nth_root_aux' x) prec n dir
+  /-correct_offset A-/ (if abs delta_x < prec then x else nth_root_aux'' x) /-prec n dir-/
+
+meta def nth_root_aux' (A : ℚ) (n : ℤ) (prec : ℚ) (dir : approx_dir) (guess : ℚ) : ℚ :=
+correct_offset A (nth_root_aux'' A n prec dir guess) prec n dir
 
 meta def nth_root_aux (A : ℚ) (n : ℤ) (prec guess : ℚ) (dir : approx_dir := approx_dir.none) : ℚ :=
 nth_root_aux' A n prec dir guess
 
-meta def nth_root_approx (A : ℚ) (n : ℤ) (prec : ℚ) (dir : approx_dir := approx_dir.none) : ℚ :=
-nth_root_aux A n prec (A / n) dir
+/-meta def nth_root_approx (A : ℚ) (n : ℤ) (prec : ℚ) (dir : approx_dir := approx_dir.none) : ℚ :=
+nth_root_aux A n prec (A / n) dir-/
+
+meta def nth_root_approx_bin_aux (A : ℚ) (n : ℤ) (prec : ℚ) : ℕ → ℚ → ℚ
+| steps guess :=
+if steps = 0 then guess
+else let v := rat.pow guess n in
+if v < A then nth_root_approx_bin_aux (steps/2) (guess + steps*prec)
+else if v > A then nth_root_approx_bin_aux (steps/2) (guess - steps*prec)
+else guess
+
+meta def nth_root_approx_bin (A : ℚ) (n : ℤ) (prec guess : ℚ) (dir : approx_dir := approx_dir.none) : ℚ :=
+let v := nth_root_approx_bin_aux A n prec (ceil (A/4)).nat_abs guess in
+correct_offset A v prec n dir
+
+
 
 end rat
 
@@ -69,7 +109,7 @@ if abs delta_x < prec then x else nth_root_aux x
 meta def nth_root_approx (A : ℚ) (n : ℤ) (prec : ℚ) : ℚ :=
 nth_root_aux A n prec (A / n)-/
 
--- inr means success, inl means failed with
+-- inl means success, inr means failed with
 meta def nth_root_aux (A : ℤ) (n : ℕ) : ℤ → ℤ → ℤ⊕ℤ
 | step guess := 
 if step = 0 ∨ step = 1 then
@@ -90,12 +130,12 @@ end
 
 end int
 
--- faster to skip first rat approx in non-1 denom case?
+/--- faster to skip first rat approx in non-1 denom case?
 meta def nth_root_approx' (dir : approx_dir) : Π (A : ℚ) (n : ℕ) (prec : ℚ), ℚ | A n prec :=
 if A.denom = 1 then
  match int.nth_root A.num n with
  | sum.inl v := v
- | sum.inr v := rat.nth_root_aux A n prec v
+ | sum.inr v := rat.nth_root_aux A n prec (if v = 0 then prec else v) dir
  end
 else
   let num_apr := int.nth_root A.num n,
@@ -107,9 +147,74 @@ else
   | sum.inr vn, sum.inr vd := rat.nth_root_aux A n prec (vn / vd) dir--(rat.nth_root_aux A.num n prec vn / rat.nth_root_aux A.denom n prec vn) dir
   end
 -- rat.nth_root_aux A n prec ((nth_root_approx' A.num n prec) / (nth_root_approx' A.denom n prec)) dir
+-/
+-- no rounding or direction fixing
+meta def nth_root_approx''_a (dir : approx_dir) : Π (A : ℚ) (n : ℕ) (prec : ℚ), ℚ | A n prec :=
+if A.denom = 1 then
+ match int.nth_root A.num n with
+ | sum.inl v := v
+ | sum.inr v := (rat.nth_root_aux'' A n prec dir (if v = 0 then prec else v)) --rat.nth_root_aux A n prec (if v = 0 then prec else v) dir
+ end
+else
+  let num_apr := int.nth_root A.num n,
+      den_apr := int.nth_root A.denom n in
+  match num_apr, den_apr with
+  | sum.inl vn, sum.inl vd := (vn : ℚ) / vd
+  | sum.inl vn, sum.inr vd := rat.nth_root_aux'' A n prec dir (vn / vd) --(vn / rat.nth_root_aux A.denom n prec vd) dir
+  | sum.inr vn, sum.inl vd := rat.nth_root_aux'' A n prec dir (vn / vd) --(rat.nth_root_aux A.num n prec vn / vd) dir
+  | sum.inr vn, sum.inr vd := rat.nth_root_aux'' A n prec dir (vn / vd) --(rat.nth_root_aux A.num n prec vn / rat.nth_root_aux A.denom n prec vn) dir
+  end
 
-meta def nth_root_approx (A : ℚ) (n : ℕ) (prec : ℚ) (dir : approx_dir := approx_dir.none) : ℚ :=
+meta def nth_root_approx (dir : approx_dir) (A : ℚ) (n : ℕ) (denom : ℕ) /-(prec : ℚ)-/ : ℚ :=
+let av := nth_root_approx''_a dir A n (1/(denom : ℚ)) in
+correct_offset A (round_to_denom av denom) (1/(denom : ℚ)) n dir
+
+
+
+/-meta def nth_root_approx (A : ℚ) (n : ℕ) (prec : ℚ) (dir : approx_dir := approx_dir.none) : ℚ :=
 nth_root_approx' dir A n prec
+-/
+
+open tactic
+meta def prove_nth_root_approx (A : ℚ) (n : ℕ) (prec : ℕ) (dir : approx_dir) : tactic expr :=
+let apprx := nth_root_approx dir A n prec  in
+do  apprx_pow ← to_expr ``(rat.pow %%(reflect apprx) %%(reflect n)),
+let tgt := dir.to_expr apprx_pow `(A) in 
+do (_, e) ← solve_aux tgt (trace_state >> simp_rat_pow >> trace_state >> (try `[norm_num]) >> done),
+   return e
+
+--set_option pp.all true
+
+#exit
+
+local attribute [irreducible] rat.pow
+
+example : (0 : ℚ) ≤ 5+1 := 
+begin
+simp
+end
+
+--example : (0 : ℚ) ≤ 500 := by reflexivity
+
+#eval let v := nth_root_approx 10 2 0.5 in v*v
+
+#eval nth_root_approx 2 2 10 approx_dir.under
+#eval int.nth_root 2 2
+#eval rat.nth_root_aux 2 2 100 0 approx_dir.over
+#eval rat.nth_root_aux 2 4 100 0 approx_dir.over
+
+example : (198 : ℚ) / 100 ≤ 2 :=
+by norm_num --btrivial
+
+run_cmd do prove_nth_root_approx 2 2 1000 approx_dir.under >>= infer_type >>= trace
+
+
+/-do trace "hi",
+let
+    tgt := dir.to_expr `(rat.pow apprx n) A in
+failed
+-/ 
+#exit
 
 set_option profiler true
 

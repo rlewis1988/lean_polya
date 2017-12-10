@@ -1,20 +1,89 @@
-import .datatypes .struct_eta .blackboard .proof_reconstruction .reconstruction_theorems .comp_val
+import .datatypes .struct_eta .blackboard .proof_reconstruction .reconstruction_theorems .radicals .proof_trace
 
 -- TODO: maybe more of this can move to datatypes
 
 namespace polya
 
+meta def approx_prec := 100
 
-meta def mul_state := state (hash_map expr (λ e, sign_data e))
+meta def mul_state := state (hash_map expr (λ e, sign_data e) × hash_map expr (λ e, ineq_info e rat_one))
 meta instance mul_state.monad : monad mul_state := state.monad _
-private meta def inh_sd (e : expr) : inhabited (sign_data e) := ⟨⟨gen_comp.ne, sign_proof.adhoc _ _ (tactic.failed)⟩⟩
+private meta def inh_sd (e : expr) : inhabited (sign_data e) := ⟨⟨gen_comp.ne, sign_proof.adhoc _ _ (tactic.failed) (tactic.failed)⟩⟩
 local attribute [instance] inh_sd
 
 private meta def si (e : expr) : mul_state (sign_data e) :=
-λ hm, (hm.find' e, hm)
+λ hm, (hm.1.find' e, hm)
 
 private meta def si' (e : expr) : mul_state (option (sign_data e)) :=
-λ hm, (hm.find e, hm)
+λ hm, (hm.1.find e, hm)
+
+private meta def oi (e : expr) : mul_state (ineq_info e rat_one) :=
+λ hm, (/-trace_val $ -/ hm.2.find' e, hm)
+
+-- returns true if the mul_state implies coeff*e c 1
+private meta def implies_one_comp (coeff : ℚ) (e : expr) (c : comp) : mul_state bool :=
+do ii ← oi e,
+   return $ ii.implies_ineq $ ineq.of_comp_and_slope c (slope.some coeff)
+
+
+private meta def find_comp {lhs rhs} (ii : ineq_info lhs rhs) (m : ℚ) : option gen_comp :=
+if ii.implies_eq m then
+  some (gen_comp.eq)
+else if ii.implies_ineq (ineq.of_comp_and_slope comp.ge (slope.some m)) then
+   some (if ii.implies_ineq $ ineq.of_comp_and_slope comp.gt (slope.some m) then gen_comp.gt else gen_comp.ge)
+else if ii.implies_ineq (ineq.of_comp_and_slope comp.le (slope.some m)) then
+   some (if ii.implies_ineq $ ineq.of_comp_and_slope comp.lt (slope.some m) then gen_comp.lt else gen_comp.le)
+else none
+
+-- returns the known comparisons of e with 1 and -1
+meta def oc (e : expr) : mul_state (option gen_comp × option gen_comp) :=
+do ii ← oi e,
+return (find_comp ii 1, find_comp ii (-1))
+
+meta def is_ge_one (e : expr) : mul_state bool :=
+do (c, _) ← oc e,
+match c with
+| some c' := return c'.is_greater_or_eq
+| none := return ff
+end
+
+meta def is_le_one (e : expr) : mul_state bool :=
+do (c, _) ← oc e,
+match c with
+| some c' := return c'.is_less_or_eq
+| none := return ff
+end
+
+meta def is_le_neg_one (e : expr) : mul_state bool :=
+do (_, c) ← oc e,
+match c with
+| some c' := return c'.is_less_or_eq
+| none := return ff
+end
+
+meta def is_ge_neg_one (e : expr) : mul_state bool :=
+do (_, c) ← oc e,
+match c with
+| some c' := return c'.is_greater_or_eq
+| none := return ff
+end
+
+meta def is_pos_le_one (e : expr) : mul_state bool :=
+do ⟨c, _⟩ ← si e,
+match c with
+| gen_comp.gt := is_le_one e --bnot <$> is_ge_one e
+| _ := return ff
+end
+
+meta def is_neg_ge_neg_one (e : expr) : mul_state bool :=
+do ⟨c, _⟩ ← si e,
+match c with
+| gen_comp.lt := is_ge_neg_one e-- bnot <$> is_le_neg_one e
+| _ := return ff
+end
+
+private meta def all_signs : mul_state (hash_map expr sign_data) :=
+λ hm, (hm.1, hm)
 
 section sign_inference
 
@@ -75,12 +144,32 @@ do sds ← prod_f.exps.keys.mmap (sign_of_term prod_f),
      end
    else return none-/
 
+private meta def reduce_sig_opt_list {α} {β : α → Type} : list (Σ a : α, option (β a)) → list (Σ a : α, (β a))
+| [] := []
+| (⟨a, none⟩::t) := reduce_sig_opt_list t
+| (⟨a, some b⟩::t) := ⟨a, b⟩::reduce_sig_opt_list t
+
 private lemma aux_sign_infer_tac_lemma (P : Prop) : P := sorry
 
 -- TODO
-private meta def aux_sign_infer_tac (e : expr) (pf : prod_form) (c : gen_comp) : tactic expr :=
-do tp ← c.to_function e `(0 : ℚ),
+private meta def aux_sign_infer_tac (e : expr) (pf : prod_form) (sds : hash_map expr sign_data) (c : gen_comp) : tactic expr :=
+let sds' : list ((Σ e, (sign_data e))) := reduce_sig_opt_list $ pf.exps.keys.map (λ e, sigma.mk e (sds.find e)) in
+do --sds ← pf.exps.keys.mmap $ λ e, sigma.mk e <$> (si e),
+   sds'.mmap (λ a, a.snd.prf.reconstruct),
+   tp ← c.to_function e `(0 : ℚ),
    tactic.mk_app ``aux_sign_infer_tac_lemma [tp]
+
+-- TODO : used when only one sign in the middle is unknown
+-- proves e C 0 when pf is the prod form of whole
+private meta def aux_sign_infer_tac_2 (e whole : expr) (sd : sign_data whole) (pf : prod_form)  (sds : hash_map expr sign_data)  (c : gen_comp) : tactic expr :=
+let sds' : list ((Σ e, (sign_data e))) := reduce_sig_opt_list $ pf.exps.keys.map (λ e, sigma.mk e (sds.find e)) in
+do --sds ← pf.exps.keys.mmap $ λ e, sigma.mk e <$> (si e),
+   sds'.mmap (λ a, a.snd.prf.reconstruct),
+   sd.prf.reconstruct,
+   tp ← c.to_function e `(0 : ℚ),
+   tactic.mk_app ``aux_sign_infer_tac_lemma [tp]
+
+
 /--
  Assumes known_signs.length = pf.length
 -/
@@ -89,9 +178,9 @@ meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : lis
     (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod (known_signs.map option.iget) in
   match prod_sign with
   | some ks :=
-    let pfe := sign_proof.adhoc e ks (aux_sign_infer_tac e pf ks)
+    do sis ← all_signs,
+    let pfe  := sign_proof.adhoc e ks (do s ← format_sign e ks, return ⟨s, "inferred from other sign data", []⟩) (aux_sign_infer_tac e pf sis ks) in
 --(do s ← tactic.pp e, sf ← tactic.pp ks, tactic.fail $ "unfinished adhoc -- infer-expr-sign-data-aux: 0 "  ++ sf.to_string ++ s.to_string) 
-in
     return $ some ⟨e, ⟨_, pfe⟩⟩
   | none := return none
   end
@@ -105,7 +194,7 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
    if pf.exps.keys.length = known_signs.length then
     infer_expr_sign_data_aux e pf known_signs
    else return none
-
+set_option pp.all true
 /--
  Tries to infer sign data of variables in expression when the sign of the whole expression is known.
 -/
@@ -120,10 +209,13 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
      | some ks :=
        match get_remaining_sign ks sd.iget.c with
        | some c' := 
+         do sis ← all_signs,
          let i := sds.index_of none,
-             e := pf.exps.keys.inth i,
-             pfe := sign_proof.adhoc e c' (tactic.fail "unfinished adhoc -- get-unknown-sign-data") in
-         return $ some ⟨e, ⟨_, pfe⟩⟩
+         let e' := pf.exps.keys.inth i,
+         let sd' := sd.iget,
+         let pfe := sign_proof.adhoc e' c' (do s ← format_sign e' c', return ⟨s, "inferred from other sign data", []⟩) (aux_sign_infer_tac_2 e' e sd' pf sis c'),
+-- (tactic.fail "unfinished adhoc -- get-unknown-sign-data"),
+         return $ some ⟨e', ⟨_, pfe⟩⟩
          -- e has sign ks
        | none := return none
        end
@@ -157,20 +249,165 @@ let c' := if cl > 0 then c else c.reverse,
 
 -/
 
---TODO
--- this should be split into two parts, one which makes the ineq and one which proves it.
+-- assuming 1 r coeff*lhs^el*rhs^er, finds r' such that 1 r coeff*|lhs|^el*|rhs|^er
+/-private meta def get_abs_val_comp (lhs rhs : expr) (el er : ℤ)  (coeff : ℚ) : spec_comp → mul_state comp 
+| spec_comp.lt := _
+| spec_comp.le := _
+| spec_comp.eq := _
+-/
 
+-- is_junk_comp c lhss rhss checks to see if lhs c rhs is of the form pos > neg, neg < pos, etc
+-- we can assume the gen_comps are strict.
+private meta def is_junk_comp : comp → gen_comp → gen_comp → bool
+| comp.gt gen_comp.gt gen_comp.lt := tt
+| comp.ge gen_comp.gt gen_comp.lt := tt
+| comp.le gen_comp.lt gen_comp.gt := tt
+| comp.lt gen_comp.lt gen_comp.gt := tt
+| _ _ _ := ff
+
+
+-- none if can never lower. some tt if can always lower. some ff if can only lower by even number
+private meta def can_lower (e : expr) (ei : ℤ) : mul_state (option bool) :=
+do iplo ← is_pos_le_one e,
+   if iplo then return $ some tt else  do
+   ingno ← is_neg_ge_neg_one e,
+   if ingno && (ei % 2 = 0) then return $ some ff else do
+   ilno ← is_le_neg_one e,
+   if ilno && (ei % 2 = 1) then return $ some ff
+   else return none
+   
+private meta def can_raise (e : expr) (ei : ℤ) : mul_state (option bool) :=
+do igo ← is_ge_one e,
+   if igo then return $ some tt else  do
+   ilno ← is_le_neg_one e,
+   if ilno && (ei % 2 = 0) then return $ some ff else do
+   ingno ← is_neg_ge_neg_one e,
+   if ingno && (ei % 2 = 1) then return $ some ff
+   else return none
+
+
+private meta def can_change_aux (diff_even : bool) : option bool → bool 
+| (some tt) := tt
+| (some ff) := diff_even
+| none := ff
+
+private meta def can_change (ob : option bool) (el er : ℤ) : bool :=
+can_change_aux ((el - er) % 2 = 0) ob
+
+-- assuming cmpl and cmpr are the signs of lhs and rhs, tries to find el', er' such that lhs^el*rhs^er ≤ lhs^el'*rhs^er'
+private meta def balance_coeffs : expr → expr → ℤ → ℤ → mul_state (list (ℤ × ℤ)) | lhs rhs el er:=
+if el = (/-trace_val-/ ("el, -er", lhs, rhs, el, -er)).2.2.2.2 then return $ [(el, er)] else
+if (/-trace_val-/ ("el.nat_abs", el.nat_abs)).2 ≤ er.nat_abs then 
+  do cll ← /-trace_val <$> -/can_lower lhs el, crl ← /-trace_val <$>-/ can_raise lhs el, clr ← /-trace_val <$> -/can_lower rhs er, crr ← /-trace_val <$>-/ can_raise rhs er,
+  return $ 
+   if (el < 0) && (er > 0) then 
+    (guard (can_change clr el er) >> return (el, -el)) <|> (guard (can_change cll el er) >> return (-er, er))
+   else if (el > 0) && (er < 0) then
+    (guard (can_change crr el er) >> return (el, -el)) <|> (guard (can_change crl el er) >> return (-er, er))
+   else if (el > 0) && (er > 0) then
+    (guard (can_change clr el er) >> return (el, -el)) <|> (guard (can_change cll el er) >> return (-er, er))
+   else if (el < 0) && (er < 0) then
+    (guard (can_change crr el er) >> return (el, -el)) <|> (guard (can_change crl el er) >> return (-er, er))
+  else []
+else do pro ← balance_coeffs rhs lhs er el,
+return $ pro.map (λ p, (p.2, p.1))
+
+/-return $ match clr, crl with
+| some br, some bl := if br then el else if (er - el) % 2 = 0 then el else if bl then er else none
+| some br, none := if br || ((er - el)%2 = 0) then some el else none
+| none, some bl := if bl || ((er - el)%2 = 0) then some er else none
+| none, none := none
+end
+else do cll ← can_lower lhs el, crr ← can_raise rhs er,
+return $ match cll, crr with
+| some bl, some br := if bl then er else if (el - er) % 2 = 0 then er else if br then el else none
+| some bl, none := if bl || ((el - er) % 2 = 0) then some er else none
+| none, some br := if br || ((el - er) % 2 = 0) then some el else none
+| none, none := none
+end-/
+
+-- assumes lhs > rhs as exprs, and el = -er. 1 R coeff*lhs^el*rhs^er ==> ineq
+private meta def mk_ineq_of_balanced_lhs_rhs (coeff : ℚ) (lhs rhs : expr) (el er : ℤ) (c : spec_comp) : mul_state ineq :=
+if (el % 2 = 0) && (coeff < 0) then -- todo: this is a contradiction
+  do ⟨cmpl, _⟩ ← si lhs, return $ (/-trace_val-/ ("GOT A CONTRADICTION HERE", ineq.of_comp_and_slope cmpl.to_comp.reverse (slope.some 0))).2
+else 
+-- know: 1 c | (root coeff |el|)*lhs^(sign el)*rhs^(sign er) |
+do ⟨cmpl, _⟩ ← si lhs, ⟨cmpr, _⟩ ← si rhs,
+let coeff_comp := if coeff < 0 then comp.lt else comp.gt,
+let prod_sign := (cmpl.to_comp.prod cmpr.to_comp).prod coeff_comp, 
+let exp_val := el.nat_abs,
+--if prod_sign.is_greater then
+-- know: 1 c (root coeff exp_val)*lhs^(sign el)*rhs^(sign er)
+  if cmpl.is_greater then -- lhs > 0
+    let c' := c.to_comp,
+      m  := (if prod_sign.is_greater then (1 : ℚ) else -1) * nth_root_approx approx_dir.over coeff exp_val approx_prec in return $ /-trace_val $-/ 
+     if el < 0 then ineq.of_comp_and_slope c' (slope.some m)
+    else ineq.of_comp_and_slope c'.reverse (slope.some (1/m))
+  else -- x < 0
+    let c' := c.to_comp.reverse,
+        m  :=  (if prod_sign.is_greater then (1 : ℚ) else -1) * nth_root_approx approx_dir.under coeff exp_val approx_prec in return $ 
+    if el < 0 then ineq.of_comp_and_slope c' (slope.some m) 
+    else  ineq.of_comp_and_slope c'.reverse (slope.some (1/m))
+/-else
+-- know: 1 c -(root coeff exp_val)*lhs^(sign el)*rhs^(sign er)
+  if cmpl.is_greater then -- lhs > 0
+    let c' := c.to_comp, 
+        m  := nth_root_approx approx_dir.over coeff exp_val approx_prec in
+    if el < 0 then return $ ineq.of_comp_and_slope c' (slope.some (-m))
+    else return $ ineq.of_comp_and_slope c'.reverse (slope.some (-1/m))
+  else
+    let c' := c.to_comp.reverse,
+        m  := nth_root_approx approx_dir.under coeff exp_val approx_prec-/
+/-if el < 0 then
+ let c' := if cmpl.is_less then c.to_comp.reverse else c.to_comp,
+     el' := -el in -- lhs^el' c' coeff * rhs^er
+ -/
+
+/-if (coeff < 0) && (exp % 2 = 0) then -- 1 ≤ neg. impossible. todo: create contr
+  return none
+else if coeff < 0 then
+  return none
+else if exp > 0 then
+  let nexp := exp.nat_abs,
+      coeff_root_approx := nth_root_approx'' approx_dir.over coeff nexp approx_prec in
+  return none
+else
+  return none-/
 
 -- assumes lhs > rhs as exprs. 1 R coeff* lhs^el * rhs^er ==> ineq_data
 private meta def mk_ineq_of_lhs_rhs (coeff : ℚ) (lhs rhs : expr) (el er : ℤ) (c : spec_comp) :
+        mul_state (list ineq) :=
+do ⟨cmpl, _⟩ ← si lhs, ⟨cmpr, _⟩ ← si rhs,
+let cmpl' := cmpl.pow el, 
+let cmpr' := cmpr.pow er,
+if is_junk_comp (if cmpl' = gen_comp.gt then c.to_comp else c.to_comp.reverse) cmpl' (if coeff > 0 then cmpr' else cmpr'.reverse) then return [] else
+do ncs ← balance_coeffs lhs rhs el er,
+   ncs.mmap $ λ p, do t ← mk_ineq_of_balanced_lhs_rhs coeff lhs rhs p.1 p.2 c, return (/-trace_val-/ ("got from mk_ineq", ncs.length, lhs, rhs, el, er, p.1, p.2, t)).2.2.2.2.2.2.2.2
+/-match ncs with
+| none := return none
+| some (el', er') := some <$> mk_ineq_of_balanced_lhs_rhs coeff lhs rhs (trace_val ("calling mk_ineq", lhs, rhs, el, er, el')).2.2.2.2.2 er' c
+end-/
+
+-- assumes lhs > rhs as exprs. 1 R coeff* lhs^el * rhs^er ==> ineq_data
+/-private meta def mk_ineq_of_lhs_rhs (coeff : ℚ) (lhs rhs : expr) (el er : ℤ) (c : spec_comp) :
         mul_state (option ineq) :=
 do ⟨cmpl, _⟩ ← si lhs, ⟨cmpr, _⟩ ← si rhs,
+let cmpl' := cmpl.pow el, 
+let cmpr' := cmpr.pow er,
+if is_junk_comp (if cmpl' = gen_comp.gt then c.to_comp else c.to_comp.reverse) cmpl' (if coeff > 0 then cmpr' else cmpr'.reverse) then return none else
    if cmpl = gen_comp.gt then -- lhs^(-el) c coeff*rhs^(er)
      if (el = -1) && (er = 1) then return $ some $ ineq.of_comp_and_slope c.to_comp (slope.some coeff)
      else if (el = 1) && (er = -1) then return $ some $ ineq.of_comp_and_slope c.to_comp.reverse (slope.some (1/coeff))
+     else if (el = -1) && (er > 0) then -- lhs c coeff*rhs^er
+       
      else return none
-   else  -- lhs^(-el) 
-     return none -- TODO
+   else if cmpl = gen_comp.lt then -- lhs^(-el) -c coeff*rhs^(er)
+     if (el = -1) && (er = 1) then return $ some $ ineq.of_comp_and_slope c.to_comp.reverse (slope.some coeff)
+     else if (el = 1) && (er = -1) then return $ some $ ineq.of_comp_and_slope c.to_comp (slope.some (1/coeff))
+     else if el = -1 then 
+       return none
+     else return none
+   else return none-/
 
 -- assumes lhs > rhs as exprs. 1 = coeff* lhs^el * rhs^er ==> eq_data (coeff)
 -- TODO
@@ -186,37 +423,64 @@ do ⟨cmpl, _⟩ ← si lhs, ⟨cmpr, _⟩ ← si rhs,
 
 
 section
+
+private lemma mk_ineq_proof_of_lhs_rhs_aux (P : Prop) {sp old : Prop} (p' : sp) (p : old) : P :=
+sorry
+#check @mk_ineq_proof_of_lhs_rhs_aux
 open tactic
 --#check @op_of_one_op_pos
-meta def mk_ineq_proof_of_lhs_rhs /-(coeff : ℚ)-/ (lhs /-rhs-/ : expr) (el er : ℤ) /-(c : spec_comp)-/ {s} (pf : prod_form_proof s) : mul_state (tactic expr) :=
+meta def mk_ineq_proof_of_lhs_rhs /-(coeff : ℚ)-/ (lhs rhs : expr) (el er : ℤ) /-(c : spec_comp)-/ {s} (pf : prod_form_proof s) (iq : ineq) : mul_state (tactic expr) :=
 do sdl ← si lhs,
 match sdl with
-| ⟨gen_comp.gt, pf'⟩ := return $ 
-   do tactic.trace "in mk_ineq_proof_of_lhs_rhs 1", trace pf, pfr ← pf.reconstruct, trace "1", pfr' ← pf'.reconstruct, trace "reconstructed::", infer_type pfr >>= trace, infer_type pfr' >>= trace,
+| ⟨gen_comp.gt, pf'⟩ := do oil ← oi lhs, oir ← oi rhs, return $ 
+   do --tactic.trace "in mk_ineq_proof_of_lhs_rhs 1", 
+      pfr ← pf.reconstruct, trace "1", pfr' ← pf'.reconstruct, 
+      --trace "reconstructed::", infer_type pfr >>= trace, infer_type pfr' >>= trace, trace pf,
       tpr ← tactic.mk_mapp ``op_of_one_op_pos [none, none, none, none, none, some pfr', none, none, some pfr],
       if (el = 1) && (er = -1) then tactic.mk_app ``op_of_inv_op_inv_pow [tpr]
       else if (el = -1) && (er = 1) then tactic.mk_app ``op_of_op_pow [tpr]
-      else fail "can't handle non-one exponents yet" 
+      else 
+         do trace "know", infer_type pfr >>= trace, infer_type pfr' >>= trace,
+          trace "wts", trace (lhs, rhs, iq), 
+         tp ← iq.to_type lhs rhs,
+         mk_mapp ``mk_ineq_proof_of_lhs_rhs_aux [tp, none, none, pfr', pfr]
+--           fail $ "can't handle non-one exponents yet" ++ to_string el ++ " " ++ to_string er 
 | ⟨gen_comp.lt, pf'⟩ := return $ 
-   do tactic.trace "in mk_ineq_proof_of_lhs_rhs 2", pfr ← pf.reconstruct, trace "reconstructed::", infer_type pfr >>= trace, pfr' ← pf'.reconstruct, 
+   do --tactic.trace "in mk_ineq_proof_of_lhs_rhs 2",
+      pfr ← pf.reconstruct,-- trace "reconstructed::", infer_type pfr >>= trace, 
+      pfr' ← pf'.reconstruct, 
       tactic.mk_mapp ``op_of_one_op_neg [none, none, none, none, none, some pfr', none, none, some pfr]
 | _ := return $ tactic.fail "mk_ineq_proof_of_lhs_rhs failed, no sign info for lhs"
 end
-
 end
+
+meta def find_deps_of_pfp : Π {pfc}, prod_form_proof pfc → tactic (list proof_sketch)
+| _ (prod_form_proof.of_ineq_proof id _ _) := do id' ← id.sketch, return [id']
+| _ (prod_form_proof.of_eq_proof id _) := do id' ← id.sketch, return [id']
+| _ (prod_form_proof.of_expr_def e pf) := do s ← to_string <$> (pf.to_expr >>= tactic.pp), return [⟨"1 = " ++ s, "by definition", []⟩]
+| _ (prod_form_proof.of_pow _ pfp) := find_deps_of_pfp pfp
+| _ (prod_form_proof.of_mul pfp1 pfp2 _) := do ds1 ← find_deps_of_pfp pfp1, ds2 ← find_deps_of_pfp pfp2, return (ds1 ++ ds2)
+| _ (prod_form_proof.adhoc _ t _) := do t' ← t, return [t']
+| _ (prod_form_proof.fake _) := return []
+
+meta def make_proof_sketch_for_ineq {s} (lhs rhs : expr) (iq : ineq) (pf : prod_form_proof s) : tactic proof_sketch :=
+do s' ← format_ineq lhs rhs iq, deps ← find_deps_of_pfp pf,
+   return ⟨s', "by multiplicative arithmetic", deps⟩
 
 -- assumes lhs > rhs as exprs. 1 R coeff* lhs^el * rhs^er ==> ineq_data
 private meta def mk_ineq_data_of_lhs_rhs (coeff : ℚ) (lhs rhs : expr) (el er : ℤ) (c : spec_comp) {s} (pf : prod_form_proof s) :
-        mul_state (option Σ l r, ineq_data l r) :=
+        mul_state (list Σ l r, ineq_data l r) :=
 do iq ← mk_ineq_of_lhs_rhs coeff lhs rhs el er c,
-   match iq with
+   iq.mmap $ λ id, do tac ← mk_ineq_proof_of_lhs_rhs lhs rhs el er pf id,
+      return $ ⟨lhs, rhs, ⟨id, ineq_proof.adhoc _ _ id (make_proof_sketch_for_ineq lhs rhs id pf) tac⟩⟩
+/-   match iq with
    | none := return none
-   | some id := do tac ← mk_ineq_proof_of_lhs_rhs lhs el er pf,
+   | some id := do tac ← mk_ineq_proof_of_lhs_rhs lhs rhs el er pf id,
       return $ some ⟨lhs, rhs, ⟨id, ineq_proof.adhoc _ _ id $ 
          tac
 --       do t ← id.to_type lhs rhs, tactic.trace "sorrying", tactic.trace t, tactic.to_expr ``(sorry : %%t) --tactic.fail "mk_ineq_data not implemented"
       ⟩⟩ 
-   end
+   end-/
 
 -- assumes lhs > rhs as exprs. 1 = coeff* lhs^el * rhs^er ==> eq_data
 -- TODO
@@ -231,8 +495,6 @@ do eqc ← mk_eq_of_lhs_rhs coeff lhs rhs el er,
 --       do t ← id.to_type lhs rhs, tactic.trace "sorrying", tactic.trace t, tactic.to_expr ``(sorry : %%t) --tactic.fail "mk_ineq_data not implemented"
 --      ⟩⟩ -- todo
    end
-#print ineq_data
-#print ineq
 
 -- pf proves 1 c coeff*e^(-1)
 -- returns a proof of 1 c' (1/coeff) * e
@@ -242,34 +504,51 @@ private meta def mk_ineq_data_of_single_cmp (coeff : ℚ) (e : expr) (exp : ℤ)
         mul_state (option Σ lhs rhs, ineq_data lhs rhs) :=
 if exp = 1 then
   let inq := ineq.of_comp_and_slope c.to_comp (slope.some coeff),
-      id : ineq_data `(1 : ℚ) e := ⟨inq, ineq_proof.adhoc _ _ _ (do pf' ← pf.reconstruct, tactic.mk_mapp ``one_op_of_op [none, none, none, none, pf'])⟩ in--(tactic.fail "mk_ineq_data_of_single_cmp not implemented")⟩ in
+      id : ineq_data `(1 : ℚ) e := ⟨inq, ineq_proof.adhoc _ _ _ (make_proof_sketch_for_ineq `(1 : ℚ) e inq pf) (do pf' ← pf.reconstruct, tactic.mk_mapp ``one_op_of_op [none, none, none, none, pf'])⟩ in--(tactic.fail "mk_ineq_data_of_single_cmp not implemented")⟩ in
   return $ some ⟨_, _, id⟩
 else if exp = -1 then 
   let inq := ineq.of_comp_and_slope c.to_comp.reverse (slope.some coeff).invert,
-      id : ineq_data `(1 : ℚ) e := ⟨inq, ineq_proof.adhoc _ _ _ (do pf' ← pf.reconstruct, tactic.mk_mapp ``one_op_of_op_inv [none, none, none, none, pf'])⟩ in--(tactic.fail "mk_ineq_data_of_single_cmp not implemented")⟩ in
+       id : ineq_data `(1 : ℚ) e := ⟨inq, ineq_proof.adhoc _ _ _ 
+         (make_proof_sketch_for_ineq `(1 : ℚ) e inq pf)
+         (do pf' ← pf.reconstruct, 
+           tactic.mk_mapp ``one_op_of_op_inv [none, none, none, none, pf'])⟩ in 
   return $ some ⟨_, _, id⟩
 else -- TODO
-return none
+ if exp > 0 then
+   if (coeff < 0) && (exp % 2 = 0) then return none -- todo: this is a contradiction 
+   else do ⟨es, _⟩ ← si e,
+   if es.is_greater then 
+     let m := nth_root_approx approx_dir.over coeff exp.nat_abs approx_prec,
+         inq := ineq.of_comp_and_slope c.to_comp (slope.some m) in
+     return $ some $ ⟨_, _, ⟨inq, ineq_proof.adhoc rat_one e _ 
+      (make_proof_sketch_for_ineq rat_one e inq pf)
+      (tactic.fail "mk_ineq_data_of_single_cmp not implemented")⟩⟩
+   else --todo
+    return none
+ else return none
 
 
 private meta def mk_eq_data_of_single_cmp (coeff : ℚ) (e : expr) (exp : ℤ) {s} (pf : prod_form_proof s) :
         mul_state (option Σ lhs rhs, eq_data lhs rhs) :=
 if exp = 1 then
-  let id : eq_data `(1 : ℚ) e := ⟨coeff, eq_proof.adhoc _ _ _ (tactic.fail "mk_eq_data_of_single_cmp not implemented")⟩ in
+  let id : eq_data `(1 : ℚ) e := ⟨coeff, eq_proof.adhoc _ _ _ (tactic.fail "mk_eq_data_of_single_cmp not implemented") (tactic.fail "mk_eq_data_of_single_cmp not implemented")⟩ in
   return $ some ⟨_, _, id⟩
 else -- TODO
 return none
 
 -- we need a proof constructor for ineq and eq
-meta def prod_form_comp_data.to_ineq_data : prod_form_comp_data → mul_state (option (Σ lhs rhs, ineq_data lhs rhs))
-| ⟨⟨_, spec_comp.eq⟩, _, _⟩ := return none
+meta def prod_form_comp_data.to_ineq_data : prod_form_comp_data → mul_state (list (Σ lhs rhs, ineq_data lhs rhs))
+| ⟨⟨_, spec_comp.eq⟩, _, _⟩ := return []
 | ⟨⟨⟨coeff, exps⟩, c⟩, prf, _⟩ := 
   match exps.to_list with
   | [(rhs, cr), (lhs, cl)] := 
     if rhs.lt lhs then  mk_ineq_data_of_lhs_rhs coeff lhs rhs cl cr c prf
     else mk_ineq_data_of_lhs_rhs coeff rhs lhs cr cl c prf
-  | [(rhs, cr)] := mk_ineq_data_of_single_cmp coeff rhs cr c prf
-  | _ := return none
+  | [(rhs, cr)] := do t ← mk_ineq_data_of_single_cmp coeff rhs cr c prf,
+       return $ /-trace_val-/ ("in pfcd.toid:", t),
+      match t with | some t' := return [t'] | none := return [] end
+  | [] := if coeff ≥ 1 then return [] else return [⟨rat_one, rat_one, ⟨ineq.of_comp_and_slope c.to_comp (slope.some coeff), ineq_proof.adhoc _ _ _ (tactic.fail "prod_form_comp_data.to_ineq_data not implemented") (tactic.fail "oops")⟩⟩]
+  | _ := return []
   end
 
 meta def prod_form_comp_data.to_eq_data : prod_form_comp_data → mul_state (option (Σ lhs rhs, eq_data lhs rhs))
@@ -326,7 +605,7 @@ else return none
 meta def prod_form_comp_data.elim_expr (pfcd1 pfcd2 : prod_form_comp_data) (pvt : expr) : 
      mul_state (option prod_form_comp_data) :=
 if pfcd1.pfc.pf.get_exp pvt = 0 then return $ some ⟨pfcd1.pfc, pfcd1.prf, pfcd1.elim_list.insert pvt⟩ 
-else if pfcd2.pfc.pf.get_exp pvt = 0 then return $ none
+else if pfcd2.pfc.pf.get_exp pvt = 0 then return  none
 else prod_form_comp_data.elim_expr_aux pfcd1 pfcd2 pvt
 
 private meta def compare_coeffs (sf1 sf2 : prod_form) (h : expr) : ordering :=
@@ -353,16 +632,20 @@ meta def prod_form_comp.order : prod_form_comp → prod_form_comp → ordering
 | ⟨_, spec_comp.le⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
 | ⟨sf1, _⟩ ⟨sf2, _⟩ := prod_form.order sf1 sf2 -- need to normalize!
 
--- TODO: do we need to take elim_vars into account for this order?
+
 meta def prod_form_comp_data.order : prod_form_comp_data → prod_form_comp_data → ordering
-| ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2
+| ⟨sfc1, _, ev1⟩ ⟨sfc2, _, ev2⟩ := 
+match sfc1.order sfc2 with
+| ordering.eq := has_ordering.cmp ev1.keys ev2.keys
+| a := a
+end
 
 meta instance : has_ordering prod_form_comp_data := ⟨prod_form_comp_data.order⟩
 
 
 meta def prod_form_comp_data.elim_into (sfcd1 sfcd2 : prod_form_comp_data) (pvt : expr)
      (rv : rb_set prod_form_comp_data) : mul_state (rb_set prod_form_comp_data) :=
-do elimd ← sfcd1.elim_expr sfcd2 pvt,
+do elimd ← /-trace_val <$>-/ sfcd1.elim_expr sfcd2 pvt,
    match elimd with
    | none := return rv
    | some sfcd := return $ rv.insert sfcd
@@ -385,28 +668,29 @@ namespace prod_form
 -/
 meta def elim_expr_from_comp_data_filtered (sfcd : prod_form_comp_data) (cmps : rb_set prod_form_comp_data) 
          (e : expr) (rv : rb_set prod_form_comp_data) : mul_state (rb_set prod_form_comp_data) :=
-cmps.mfold rv (λ c rv', if sfcd.needs_elim_against c e then sfcd.elim_into c e rv' else return rv')
+cmps.mfold rv (λ c rv', if (/-trace_val-/ (sfcd.needs_elim_against (/-trace_val-/ c) (/-trace_val-/ e) : bool)) = tt then sfcd.elim_into c e rv' else return rv')
 
 
 /--
  Performs all possible eliminations with sfcd on cmps. Returns a set of all new comps, NOT including the old ones.
 -/
 meta def new_exprs_from_comp_data_set (sfcd : prod_form_comp_data) (cmps : rb_set prod_form_comp_data) : mul_state (rb_set prod_form_comp_data) :=
-sfcd.vars.mfoldr (λ e rv, elim_expr_from_comp_data_filtered sfcd cmps e rv) mk_rb_set
+sfcd.vars.mfoldr (λ e rv, elim_expr_from_comp_data_filtered sfcd cmps (/-trace_val-/ ("nefcds: ", e)).2 rv) mk_rb_set
 
 meta def elim_list_into_set : rb_set prod_form_comp_data → list prod_form_comp_data → mul_state (rb_set prod_form_comp_data)
-| cmps [] := return (trace_val "elim_list_into_set []") >> return cmps
-| cmps (sfcd::new_cmps) := return (trace_val "elim_list_into_set cons") >>
+| cmps [] := return (/-trace_val-/ "elim_list_into_set []") >> return cmps
+| cmps (sfcd::new_cmps) := return (/-trace_val-/ ("elim_list_into_set cons", cmps, sfcd)) >>
    if cmps.contains sfcd then elim_list_into_set cmps new_cmps else
    do new_gen ← new_exprs_from_comp_data_set sfcd cmps,--.keys
       let new_gen := new_gen.keys in 
       elim_list_into_set (cmps.insert sfcd) (new_cmps.append new_gen)
 
 meta def elim_list_set (cmps : list prod_form_comp_data) (start : rb_set prod_form_comp_data := mk_rb_set) : mul_state (rb_set prod_form_comp_data) :=
-elim_list_into_set start cmps
+do s ← elim_list_into_set (/-trace_val-/ ("start:",start)).2 (/-trace_val-/ ("cmps:",cmps)).2,
+  return (/-trace_val-/ ("elim_list_set finished:", s)).2
 
 meta def elim_list (cmps : list prod_form_comp_data) : mul_state (list prod_form_comp_data) :=
-rb_set.to_list <$> elim_list_into_set mk_rb_set cmps
+rb_set.to_list <$> elim_list_into_set mk_rb_set (/-trace_val-/ ("cmps:", cmps)).2
 
 end prod_form
 open prod_form
@@ -426,7 +710,7 @@ match sdl, sdr with
   if sil.c.is_strict && sir.c.is_strict then
     return $ some $ prod_form_comp_data.of_ineq_data id sil.prf sir.prf
   else return none
-| _, _ := return (trace_val ("no sign_info", lhs, rhs)) >> return none
+| _, _ := return (/-trace_val-/ ("no sign_info", lhs, rhs)) >> return none
 end
 
 -- TODO
@@ -440,12 +724,44 @@ match sdl, sdr with
 | _, _ := return none
 end
 
+section
+open tactic
+private meta def remove_one_from_pfcd_proof (old : prod_form_comp) (new : prod_form) (prf : prod_form_proof old) : tactic expr :=
+do `(1*%%old_e) ← { old.pf with coeff := 1}.to_expr,
+   `(1*%%new_e) ← { new with coeff := 1}.to_expr,
+   prf' ← prf.reconstruct,
+   (_, onp) ← tactic.solve_aux `((%%old_e : ℚ) = %%new_e) `[simp only [rat.one_pow, mul_one, one_mul]],
+    --tactic.infer_type onp >>= tactic.trace,
+    --tactic.infer_type prf' >>= tactic.trace,
+   --(l, r) ← infer_type onp >>= match_eq,
+   --trace l,
+--   `((<) %%l' %%r') ← infer_type prf',
+--    trace r',
+ --   trace $ (l = r' : bool),
+   (ntp, prf'', _) ← infer_type prf' >>= tactic.rewrite onp,
+ --   trace ntp,
+   --infer_type prf'' >>= trace,
+   --return prf''
+   mk_app ``eq.mp [prf'', prf']
+end
+private meta def remove_one_from_pfcd (pfcd : prod_form_comp_data) : prod_form_comp_data :=
+match pfcd with
+| ⟨⟨⟨coeff, exps⟩, c⟩, prf, el⟩ := 
+  if exps.contains rat_one then
+    let pf' : prod_form := ⟨coeff, exps.erase rat_one⟩ in
+    ⟨⟨pf', c⟩, (prod_form_proof.adhoc _ --prf.sketch
+     (do s ← to_string <$> (pf'.to_expr >>= tactic.pp), deps ← find_deps_of_pfp prf,
+         return ⟨"1 " ++ (to_string $ to_fmt c) ++ s, "rearranging", deps⟩) 
+     (remove_one_from_pfcd_proof pfcd.pfc pf' pfcd.prf)), el⟩
+  else pfcd
+end
+
 private meta def mk_pfcd_list : polya_state (list prod_form_comp_data) :=
-do il ← trace_val <$> get_ineq_list, el ← trace_val <$> get_eq_list, dfs ← trace_val <$> get_mul_defs,
-   il' ← trace_val <$> reduce_option_list <$> il.mmap (λ ⟨_, _, id⟩, pfcd_of_ineq_data id),
-   el' ← trace_val <$> reduce_option_list <$> el.mmap (λ ⟨_, _, ed⟩, pfcd_of_eq_data ed),
-   let dfs' := trace_val $ dfs.map mk_eqs_of_expr_prod_form_pair in -- TODO: does this filter ones without sign info?
-   return $ ((il'.append el').append dfs').qsort (λ a b, if has_ordering.cmp a b = ordering.lt then tt else ff)
+do il ← /-trace_val <$>-/ get_ineq_list, el ← /-trace_val <$>-/ get_eq_list, dfs ← /-trace_val <$> -/ get_mul_defs,
+   il' ← /-trace_val <$>-/ reduce_option_list <$> il.mmap (λ ⟨_, _, id⟩, pfcd_of_ineq_data id),
+   el' ← /-trace_val <$>-/ reduce_option_list <$> el.mmap (λ ⟨_, _, ed⟩, pfcd_of_eq_data ed),
+   let dfs' := /-trace_val $-/ dfs.map mk_eqs_of_expr_prod_form_pair in -- TODO: does this filter ones without sign info?
+   return $ list.map remove_one_from_pfcd $ ((il'.append el').append dfs').qsort (λ a b, if has_ordering.cmp a b = ordering.lt then tt else ff)
 
 private meta def mk_signed_pfcd_list : polya_state (list (prod_form × Σ e, option (sign_data e))) :=
 do mds ← get_mul_defs,
@@ -466,11 +782,19 @@ private meta def mk_sign_data_list : list expr → polya_state (list (Σ e, sign
   | some sd := list.cons ⟨h, sd⟩ <$> mk_sign_data_list t
   | none := mk_sign_data_list t
   end
+--set_option pp.all true
+private meta def mk_one_ineq_info_list : list expr → polya_state (list (Σ e, ineq_info e rat_one))
+| [] := return []
+| (h::t) := 
+  do si ← get_comps_with_one h,
+     t' ← mk_one_ineq_info_list t,
+     return $ list.cons ⟨h, si⟩ t'
 
-private meta def mk_mul_state : polya_state (hash_map expr (λ e, sign_data e)) :=
+meta def mk_mul_state : polya_state (hash_map expr (λ e, sign_data e) × hash_map expr (λ e, ineq_info e rat_one)) :=
 do l ← get_expr_list,
    sds ← mk_sign_data_list l,
-   return $ hash_map.of_list sds expr.hash
+   iis ← mk_one_ineq_info_list $ sds.map sigma.fst,
+   return (hash_map.of_list sds expr.hash, hash_map.of_list iis expr.hash)
 
 private meta def gather_new_sign_info_pass_one : polya_state (list Σ e, sign_data e) :=
 do  dfs ← mk_signed_pfcd_list,
@@ -563,7 +887,7 @@ tactic.mk_app ``rat_pow_nonneg_of_nonneg [pf, `(z)]
 private meta def neg_pow_tac (e pf : expr) (z : ℤ) : tactic expr :=
 if z > 0 then
   do zpp ← mk_int_sign_pf z, zmp ← mk_int_mod_pf z,--tactic.to_expr ``(by gen_comp_val : %%(reflect z) > 0),
-     tactic.mk_app (if z % 2 = 0 then ``rat_pow_pos_of_neg_even else ``rat_pow_neg_of_neg_odd) [pf, zpp, zmp] 
+     tactic.mk_mapp (if z % 2 = 0 then ``rat_pow_pos_of_neg_even else ``rat_pow_neg_of_neg_odd) [pf, none, zpp, zmp] 
 else if z = 0 then tactic.mk_app ``rat_pow_zero [e]
 else tactic.fail "neg_pow_tac failed, neg expr to neg power"
 
@@ -571,21 +895,22 @@ else tactic.fail "neg_pow_tac failed, neg expr to neg power"
 private meta def nonpos_pow_tac (e pf : expr) (z : ℤ) : tactic expr :=
 if z > 0 then
   do zpp ← mk_int_sign_pf z, zmp ← mk_int_mod_pf z,--tactic.to_expr ``(by gen_comp_val : %%(reflect z) > 0),
-     tactic.mk_app (if z % 2 = 0 then ``rat_pow_nonneg_of_nonpos_even else ``rat_pow_nonpos_of_nonpos_odd) [pf, zpp, zmp] 
+     tactic.mk_mapp (if z % 2 = 0 then ``rat_pow_nonneg_of_nonpos_even else ``rat_pow_nonpos_of_nonpos_odd) [pf, none, zpp, zmp] 
 else if z = 0 then tactic.mk_app ``rat_pow_zero [e]
 else tactic.fail "neg_pow_tac failed, neg expr to neg power"
 
 private meta def ne_pow_tac (e pf : expr) (z : ℤ) : tactic expr :=
 if z > 0 then
   do zpp ← mk_int_sign_pf z, zmp ← mk_int_mod_pf z,--tactic.to_expr ``(by gen_comp_val : %%(reflect z) > 0),
-     tactic.mk_app (if z % 2 = 0 then ``rat_pow_pos_of_ne_even else ``rat_pow_ne_of_ne_odd) [pf, zpp, zmp] 
+     tactic.mk_mapp (if z % 2 = 0 then ``rat_pow_pos_of_ne_even else ``rat_pow_ne_of_ne_odd) [pf, none, zpp, zmp] 
 else if z = 0 then tactic.mk_app ``rat_pow_zero [e]
 else tactic.fail "neg_pow_tac failed, neg expr to neg power"
 
 private meta def even_pow_tac (e : expr) (z : ℤ) : tactic expr :=
 if z > 0 then 
-   do zpp ← mk_int_sign_pf z, zmp ← mk_int_mod_pf z,
-      tactic.mk_app ``rat_pow_nonneg_of_pos_even [e, zpp, zmp]
+   do --tactic.trace "in ept", tactic.trace e, 
+      zpp ← mk_int_sign_pf z, zmp ← mk_int_mod_pf z,
+      tactic.mk_mapp ``rat_pow_nonneg_of_pos_even [e, none, zpp, zmp]
 else if z = 0 then tactic.mk_app ``rat_pow_zero [e]
 else tactic.fail "even_pow_tac failed, cannot handle neg power"
 
@@ -593,29 +918,33 @@ else tactic.fail "even_pow_tac failed, cannot handle neg power"
 private meta def gather_new_sign_info_pass_two_aux (e : expr) (pf : prod_form) : polya_state $ option (Σ e', sign_data e') :=
 match pf.exps.to_list with
 | [(e', pow)] :=
-  do si ← get_sign_info (trace_val ("e'", e')).2,
+  do si ← get_sign_info (/-trace_val-/ ("e'", e')).2,
      match si with
-     | some ⟨gen_comp.gt, pf⟩ := return $ some ⟨e, ⟨gen_comp.gt, sign_proof.adhoc _ _ (do pf' ← pf.reconstruct, pos_pow_tac pf' pow)⟩⟩
-     | some ⟨gen_comp.ge, pf⟩ := return $ some ⟨e, ⟨gen_comp.ge, sign_proof.adhoc _ _ (do pf' ← pf.reconstruct, nonneg_pow_tac pf' pow)⟩⟩
+     | some ⟨gen_comp.gt, pf⟩ := return $ some ⟨e, ⟨gen_comp.gt, sign_proof.adhoc _ _ (do s ← format_sign e' gen_comp.gt, return ⟨s, "inferred from other sign data", []⟩) (do pf' ← pf.reconstruct, pos_pow_tac pf' pow)⟩⟩
+     | some ⟨gen_comp.ge, pf⟩ := return $ some ⟨e, ⟨gen_comp.ge, sign_proof.adhoc _ _ (do s ← format_sign e' gen_comp.ge, return ⟨s, "inferred from other sign data", []⟩) (do pf' ← pf.reconstruct, nonneg_pow_tac pf' pow)⟩⟩
      | some ⟨gen_comp.lt, pf⟩ := 
        if pow ≥ 0 then 
-         let tac : tactic expr := do pf' ← pf.reconstruct, neg_pow_tac e' pf' pow in
-         return $ some ⟨e, ⟨(if pow = 0 then gen_comp.eq else if pow % 2 = 0 then gen_comp.gt else gen_comp.lt), sign_proof.adhoc _ _ tac⟩⟩
+         let tac : tactic expr := (do pf' ← pf.reconstruct, neg_pow_tac e' pf' pow),
+             c := (if pow = 0 then gen_comp.eq else if pow % 2 = 0 then gen_comp.gt else gen_comp.lt) in
+         return $ some ⟨e, ⟨c, sign_proof.adhoc _ _ (do s ← format_sign e c, return ⟨s, "inferred from other sign data", []⟩) tac⟩⟩
        else return none
      | some ⟨gen_comp.le, pf⟩ := 
        if pow ≥ 0 then 
-         let tac : tactic expr := do pf' ← pf.reconstruct, nonpos_pow_tac e' pf' pow in
-         return $ some ⟨e, ⟨(if pow = 0 then gen_comp.eq else if pow % 2 = 0 then gen_comp.gt else gen_comp.lt), sign_proof.adhoc _ _ tac⟩⟩
+         let tac : tactic expr := (do pf' ← pf.reconstruct, nonpos_pow_tac e' pf' pow),
+             c := (if pow = 0 then gen_comp.eq else if pow % 2 = 0 then gen_comp.gt else gen_comp.lt) in
+         return $ some ⟨e, ⟨c, sign_proof.adhoc _ _ (do s ← format_sign e c, return ⟨s, "inferred from other sign data", []⟩) tac⟩⟩
        else return none
-     | some ⟨gen_comp.eq, pf⟩ := return $ some ⟨e, ⟨gen_comp.eq, sign_proof.adhoc _ _ (do pf' ← pf.reconstruct, tactic.mk_app ``rat_pow_zero [pf', `(pow)])⟩⟩
+     | some ⟨gen_comp.eq, pf⟩ := return $ some ⟨e, ⟨gen_comp.eq, sign_proof.adhoc _ _ (do s ← format_sign e gen_comp.eq, return ⟨s, "inferred from other sign data", []⟩) (do pf' ← pf.reconstruct, tactic.mk_app ``rat_pow_zero [pf', `(pow)])⟩⟩
      | some ⟨gen_comp.ne, pf⟩ := 
        if pow ≥ 0 then 
-         let tac : tactic expr := do pf' ← pf.reconstruct, ne_pow_tac e' pf' pow in
-         return $ some ⟨e, ⟨(if pow = 0 then gen_comp.eq else if pow % 2 = 0 then gen_comp.gt else gen_comp.ne), sign_proof.adhoc _ _ tac⟩⟩
+         let tac : tactic expr := (do pf' ← pf.reconstruct, ne_pow_tac e' pf' pow),
+             c := (if pow = 0 then gen_comp.eq else if pow % 2 = 0 then gen_comp.gt else gen_comp.ne) in
+         return $ some ⟨e, ⟨c, sign_proof.adhoc _ _ (do s ← format_sign e c, return ⟨s, "inferred from other sign data", []⟩) tac⟩⟩
        else return none
      | none := 
        if (pow ≥ 0) && (pow % 2 = 0) then 
-          return $ some ⟨e, ⟨if pow = 0 then gen_comp.eq else gen_comp.ge, sign_proof.adhoc _ _ (even_pow_tac e' pow)⟩⟩
+          let c := if pow = 0 then gen_comp.eq else gen_comp.ge in
+          return $ some ⟨e, ⟨c, sign_proof.adhoc _ _ (do s ← format_sign e c, return ⟨s, "inferred from other sign data", []⟩) (even_pow_tac e' pow)⟩⟩
        else return none
      end
 | _ := return none
@@ -624,17 +953,17 @@ end
 -- get sign info for power exprs
 private meta def gather_new_sign_info_pass_two : polya_state (list Σ e, sign_data e) :=
 do exs ← get_mul_defs,
-   let exs := (trace_val ("of length one:", exs.filter (λ e, e.2.exps.size = 1))).2,
+   let exs := (/-trace_val-/ ("of length one:", exs.filter (λ e, e.2.exps.size = 1))).2,
    reduce_option_list <$> exs.mmap (λ p, gather_new_sign_info_pass_two_aux p.1 p.2)
 
 private meta def gather_new_sign_info : polya_state (list Σ e, sign_data e) :=
 do l1 ← gather_new_sign_info_pass_one,
    l2 ← gather_new_sign_info_pass_two,
-   return $ l1.append ((trace_val ("THIS IS L2", l2)).2)
+   return $ l1.append ((/-trace_val-/ ("THIS IS L2", l2)).2)
 
 private meta def mk_ineq_list (cmps : list prod_form_comp_data) : mul_state (list Σ lhs rhs, ineq_data lhs rhs) :=
 do il ← cmps.mmap (λ pfcd, pfcd.to_ineq_data),
-   return $ reduce_option_list il
+   return $ (/-trace_val-/ ("made ineq list: ", il.join)).2
 
 private meta def mk_eq_list (cmps : list prod_form_comp_data) : mul_state (list Σ lhs rhs, eq_data lhs rhs) :=
 do il ← cmps.mmap (λ pfcd, pfcd.to_eq_data),
@@ -651,8 +980,8 @@ do --new_sign_info ← gather_new_sign_info,
    --new_sign_info.mmap (λ sig, add_sign sig.2),
    is_contr ← contr_found,
    if is_contr then return start else do
-   gather_new_sign_info >>= list.mmap (λ sig, add_sign $ trace_val sig.2),
-   sfcds ← trace_val <$> mk_pfcd_list,
+   gather_new_sign_info >>= list.mmap (λ sig, add_sign $ /-trace_val-/ sig.2),
+   sfcds ← /-trace_val <$>-/ mk_pfcd_list,
    ms ← mk_mul_state,
    let ((pfcs, ineqs), _) := mk_ineq_list_of_unelimed sfcds start ms,
    monad.mapm' 
@@ -664,76 +993,3 @@ end bb_process
 
 end polya
 
-#exit
-
-
-#exit
-section tests
-#print instances reflected
---set_option pp.all true
-#check `(ℚ) 
-
-variables x y z : ℚ
-/-meta def x' : expr := `(x)
-meta def y' : expr := `(y)
-meta def z' : expr := `(z)-/
-
-
-open tactic
-#print declaration
-#check reducibility_hints
-include x y z
-def aux : ℕ := by do x ← get_local `x, 
-match x with
-| expr.local_const nm ppnm bi tp :=
- (add_decl $ declaration.defn `x' [] `(expr) `(expr.local_const nm ppnm bi tp) reducibility_hints.abbrev ff) >> apply ↑`(0)
-| _ := apply ↑`(0)
-end
-
-open tactic polya rb_map
-meta def e1 : sum_form := of_list [(x', 3), (y', 2), (z', 1)] -- 3x + 2y + z
-meta def e2 : sum_form := of_list [(x', -2), (y',1/2)]
-meta def e3 : sum_form := of_list [(y',-5), (z', 4)]
-meta def e4 : sum_form := of_list [(x', 10), (y',-1)]
-meta def e5 : sum_form := of_list [(z', 1), (y',1)]
-meta def e6 : sum_form := of_list [(z', 1)]
-
-meta def c1 : sum_form_comp := ⟨e1, spec_comp.le⟩ -- 3x + 2y + z ≤ 0
-meta def c2 : sum_form_comp := ⟨e2.negate, spec_comp.lt⟩
-meta def c3 : sum_form_comp := ⟨e3.negate, spec_comp.le⟩
-meta def c4 : sum_form_comp := ⟨e4, spec_comp.eq⟩
-meta def c5 : sum_form_comp := ⟨e5.negate, spec_comp.lt⟩
-meta def c6 : sum_form_comp := ⟨e6, spec_comp.lt⟩
-
-meta def d1 : sum_form_comp_data := ⟨c1, sum_form_proof.fake _, mk_rb_set⟩
-meta def d2 : sum_form_comp_data := ⟨c2, sum_form_proof.fake _, mk_rb_set⟩
-meta def d3 : sum_form_comp_data := ⟨c3, sum_form_proof.fake _, mk_rb_set⟩
-meta def d4 : sum_form_comp_data := ⟨c4, sum_form_proof.fake _, mk_rb_set⟩
-meta def d5 : sum_form_comp_data := ⟨c5, sum_form_proof.fake _, mk_rb_set⟩
-meta def d6 : sum_form_comp_data := ⟨c6, sum_form_proof.fake _, mk_rb_set⟩
-
-#eval is_inconsistent_list [d1, d3, d5, d6]
-
-run_cmd trace $ d1.elim_expr d2 y'
-
-run_cmd trace $ 
-elim_expr_from_comp_data_list 
- (elim_expr_from_comp_data_list [d1, d3,  d5, d6] x')
-  y'
-
-run_cmd trace $ 
-elim_expr_from_comp_data_list
- (elim_expr_from_comp_data_list 
-  (elim_expr_from_comp_data_list [d1, d3,  d5, d6] x')
-   y')
-  z'
-
-
-run_cmd trace $
-elim_list [d4, d5, d6]
-
-
-run_cmd trace $
-elim_list  [d1, d3, d5] --[d1, d3,  d5, d6]
-
-end tests

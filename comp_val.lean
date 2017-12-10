@@ -8,6 +8,9 @@ This extends it to work on arbitrary algebraic structures.
 For efficiency reasons, this should be ported to C++ eventually.
 -/
 
+#exit
+
+import data.rat
 open tactic expr
 universe u
 
@@ -108,24 +111,100 @@ meta def mk_gt_prf (mk_ge_prf : expr → expr → tactic expr) : expr → expr �
 | (`(@bit1 %%_ %%_ %%_ %%t1)) (`(@has_one.one %%t %%_)) :=
    do prf ← to_expr ``(0 : %%t) >>= mk_gt_prf t1,
       tactic.mk_app `bit1_gt_one [prf]
-| (`(@has_one.one %%tp %%_)) (`(@has_zero.zero %%_ %%_)) := to_expr ``(@zero_lt_one %%tp _) 
+| (`(@has_one.one %%tp %%_)) (`(@has_zero.zero %%_ %%_)) := trace "abc" >> to_expr ``(@zero_lt_one %%tp _) 
 | (t1) `(@has_neg.neg %%tp %%_ %%t2) :=
   do (n, eqp) ← to_expr ``(%%t1 + %%t2) >>= norm_num, prf ← to_expr ``(0 : %%tp) >>= mk_gt_prf n,
       tactic.mk_app `gt_neg [eqp, prf]
 | a b := tactic.fail "mk_gt_prf failed"
 
 
+
 meta def mk_ge_prf : expr → expr → tactic expr := λ e1 e2,
-to_expr ``((le_refl _ : %%e1 ≥ %%e2)) <|> do
+(guard (e1 = e2) >> to_expr ``((le_refl _ : %%e1 ≥ %%e2))) <|> do
   gtprf ← mk_gt_prf mk_ge_prf e1 e2,
   mk_app `le_of_lt [gtprf]
+
+
+lemma rat_gt {a b c d : ℚ} (h : a*d > c*b) (hb : b > 0) (hd : d > 0) : a / b > c / d :=
+begin
+apply lt_div_of_mul_lt,
+assumption,
+rw div_mul_eq_mul_div,
+apply div_lt_of_mul_lt_of_pos,
+repeat {assumption}
+end
+
+lemma rat_gt' {a b c : ℚ} (h : a > c*b) (hb : b > 0) : a / b > c :=
+begin
+apply lt_div_of_mul_lt,
+repeat {assumption}
+end
+
+lemma rat_gt'' {a b c : ℚ} (h : a*c > b) (hb : c > 0) : a > b / c :=
+begin
+apply div_lt_of_mul_lt_of_pos,
+repeat {assumption}
+end
+
+lemma eqs_gt_trans {a b c d : ℚ} (ha : a = b) (hc : c = d) (h : b > d) : a > c :=
+by cc
+
+lemma eq_gt_trans {a b c : ℚ} (ha : a = b) (h : b > c) : a > c :=
+by cc
+
+lemma eq_gt_trans' {a b c : ℚ} (ha : a = b) (h : c > b) : c > a :=
+by cc
+
+meta def mk_rat_gt_pf (mk_rat_ge_prf : expr → expr → tactic expr) : expr → expr → tactic expr
+| `(%%a / %%b) `(%%c / %%d) := 
+  do (lhs, lprf) ← norm_num `(%%a * %%d : ℚ),
+     (rhs, rprf) ← norm_num `(%%c * %%b : ℚ),
+     gtpf ← mk_gt_prf mk_rat_ge_prf lhs rhs,
+     gtpf' ← mk_app `eqs_gt_trans [lprf, rprf, gtpf],
+     bs ← mk_gt_prf mk_rat_ge_prf b `(0 : ℚ),
+     ds ← mk_gt_prf mk_rat_ge_prf d `(0 : ℚ),
+     mk_app ``rat_gt [gtpf', bs, ds]
+| `(%%a / %%b) c :=
+  do (lhs, lprf) ← norm_num `(%%c * %%b : ℚ),
+     gtpf ← mk_gt_prf mk_rat_ge_prf a lhs,
+     gtpf' ← mk_app `eq_gt_trans' [lprf, gtpf],
+     bs ← mk_gt_prf mk_rat_ge_prf b `(0 : ℚ),
+     mk_app ``rat_gt' [gtpf', bs]
+| a `(%%b / %%c) :=
+  do (lhs, lprf) ← norm_num `(%%a * %%c : ℚ),
+     gtpf ← mk_rat_gt_pf lhs b,
+     trace "a1",
+     gtpf' ← mk_app `eq_gt_trans [lprf, gtpf],
+     trace "a2",
+     bs ← mk_gt_prf mk_rat_ge_prf c `(0 : ℚ),
+     trace ("a3", a, b, c), infer_type gtpf' >>= trace, infer_type bs >>= trace,
+     mk_app ``rat_gt'' [gtpf', bs]
+| a b := trace "!!!!" >> trace a >> trace b >> mk_gt_prf mk_rat_ge_prf a b--fail "mk_rat_gt_pf failed"
+
+
+meta def mk_rat_ge_prf : expr → expr → tactic expr := λ e1 e2,
+(guard (e1 = e2) >> to_expr ``((le_refl _ : %%e1 ≥ %%e2))) <|> do
+  gtprf ← mk_rat_gt_pf mk_rat_ge_prf e1 e2,
+  trace "mk_rat_ge_prf:", infer_type gtprf >>= trace,
+  l ← mk_app `le_of_lt [gtprf],
+  infer_type l >>= trace,
+  return l
+
+
+meta def mk_gt_prf' (lhs rhs : expr) : tactic expr :=
+do tp ← infer_type lhs,
+   if tp = `(ℚ) then mk_rat_gt_pf mk_rat_ge_prf lhs rhs else mk_gt_prf @mk_ge_prf lhs rhs
+
+meta def mk_ge_prf' (lhs rhs : expr) : tactic expr :=
+do tp ← infer_type lhs,
+   if tp = `(ℚ) then mk_rat_ge_prf lhs rhs else mk_ge_prf lhs rhs
 
 -- assumes ≥ or > and already normalized
 meta def gen_comp_val_prf : expr → tactic expr
 | `(@has_le.le %%_ %%_ %%lhs %%rhs) := to_expr ``(%%rhs ≥ %%lhs) >>= gen_comp_val_prf
 | `(@has_lt.lt %%_ %%_ %%lhs %%rhs) := to_expr ``(%%rhs > %%lhs) >>= gen_comp_val_prf
-| `(@ge %%_ %%_ %%lhs %%rhs) := mk_ge_prf lhs rhs
-| `(@gt %%_ %%_ %%lhs %%rhs) := mk_gt_prf mk_ge_prf lhs rhs
+| `(@ge %%_ %%_ %%lhs %%rhs) := mk_ge_prf' lhs rhs
+| `(@gt %%_ %%_ %%lhs %%rhs) := mk_gt_prf' /-mk_ge_prf-/ lhs rhs
 | _ := tactic.fail "comp_val' didn't match"
 
 meta def is_num : expr → bool
@@ -150,7 +229,7 @@ do t ← target,
       else do (rhs', prf) ← norm_num rhs, rewrite_target prf, target >>= gen_comp_val_prf >>= apply
    else 
       do (lhs', prfl) ← norm_num lhs, rewrite_target prfl,
-      if is_num rhs then do t ← target, t ← gen_comp_val_prf t, apply t
+      if is_num rhs then do trace "here", trace_state, t ← target, t ← gen_comp_val_prf t, trace "now here", infer_type t >>= trace, failed-- exact t
       else do (rhs', prf) ← norm_num rhs, rewrite_target prf, t ← target >>= gen_comp_val_prf, apply t
 
 
@@ -203,3 +282,7 @@ do m0 ← mk_mvar, m1 ← mk_mvar, m2 ← mk_mvar,
    to_expr ``(@eq %%m1 %%m0 (@has_zero.zero %%m1 %%m2))>>= unify e,
    return m0
 
+
+set_option profiler true
+example : (198 : ℚ) / 100 ≤ 2 :=
+by gen_comp_val--btrivial

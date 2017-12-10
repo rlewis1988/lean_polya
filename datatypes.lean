@@ -94,6 +94,8 @@ def is_less : comp → bool
 | le := tt
 | _  := ff
 
+def is_greater : comp → bool := bnot ∘ is_less
+
 def implies (c1 c2 : comp) : bool :=
 (is_less c1 = is_less c2) && (is_strict c1 || bnot (is_strict c2))
 
@@ -103,7 +105,7 @@ meta def to_format : comp → format
 | ge := "≥"
 | gt := ">"
 
-meta def to_gen_comp : comp → gen_comp
+def to_gen_comp : comp → gen_comp
 | le := gen_comp.le
 | lt := gen_comp.lt
 | ge := gen_comp.ge
@@ -124,6 +126,19 @@ meta def to_function (lhs rhs : expr) : comp → tactic expr
 | ge := to_expr ``(%%lhs ≥ %%rhs)
 end
 
+def prod : comp → comp → comp
+| gt a := a
+| a gt := a
+| ge ge := ge
+| ge lt := le
+| ge le := le
+| lt ge := le
+| le ge := le
+| le le := ge
+| le lt := ge
+| lt le := ge
+| lt lt := gt
+
 meta instance : has_coe comp gen_comp :=
 ⟨to_gen_comp⟩ 
 
@@ -143,7 +158,6 @@ def dir : gen_comp → ℤ
 | gt := 1
 | eq := 0
 | ne := 0
-
 
 def reverse : gen_comp → gen_comp
 | le := ge
@@ -170,6 +184,23 @@ def is_less : gen_comp → bool
 | lt := tt
 | le := tt
 | _  := ff
+
+def is_greater : gen_comp → bool
+| gt := tt
+| ge := tt
+| _ := ff
+
+def is_less_or_eq : gen_comp → bool
+| lt := tt
+| le := tt
+| eq := tt
+| _ := ff
+
+def is_greater_or_eq : gen_comp → bool
+| gt := tt
+| ge := tt
+| eq := tt
+| _ := ff
 
 def is_ineq : gen_comp → bool
 | eq := ff
@@ -221,6 +252,10 @@ def prod : gen_comp → gen_comp → option gen_comp
 | lt le := ge
 | lt lt := gt
 
+-- may not be right for = or ≠
+def pow (c1 : gen_comp) (z : ℤ) : gen_comp :=
+if (bnot c1.is_less) || (z ≥ 0) || (z % 2 = 0) then c1 
+else c1.reverse
 
 meta def to_format : gen_comp → format
 | le := "≤"
@@ -433,8 +468,31 @@ def two_imply (i1 i2 : ineq) (ninq : ineq) : bool :=
 
 end ineq
 
+section proof_sketch
+
+meta inductive proof_sketch
+| mk (fact : string) (reason : string) (justifications : list proof_sketch) : proof_sketch
+
+meta def proof_sketch.justifications : proof_sketch → list proof_sketch
+| ⟨_, _, j⟩ := j
+
+meta def proof_sketch.reason : proof_sketch → string
+| ⟨_, r, _⟩ := r
+
+
+end proof_sketch
+
 @[reducible]
 meta def sum_form := rb_map expr ℚ
+
+
+meta def expr_coeff_list_to_expr : list (expr × ℚ) → tactic expr
+| [] := return `(0 : ℚ)
+| [(e, q)] := tactic.to_expr ``(%%(↑q.reflect : expr)*%%e)
+| ((e, q)::t) := do e' ← expr_coeff_list_to_expr t, h ← tactic.to_expr ``(%%(q.reflect : expr)*%%e), tactic.to_expr ``(%%h + %%e')
+
+meta def sum_form.to_expr (sf : sum_form) : tactic expr := 
+expr_coeff_list_to_expr sf.to_list
 
 namespace sum_form
 
@@ -492,6 +550,11 @@ end sum_form
 
 meta structure sum_form_comp :=
 (sf : sum_form) (c : spec_comp) 
+
+meta def sum_form_comp.to_expr (sfc : sum_form_comp) : tactic expr :=
+do e ← sfc.sf.to_expr,
+   sfc.c.to_comp.to_function e `(0 : ℚ)
+
 
 namespace sum_form_comp
 
@@ -632,17 +695,16 @@ else
 
 -- lhs cl 0 and rhs cr 0, and iq lhs rhs. cl and cr should be strict ineqs
 meta def of_ineq (lhs rhs : expr) (cl cr : gen_comp) (iq : ineq) : prod_form_comp :=
-match (trace_val ("iq slope, lhs, rhs:", iq.to_slope, lhs, rhs)).2.1, (trace_val ("iq comp:", iq.to_comp)).2 with
+match (/-trace_val-/ ("iq slope, lhs, rhs:", iq.to_slope, lhs, rhs)).2.1, (/-trace_val-/ ("iq comp:", iq.to_comp)).2 with
 | slope.horiz, _ := default
 | slope.some m, cmp := 
-   if (m = 0) || (is_redundant_data cmp (m > 0) cl cr) then (trace_val ("redundant", default)).2 else
-   let nsfc := trace_val $ (((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs)).scale m,
+   if (m = 0) || (is_redundant_data cmp (m > 0) cl cr) then (/-trace_val-/ ("redundant", default)).2 else
+   let nsfc := /-trace_val $-/ (((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs)).scale m,
        (sc, flp) := spec_comp_and_flipped_of_comp cmp in
    ⟨if ((bnot cl.is_less) = flp) then nsfc.pow (-1) else nsfc, sc⟩
 end
 
 
---    Π (id : ineq_proof lhs rhs iq) (spl : sign_proof lhs cl) (spr : sign_proof rhs cr), prod_form_proof (prod_form_comp.of_ineq lhs rhs cl cr iq)
 
 meta def of_eq (lhs rhs : expr) (c : ℚ) : prod_form_comp :=
 ⟨(((prod_form.of_expr lhs).pow (-1)) * (prod_form.of_expr rhs)).scale c, spec_comp.eq⟩
@@ -658,30 +720,6 @@ meta inductive diseq_proof : expr → expr → ℚ → Type
 | hyp : Π lhs rhs c, expr → diseq_proof lhs rhs c
 | sym : Π {lhs rhs c}, Π (dp : diseq_proof lhs rhs c), diseq_proof rhs lhs (1/c)
 
-/-meta inductive ineq_proof : expr → expr → ineq → Type--(lhs rhs : expr) (r : comp) (c : ℚ)
-| hyp : Π lhs rhs i, expr → ineq_proof lhs rhs i
-| sym : Π {lhs rhs i}, ineq_proof lhs rhs i → ineq_proof rhs lhs (i.reverse)
-| of_ineq_proof_and_diseq : Π {lhs rhs i c}, 
-    ineq_proof lhs rhs i → diseq_proof lhs rhs c → ineq_proof lhs rhs (i.strengthen)
-| of_ineq_proof_and_sign_lhs : Π {lhs rhs i c},
-    ineq_proof lhs rhs i → sign_proof lhs c → ineq_proof lhs rhs (i.strengthen)
-
-meta inductive sign_proof : expr → gen_comp → Type
-| hyp  : Π e c, expr → sign_proof e c
-| ineq_lhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof lhs c
-| ineq_rhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof rhs c
-| eq_of_two_eqs_lhs : Π {lhs rhs eqp1 eqp2}, 
-    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof lhs gen_comp.eq
-| eq_of_two_eqs_rhs : Π {lhs rhs eqp1 eqp2}, 
-    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof rhs gen_comp.eq
-| diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
-| eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq-/
-
-
-/-meta inductive eq_proof : expr → expr → ℚ → Type
-| hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
-| sym : Π {lhs rhs c}, Π (ep : eq_proof lhs rhs c), eq_proof rhs lhs (1/c)-/
-
 meta mutual inductive eq_proof, ineq_proof, sign_proof, sum_form_proof
 with eq_proof : expr → expr → ℚ → Type
 | hyp : Π lhs rhs c, expr → eq_proof lhs rhs c
@@ -689,7 +727,7 @@ with eq_proof : expr → expr → ℚ → Type
 | of_opp_ineqs : Π {lhs rhs i}, Π c,
   ineq_proof lhs rhs i → ineq_proof lhs rhs (i.reverse) → eq_proof lhs rhs c
 | of_sum_form_proof : Π lhs rhs c {sf}, sum_form_proof ⟨sf, spec_comp.eq⟩ → eq_proof lhs rhs c
-| adhoc : Π lhs rhs c, tactic expr → eq_proof lhs rhs c
+| adhoc : Π lhs rhs c, tactic proof_sketch →  tactic expr → eq_proof lhs rhs c
 
 with ineq_proof : expr → expr → ineq → Type
 | hyp : Π lhs rhs i, expr → ineq_proof lhs rhs i
@@ -700,8 +738,10 @@ with ineq_proof : expr → expr → ineq → Type
     ineq_proof lhs rhs i → sign_proof lhs c → ineq_proof lhs rhs (i.strengthen)
 | of_ineq_proof_and_sign_rhs : Π {lhs rhs i c},
     ineq_proof lhs rhs i → sign_proof rhs c → ineq_proof lhs rhs (i.strengthen)
-| zero_comp_of_sign_proof : Π {lhs c} rhs i, sign_proof lhs c → ineq_proof lhs rhs i| of_sum_form_proof : Π lhs rhs i {sfc}, sum_form_proof sfc → ineq_proof lhs rhs i
-| adhoc : Π lhs rhs i, tactic expr → ineq_proof lhs rhs i
+| zero_comp_of_sign_proof : Π {lhs c} rhs i, sign_proof lhs c → ineq_proof lhs rhs i
+| horiz_of_sign_proof : Π {rhs c} lhs i, sign_proof rhs c → ineq_proof lhs rhs i
+| of_sum_form_proof : Π lhs rhs i {sfc}, sum_form_proof sfc → ineq_proof lhs rhs i
+| adhoc : Π lhs rhs i, tactic proof_sketch → tactic expr → ineq_proof lhs rhs i
 
 with sign_proof : expr → gen_comp → Type
 | hyp  : Π e c, expr → sign_proof e c
@@ -721,7 +761,7 @@ with sign_proof : expr → gen_comp → Type
     ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
 | diseq_of_strict_ineq : Π {e c}, sign_proof e c → sign_proof e gen_comp.ne 
 | of_sum_form_proof : Π e c {sfc}, sum_form_proof sfc → sign_proof e c
-| adhoc : Π e c, tactic expr → sign_proof e c
+| adhoc : Π e c, tactic proof_sketch → tactic expr → sign_proof e c
 
 with sum_form_proof : sum_form_comp → Type
 | of_ineq_proof : Π {lhs rhs iq}, Π id : ineq_proof lhs rhs iq,
@@ -738,12 +778,6 @@ with sum_form_proof : sum_form_comp → Type
 | fake : Π sd, sum_form_proof sd
 
 meta inductive prod_form_proof : prod_form_comp → Type
-/-| of_ineq_proof_pos_lhs : Π {lhs rhs iq}, 
-    Π (id : ineq_proof lhs rhs iq) (sp : sign_proof lhs gen_comp.gt) (nzprs : hash_map expr (λ e, sign_proof e gen_comp.ne)),
-    prod_form_proof (prod_form_comp.of_ineq_pos_lhs lhs rhs iq)
-| of_ineq_proof_neg_lhs : Π {lhs rhs iq}, 
-    Π (id : ineq_proof lhs rhs iq) (sp : sign_proof lhs gen_comp.lt) (nzprs : hash_map expr (λ e, sign_proof e gen_comp.ne)),
-    prod_form_proof (prod_form_comp.of_ineq_neg_lhs lhs rhs iq)-/
 | of_ineq_proof : Π {lhs rhs iq cl cr},
     Π (id : ineq_proof lhs rhs iq) (spl : sign_proof lhs cl) (spr : sign_proof rhs cr), prod_form_proof (prod_form_comp.of_ineq lhs rhs cl cr iq)
 | of_eq_proof : Π {lhs rhs c}, Π (id : eq_proof lhs rhs c) (lhsne : sign_proof lhs gen_comp.ne),
@@ -751,8 +785,8 @@ meta inductive prod_form_proof : prod_form_comp → Type
 | of_expr_def : Π (e : expr) (pf : prod_form), prod_form_proof ⟨pf, spec_comp.eq⟩
 | of_pow : Π {pfc}, Π z, prod_form_proof pfc → prod_form_proof (pfc.pow z)
 | of_mul : Π {lhs rhs c1 c2}, prod_form_proof ⟨lhs, c1⟩ → prod_form_proof ⟨rhs, c2⟩ → (list Σ e : expr, sign_proof e gen_comp.ne) → prod_form_proof ⟨lhs*rhs, spec_comp.strongest c1 c2⟩ 
+| adhoc : Π pfc, tactic proof_sketch → tactic expr → prod_form_proof pfc
 | fake : Π pd, prod_form_proof pd
-
 
 open ineq_proof
 meta def ineq_proof.to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
@@ -766,32 +800,12 @@ meta def ineq_proof.to_format2 :
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_lhs lhs rhs iq c ip sp) := "of_ineq_proof_and_sign_lhs"
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_rhs lhs rhs iq c ip sp) :=  "of_ineq_proof_and_sign_rhs"
 | .(_) .(_) .(_) (@zero_comp_of_sign_proof lhs c rhs iq sp) := "zero_comp_of_sign"
+| .(_) .(_) .(_) (@horiz_of_sign_proof rhs c lhs iq sp) := "horiz_of_sign"
 | .(_) .(_) .(_) (@of_sum_form_proof lhs rhs i _ sp) := "of_sum_form"
-| .(_) .(_) .(_) (adhoc _ _ _ t) := "adhoc"
+| .(_) .(_) .(_) (adhoc _ _ _ _ t) := "adhoc"
 
 meta instance ineq_proof.has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
 ⟨ineq_proof.to_format2⟩
-
-/-with sign_proof : expr → gen_comp → Type
-| hyp  : Π e c, expr → sign_proof e c
-| ineq_lhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof lhs c
-| ineq_rhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof rhs c
-| eq_of_two_eqs_lhs : Π {lhs rhs eqp1 eqp2}, 
-    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof lhs gen_comp.eq
-| eq_of_two_eqs_rhs : Π {lhs rhs eqp1 eqp2}, 
-    eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof rhs gen_comp.eq
-| diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
-| eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq
-| ineq_of_eq_and_ineq_lhs : Π {lhs rhs i c}, Π c', 
-    eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof lhs c'
-| ineq_of_eq_and_ineq_rhs : Π {lhs rhs i c}, Π c', 
-    eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof rhs c'
-| ineq_of_ineq_and_eq_zero_rhs : Π {lhs rhs i}, Π c, 
-    ineq_proof lhs rhs i → sign_proof lhs gen_comp.eq → sign_proof rhs c
-| diseq_of_strict_ineq : Π {e c}, sign_proof e c → sign_proof e gen_comp.ne 
-| of_sum_form_proof : Π e c {sfc}, sum_form_proof sfc → sign_proof e c
-| adhoc : Π e c, tactic expr → sign_proof e c
--/
 
 section
 open sign_proof
@@ -808,7 +822,7 @@ meta def sign_proof.to_format : Π {e c}, sign_proof e c → format
 | (_) (_) (ineq_of_ineq_and_eq_zero_rhs _ _ _) := "ineq_of_ineq_and_eq_zero_rhs"
 | (_) (_) (diseq_of_strict_ineq _) := "diseq_of_strict_ineq"
 | (_) (_) (of_sum_form_proof _ _ _) := "of_sum_form_proof"
-| (_) (_) (adhoc _ _ _) := "adhoc"
+| (_) (_) (adhoc _ _ _ _) := "adhoc"
 
 meta instance sign_proof.has_to_format {e c} : has_to_format (sign_proof e c) := ⟨sign_proof.to_format⟩
 end
@@ -822,7 +836,14 @@ meta structure ineq_data (lhs rhs : expr) :=
 (prf : ineq_proof lhs rhs inq)
 
 meta def ineq_data.reverse {lhs rhs : expr} (id : ineq_data lhs rhs) : ineq_data rhs lhs :=
-⟨id.inq.reverse, id.prf.sym⟩
+if id.inq.is_horiz then
+ let sp := sign_proof.ineq_rhs id.inq.to_comp/-.reverse-/ id.prf in
+  ⟨_, ineq_proof.zero_comp_of_sign_proof lhs id.inq.reverse sp⟩
+else if id.inq.is_zero_slope then
+ let sp := sign_proof.ineq_lhs id.inq.to_comp id.prf in
+  ⟨_, ineq_proof.horiz_of_sign_proof rhs id.inq.reverse sp⟩
+else
+ ⟨id.inq.reverse, id.prf.sym⟩
 
 meta def ineq_data.to_format {lhs rhs} : ineq_data lhs rhs → format
 | ⟨inq, prf⟩ := "⟨" ++ to_fmt inq ++ " : " ++ to_fmt prf ++ "⟩"
@@ -857,6 +878,9 @@ id.inq.to_expr lhs rhs -/
 meta structure eq_data (lhs rhs : expr) :=
 (c   : ℚ)
 (prf : eq_proof lhs rhs c)
+
+meta def eq_data.refl (e : expr) : eq_data e e :=
+⟨1, eq_proof.adhoc e e 1 (do s ← to_string <$> tactic.pp e, return ⟨s ++ " = " ++ s, "reflexivity", []⟩) $ do (_, pr) ← tactic.solve_aux `(%%e = (1 : ℚ) * %%e) `[simp only [one_mul]], return pr⟩
 
 meta def eq_data.reverse {lhs rhs : expr} (ei : eq_data lhs rhs) : eq_data rhs lhs :=
 ⟨(1/ei.c), ei.prf.sym⟩
@@ -906,6 +930,12 @@ meta inductive ineq_info (lhs rhs : expr)
 | equal        : eq_data lhs rhs → ineq_info
 open ineq_info
 
+meta def ineq_info.data {lhs rhs} : ineq_info lhs rhs → list (ineq_data lhs rhs)
+| no_comps := []
+| (one_comp id) := [id]
+| (two_comps id1 id2) := [id1, id2]
+| (equal _) := []
+
 
 meta def ineq_info.mk_two_comps {lhs rhs} (id1 id2 : ineq_data lhs rhs) : ineq_info lhs rhs :=
 if id2.inq.clockwise_of id1.inq then two_comps id1 id2 else two_comps id2 id1
@@ -916,7 +946,7 @@ meta instance ineq_info.inhabited (lhs rhs) : inhabited (ineq_info lhs rhs) :=
 meta def ineq_info.reverse {lhs rhs : expr} : ineq_info lhs rhs → ineq_info rhs lhs
 | no_comps            := no_comps
 | (one_comp id1)      := one_comp id1.reverse
-| (two_comps id1 id2) := two_comps id1.reverse id2.reverse
+| (two_comps id1 id2) := ineq_info.mk_two_comps id1.reverse id2.reverse
 | (equal ed)          := equal ed.reverse
 
 meta def ineq_info.to_format {lhs rhs} : ineq_info lhs rhs → format
@@ -927,17 +957,6 @@ meta def ineq_info.to_format {lhs rhs} : ineq_info lhs rhs → format
 
 meta instance ineq_info.has_to_format (lhs rhs) : has_to_format (ineq_info lhs rhs) :=
 ⟨ineq_info.to_format⟩
-
-/-meta def eq_info (lhs rhs : expr) := option (eq_data lhs rhs)
-
-meta instance eq_info.inhabited (lhs rhs) : inhabited (eq_info lhs rhs) :=
-⟨none⟩
-
-
-meta def eq_info.reverse {lhs rhs : expr} : eq_info lhs rhs → eq_info rhs lhs
-| none      := none
-| (some ei) := some (ei.reverse)
--/
 
 meta def diseq_info (lhs rhs : expr) := rb_map ℚ (diseq_data lhs rhs)
 
@@ -1076,6 +1095,10 @@ meta def ineq_info.implies_ineq {lhs rhs : expr} : ineq_info lhs rhs → ineq �
 | (equal ed) ninq := ed.implies_ineq ninq
 | _ _ := ff
 
+meta def ineq_info.implies_eq {lhs rhs : expr} : ineq_info lhs rhs → ℚ → bool
+| (equal ed) m := ed.c = m
+| _ _ := ff
+
 meta def ineq_info.implies {lhs rhs : expr} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : bool :=
 ii.implies_ineq id.inq
 
@@ -1155,6 +1178,7 @@ exact "of_eq_proof",
 exact "of_expr_def",
 exact "of_pow",
 exact "of_mul",
+exact "adhoc",
 exact "fake"
 end
 
@@ -1212,5 +1236,6 @@ meta def contrad.to_format : contrad → format
 
 meta instance contrad.has_to_format : has_to_format contrad :=
 ⟨contrad.to_format⟩
+
 
 end polya

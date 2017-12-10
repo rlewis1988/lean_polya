@@ -23,7 +23,7 @@ meta def expr_to_sign : expr → tactic (expr × gen_comp)
 | _ := failed
 
 
-meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard :=
+/-meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard :=
 (do (x, y, ie1) ← expr_to_ineq e,
     id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
 --    trace "tac_add_ineq",
@@ -42,9 +42,10 @@ meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard 
     bb ← tac_add_sign b sd,
     trace "tac_add_sign done", return bb)
 <|>
-fail "add_comp_to_blackboard failed"
+fail "add_comp_to_blackboard failed"-/
 
 meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
+--infer_type e >>= trace >>
 (do (x, y, ie1) ← infer_type e >>= expr_to_ineq,
 --    trace x, trace y, trace ie1,
     id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
@@ -72,9 +73,6 @@ monad.foldl add_proof_to_blackboard b l
 meta structure module_op (α : Type) :=
 (a : α)
 (op : α → polya_state α)
-
-
-#check @polya_state
 
 meta def module_op.update {α} : module_op α → polya_state (module_op α)
 | ⟨a, op⟩ := do a' ← op a, return ⟨a', op⟩
@@ -107,7 +105,7 @@ meta def polya_bundle.update_ith (i : ℕ) : polya_bundle → polya_bundle
   end
 
 meta def polya_bundle.one_cycle (bundle : polya_bundle) : polya_bundle :=
-(list.upto bundle.num_modules).foldl (λ pb k, pb.update_ith k) bundle
+(list.upto bundle.num_modules).reverse.foldl (λ pb k, pb.update_ith k) bundle
 
 meta def polya_bundle.cycle : ℕ → polya_bundle → (ℕ × polya_bundle) | n pb :=
 let pb' := pb.set_changed ff,
@@ -129,15 +127,19 @@ meta def polya_bundle.default : polya_bundle :=
   bb := blackboard.mk_empty
 }
 
-meta def polya_on_hyps (hys : list name) : tactic unit :=
+lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
+
+meta def polya_on_hyps (hys : list name) (rct : bool := tt) : tactic unit :=
 do exps ← hys.mmap get_local,
-   bb ← add_proofs_to_blackboard blackboard.mk_empty exps,
-   bb.trace_expr_pairs,
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+   bb ← add_proofs_to_blackboard bb exps,
    let pb := polya_bundle.default.set_blackboard bb,
    let (n, pb) := pb.cycle 0,
    trace ("number of cycles:", n),
    trace ("contr found", pb.contr_found),
-   pb.bb.contr.reconstruct >>= apply
+   if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else
+   if rct then pb.bb.contr.reconstruct >>= apply
+   else skip
 
 /-meta def cycle_ops : ℕ → list (Σ α, module_op α) → polya_state ℕ | n ops := 
 do set_changed ff,
@@ -158,10 +160,13 @@ do exps ← hys.mmap get_local,
 section
 open tactic interactive interactive.types lean.parser
 
-meta def tactic.interactive.add_comp_to_blackboard' (e : parse texpr) (b : blackboard) : tactic blackboard :=
-do e' ← i_to_expr e, add_comp_to_blackboard e' b
+--meta def tactic.interactive.add_comp_to_blackboard' (e : parse texpr) (b : blackboard) : tactic blackboard :=
+--do e' ← i_to_expr e, add_comp_to_blackboard e' b
 
 meta def tactic.interactive.polya (ns : parse (many ident)) : tactic unit :=
 polya_on_hyps ns
+
+meta def tactic.interactive.polya_l (ns : parse (many ident)) : tactic unit :=
+polya_on_hyps ns ff
 
 end
