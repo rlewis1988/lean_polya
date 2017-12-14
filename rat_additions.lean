@@ -199,6 +199,9 @@ def rat.pow (q : ℚ) : ℤ → ℚ
 | (int.of_nat n) := q^n
 | -[1+n] := 1/(q^(n+1))
 
+--def rat.pow (q : ℚ) (z : ℤ) : ℚ :=
+--if q = 1 then q else if z = 1 then q else rat.pow_aux q z
+
 lemma rat.mul_pow_neg_one {q : ℚ} (h : q ≠ 0) : q * (rat.pow q (-1)) = 1 :=
 begin
 change (-1 : ℤ) with -[1+0],

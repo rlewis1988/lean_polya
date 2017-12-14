@@ -125,9 +125,10 @@ sfcd.vars.foldr (λ e rv, elim_expr_from_comp_data_filtered sfcd cmps e rv) mk_r
 meta def elim_list_into_set : rb_set sum_form_comp_data → list sum_form_comp_data → rb_set sum_form_comp_data
 | cmps [] := cmps
 | cmps (sfcd::new_cmps) :=
-   if cmps.contains sfcd then elim_list_into_set cmps (new_cmps.length, new_cmps).2 else
-   let new_gen := (new_exprs_from_comp_data_set sfcd.normalize cmps).keys in
-   elim_list_into_set (cmps.insert sfcd) (new_cmps.append new_gen)
+   let sfcdn := sfcd.normalize in
+   if cmps.contains (/-trace_val-/ (new_cmps.length, sfcdn)).2 then elim_list_into_set cmps new_cmps else
+   let new_gen := (new_exprs_from_comp_data_set sfcdn cmps).keys in
+   elim_list_into_set (cmps.insert sfcdn) (new_cmps.append new_gen)
 
 
 meta def elim_list_set (cmps : list sum_form_comp_data) (start : rb_set sum_form_comp_data := mk_rb_set) : rb_set sum_form_comp_data :=

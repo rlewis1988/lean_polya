@@ -1,4 +1,4 @@
-import .datatypes
+import .datatypes .normalizer2
 namespace polya
 
 meta inductive expr_form
@@ -556,7 +556,7 @@ end-/
 
 --meta def mk_neg : expr → expr
 
-meta def get_sum_components : expr → list expr
+/-meta def get_sum_components : expr → list expr
 | `(%%lhs + %%rhs) := rhs::(get_sum_components lhs)
 --| `(%%lhs - %%rhs) := mk_neg rhs::(get_sum_components lhs)
 | a := [a]
@@ -580,7 +580,8 @@ end
 meta def get_comps_of_exp (e : expr) : tactic (expr × ℤ) := match e with
 | `(rat.pow %%base %%exp) := (do z ← eval_expr ℤ exp, return (base, z)) <|> return (e, 1)
 | f := return (f, 1)
-end
+end-/
+
 
 meta def process_expr_tac : blackboard → expr → tactic blackboard | bb e := 
 if is_sum e then 
@@ -614,13 +615,13 @@ do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
 meta def tac_add_sign {e} (bb : blackboard) (sd : sign_data e) : tactic blackboard :=
 do bb' ← process_expr_tac bb e,
    return (add_sign sd bb').2
-
+/-
 
 
 /- assumes the second input is the type of prf
 meta def process_comp (prf : expr) : expr → polya_state unit
 | ```(%%lhs ≥ %%rhs) := process_expr lhs >> process_expr rhs >> 
-    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩
+    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩-/
 | _ := skip-/
 
 end tactics

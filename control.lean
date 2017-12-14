@@ -1,4 +1,5 @@
-import .blackboard .proof_reconstruction .sum_form .prod_form data.hash_map
+import .blackboard .proof_reconstruction .sum_form .prod_form data.hash_map .normalizer2
+
 open polya tactic
 
 meta def expr_to_ineq : expr → tactic (expr × expr × ineq)
@@ -46,6 +47,7 @@ fail "add_comp_to_blackboard failed"-/
 
 meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
 --infer_type e >>= trace >>
+do e ← canonize_hyp e, infer_type e >>= trace,
 (do (x, y, ie1) ← infer_type e >>= expr_to_ineq,
 --    trace x, trace y, trace ie1,
     id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),

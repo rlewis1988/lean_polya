@@ -630,7 +630,8 @@ meta def scale (pf : prod_form) (q : ℚ) : prod_form :=
 {pf with coeff := pf.coeff * q}
 
 meta def pow (pf : prod_form) (z : ℤ) : prod_form :=
-{coeff := pf.coeff^z, exps := pf.exps.map (λ q, q*z)}
+{coeff := if pf.coeff = 1 then pf.coeff else if z = 1 then pf.coeff else pf.coeff^z, exps := pf.exps.map (λ q, q*z)}
+
 
 meta instance : has_mul prod_form := ⟨prod_form.mul⟩ 
 
@@ -659,6 +660,9 @@ meta instance has_to_format : has_to_format prod_form_comp :=
 meta def is_contr : prod_form_comp → bool
 | ⟨sf, c⟩ := (sf.exps.keys.length = 0) &&
     (((c = spec_comp.lt) && (sf.coeff ≥ 0)) || ((c = spec_comp.le) && (sf.coeff > 0)))
+
+
+
 
 /-
 -- assumes that lhs is positive
@@ -1167,6 +1171,7 @@ meta def of_eq_data {lhs rhs} (ed : eq_data lhs rhs) (sp : sign_proof lhs gen_co
 
 meta instance has_to_format : has_to_format prod_form_comp_data :=
 ⟨λ sfcd, to_fmt sfcd.pfc⟩
+
 
 end prod_form_comp_data
 

@@ -6,6 +6,19 @@ namespace polya
 
 meta def approx_prec := 100
 
+
+private meta def round_rat_to_prec_over (q : ℚ) (prec : ℕ) : ℚ :=
+let z' := ((q.num.nat_abs*prec)/q.denom) + 1 in
+rat.mk_nat (if q.num > 0 then z' else -z') prec
+
+-- if pf is an inequality, returns a new, implied inequality where the denominator of coeff is at most prec
+meta def prod_form_comp_data.round (pfcd : prod_form_comp_data) (prec : ℕ) : prod_form_comp_data :=
+if (pfcd.pfc.pf.coeff.denom ≤ prec) || (pfcd.pfc.c = spec_comp.eq) then pfcd
+else let ncoeff := round_rat_to_prec_over pfcd.pfc.pf.coeff prec in
+⟨{pfcd.pfc with pf := {pfcd.pfc.pf with coeff := ncoeff}}, prod_form_proof.adhoc _ pfcd.prf.sketch (tactic.fail "pfcd.round not implemented yet"), pfcd.elim_list ⟩
+
+
+
 meta def mul_state := state (hash_map expr (λ e, sign_data e) × hash_map expr (λ e, ineq_info e rat_one))
 meta instance mul_state.monad : monad mul_state := state.monad _
 private meta def inh_sd (e : expr) : inhabited (sign_data e) := ⟨⟨gen_comp.ne, sign_proof.adhoc _ _ (tactic.failed) (tactic.failed)⟩⟩
@@ -34,7 +47,7 @@ else if ii.implies_ineq (ineq.of_comp_and_slope comp.ge (slope.some m)) then
 else if ii.implies_ineq (ineq.of_comp_and_slope comp.le (slope.some m)) then
    some (if ii.implies_ineq $ ineq.of_comp_and_slope comp.lt (slope.some m) then gen_comp.lt else gen_comp.le)
 else none
-
+#eval (-50:ℤ) / 51
 -- returns the known comparisons of e with 1 and -1
 meta def oc (e : expr) : mul_state (option gen_comp × option gen_comp) :=
 do ii ← oi e,
@@ -593,7 +606,7 @@ if exp1 * exp2 < 0 then
      pf2p := prod_form_proof.of_pow (npow/(abs exp2)) prf2 in do
  neprfs ← ne_proofs_of_cancelled pf1p.pfc.pf pf2p.pfc.pf,
  let nprf := prod_form_proof.of_mul pf1p pf2p neprfs in
- return $ some ⟨_, nprf, (rb_set.union elim_list1 elim_list2).insert pvt⟩
+ return $ some $ prod_form_comp_data.round ⟨_, nprf, (rb_set.union elim_list1 elim_list2).insert pvt⟩ approx_prec
 else if comp1 = spec_comp.eq then
  let pf1p := prod_form_proof.of_pow (-1) prf1 in
  prod_form_comp_data.elim_expr_aux ⟨_, pf1p, elim_list1⟩ ⟨_, prf2, elim_list2⟩ pvt
