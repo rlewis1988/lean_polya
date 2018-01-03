@@ -228,6 +228,20 @@ def implies_aux : gen_comp → gen_comp → bool
 def implies (c1 c2 : gen_comp) : bool :=
 (c1 = c2) || implies_aux c1 c2 
 
+def contr : gen_comp → gen_comp → bool
+| lt gt := tt
+| lt ge := tt
+| lt eq := tt
+| le gt := tt
+| eq ne := tt
+| eq lt := tt
+| eq gt := tt
+| ge lt := tt
+| gt lt := tt
+| gt le := tt
+| gt eq := tt
+| _ _ := ff
+
 def prod : gen_comp → gen_comp → option gen_comp
 | ne ne := ne
 | ne eq := eq
@@ -382,7 +396,7 @@ def is_axis (i : ineq) : bool :=
 
 open comp slope
 def to_comp (i : ineq) : comp := -- DOUBLE CHECK THIS
-if i.x ≥ 0 then
+/-if i.x ≥ 0 then
   if i.y > 0 then
     if i.strict then lt else le
   else 
@@ -391,7 +405,14 @@ else
   if i.y > 0 then
     if i.strict then lt else le
   else
-    if i.strict then gt else ge
+    if i.strict then gt else ge-/
+if i.y > 0 then
+  if i.strict then lt else le
+else if i.y < 0 then
+  if i.strict then gt else ge
+else if i.x < 0 then
+  if i.strict then lt else le
+else if i.strict then gt else ge
 
 def to_slope (i : ineq) : slope :=
 if i.y = 0 then slope.horiz else slope.some (i.x / i.y) 
@@ -485,7 +506,6 @@ end proof_sketch
 @[reducible]
 meta def sum_form := rb_map expr ℚ
 
-
 meta def expr_coeff_list_to_expr : list (expr × ℚ) → tactic expr
 | [] := return `(0 : ℚ)
 | [(e, q)] := tactic.to_expr ``(%%(↑q.reflect : expr)*%%e)
@@ -495,6 +515,10 @@ meta def sum_form.to_expr (sf : sum_form) : tactic expr :=
 expr_coeff_list_to_expr sf.to_list
 
 namespace sum_form
+
+meta def to_tactic_format (sf : sum_form) : tactic format :=
+do exs ← sf.to_list.mmap (λ pr, do e ← to_string <$> tactic.pp pr.1, return $ e ++ " ← " ++ repr pr.2 ++ ", "),
+   return $ "{ " ++ string.join exs ++ " }" 
 
 meta def zero : sum_form := rb_map.mk _ _
 meta instance : has_zero sum_form := ⟨sum_form.zero⟩
@@ -749,6 +773,7 @@ with ineq_proof : expr → expr → ineq → Type
 
 with sign_proof : expr → gen_comp → Type
 | hyp  : Π e c, expr → sign_proof e c
+| scaled_hyp : Π e c, expr → ℚ → sign_proof e c
 | ineq_lhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof lhs c
 | ineq_rhs : Π c, Π {lhs rhs iqp}, ineq_proof lhs rhs iqp → sign_proof rhs c
 | eq_of_two_eqs_lhs : Π {lhs rhs eqp1 eqp2}, 
@@ -757,6 +782,7 @@ with sign_proof : expr → gen_comp → Type
     eq_proof lhs rhs eqp1 → eq_proof lhs rhs eqp2 → sign_proof rhs gen_comp.eq
 | diseq_of_diseq_zero : Π {lhs rhs}, diseq_proof lhs rhs 0 → sign_proof lhs gen_comp.ne
 | eq_of_eq_zero : Π {lhs rhs}, eq_proof lhs rhs 0 → sign_proof lhs gen_comp.eq
+| eq_of_le_of_ge : Π {e}, sign_proof e gen_comp.le → sign_proof e gen_comp.ge → sign_proof e gen_comp.eq
 | ineq_of_eq_and_ineq_lhs : Π {lhs rhs i c}, Π c', 
     eq_proof lhs rhs c → ineq_proof lhs rhs i →  sign_proof lhs c'
 | ineq_of_eq_and_ineq_rhs : Π {lhs rhs i c}, Π c', 
@@ -821,6 +847,7 @@ meta def sign_proof.to_format : Π {e c}, sign_proof e c → format
 | (_) (_) (eq_of_two_eqs_lhs _ _) := "eq_of_two_eqs_lhs"
 | (_) (_) (diseq_of_diseq_zero _) := "diseq_of_diseq_zero"
 | (_) (_) (eq_of_eq_zero _) := "eq_of_eq_zero"
+| (_) (_) (eq_of_le_of_ge _ _) := "eq_of_le_of_ge"
 | (_) (_) (ineq_of_eq_and_ineq_lhs _ _ _) := "ineq_of_eq_and_ineq_lhs"
 | (_) (_) (ineq_of_eq_and_ineq_rhs _ _ _) := "ineq_of_eq_and_ineq_rhs"
 | (_) (_) (ineq_of_ineq_and_eq_zero_rhs _ _ _) := "ineq_of_ineq_and_eq_zero_rhs"

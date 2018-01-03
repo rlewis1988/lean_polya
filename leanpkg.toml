@@ -5,3 +5,4 @@ lean_version = "3.3.0"
 
 [dependencies]
 mathlib = {git = "https://github.com/leanprover/mathlib", rev = "lean-3.3.0"}
+smt2_interface = {git = "https://github.com/leanprover/smt2_interface", rev = "8225227641ac3033bc82e939dc66edb1ae4fb720"}

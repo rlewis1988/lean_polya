@@ -1,6 +1,6 @@
 import control
 variables x y z : ℚ
-
+#exit
 example (e1 : x < 1*y) (e2 : z < 1*y) (e3 : x + z > 3*y) (e4 : x + z >0) : false := 
 by polya e1 e2 e3 e4
 /-exps ← monad.mapm get_local [`e1, `e2, `e3, `e4],

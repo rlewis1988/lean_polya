@@ -1,4 +1,4 @@
-import .blackboard .proof_reconstruction .sum_form .prod_form data.hash_map .normalizer2
+import .blackboard .proof_reconstruction .sum_form .prod_form data.hash_map .normalizer3
 
 open polya tactic
 
@@ -13,6 +13,20 @@ meta def expr_to_eq : expr → tactic (expr × expr × ℚ)
 | `(%%x = (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, c')
 | _ := failed
 
+meta def expr_to_diseq : expr → tactic (expr × expr × ℚ)
+| `(%%x ≠ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return (x, y, c')
+| _ := failed
+
+-- for efficiency???
+meta def expr_to_sign_aux : expr → tactic (expr × gen_comp)
+| `(@eq ℚ (has_zero.zero ℚ) %%x) := return (x, gen_comp.eq)
+| `((has_zero.zero ℚ) > %%x) := return (x, gen_comp.lt)
+| `((has_zero.zero ℚ) < %%x) := return (x, gen_comp.gt)
+| `((has_zero.zero ℚ) ≥ %%x) := return (x, gen_comp.le)
+| `((has_zero.zero ℚ) ≤ %%x) := return (x, gen_comp.ge)
+| `((has_zero.zero ℚ) ≠ %%x) := return (x, gen_comp.ne)
+| _ := failed
+
 
 meta def expr_to_sign : expr → tactic (expr × gen_comp)
 | `(@eq ℚ %%x (has_zero.zero ℚ)) := return (x, gen_comp.eq)
@@ -21,8 +35,7 @@ meta def expr_to_sign : expr → tactic (expr × gen_comp)
 | `(%%x ≥ (has_zero.zero ℚ)) := return (x, gen_comp.ge)
 | `(%%x ≤ (has_zero.zero ℚ)) := return (x, gen_comp.le)
 | `(%%x ≠ (has_zero.zero ℚ)) := return (x, gen_comp.ne)
-| _ := failed
-
+| a := expr_to_sign_aux a
 
 /-meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard :=
 (do (x, y, ie1) ← expr_to_ineq e,
@@ -45,28 +58,45 @@ meta def expr_to_sign : expr → tactic (expr × gen_comp)
 <|>
 fail "add_comp_to_blackboard failed"-/
 
+meta def coeff_of_expr (ex : expr) : tactic (option ℚ × expr) :=
+match ex with
+| `(%%c * %%e) := if is_num c then do q ← eval_expr ℚ c, return (some q, e) else return (none, ex) 
+| _ := return (none, ex)
+end
+
 meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
 --infer_type e >>= trace >>
-do e ← canonize_hyp e, infer_type e >>= trace,
-(do (x, y, ie1) ← infer_type e >>= expr_to_ineq,
+do e ← canonize_hyp e, tp ← infer_type e, trace e, trace tp,
+(do (x, y, ie1) ← expr_to_ineq tp,
 --    trace x, trace y, trace ie1,
     id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
     --return (add_ineq id b).2)
     tac_add_ineq b id)
 <|>
-(do (x, y, ie1) ← infer_type e >>= expr_to_eq,
+(do (x, y, ie1) ← expr_to_eq tp,
     id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
     --return (add_eq id b).2)
     tac_add_eq b id)
 <|>
-(do (x, c) ← infer_type e >>= expr_to_sign,
+(do (x, c) ← expr_to_sign tp,
+    cf ← coeff_of_expr x,
+    match cf with
+    | (none, e') := do
     sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
 --    trace "calling tac-add-sign",
     bb ← tac_add_sign b sd,
 --    trace "tac_add_sign done",
-    return bb)
+    return bb
+    | (some q, e') := 
+    do trace q, trace e', sd ← return $ trace_val $ sign_data.mk (if q > 0 then c else c.reverse) (sign_proof.scaled_hyp e' _ e q),
+       tac_add_sign b sd 
+    end)
 <|>
-fail "add_comp_to_blackboard failed"
+(do (x, y, ie1) ← expr_to_diseq tp,
+    sd ← return $ diseq_data.mk ie1 (diseq_proof.hyp x y _ e),
+    tac_add_diseq b sd)
+<|>
+trace "failed" >> trace e >> fail "add_comp_to_blackboard failed"
 
 meta def add_proofs_to_blackboard (b : blackboard) (l : list expr) : tactic blackboard :=
 monad.foldl add_proof_to_blackboard b l
@@ -113,7 +143,7 @@ meta def polya_bundle.cycle : ℕ → polya_bundle → (ℕ × polya_bundle) | n
 let pb' := pb.set_changed ff,
     pb' := pb'.one_cycle,
     ch := pb'.is_changed, cont := pb'.contr_found in
-if ch && bnot cont then polya_bundle.cycle (n+1) pb' else ((n+1), pb')
+if ch && bnot cont then polya_bundle.cycle (trace_val (n+1)) pb' else ((n+1), pb')
 
 meta def add_module : module_op (rb_set sum_form_comp_data) :=
 { a := mk_rb_set,
@@ -143,6 +173,27 @@ do exps ← hys.mmap get_local,
    if rct then pb.bb.contr.reconstruct >>= apply
    else skip
 
+private meta def try_add_hyp (h : expr) (bb : blackboard) : tactic blackboard :=
+add_proof_to_blackboard bb h <|> return bb
+
+private meta def try_add_hyps : list expr → blackboard → tactic blackboard
+| [] bb := return bb
+| (h::t) bb := do b ← try_add_hyp h bb, try_add_hyps t b
+
+meta def polya_on_all_hyps (rct : bool := tt) : tactic unit :=
+do hyps ← local_context,
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+   bb ← try_add_hyps hyps bb,
+   bb.trace_exprs,
+   let pb := polya_bundle.default.set_blackboard bb,
+   let (n, pb) := pb.cycle 0,
+   trace ("number of cycles:", n),
+   trace ("contr found", pb.contr_found),
+   if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else
+   if rct then pb.bb.contr.reconstruct >>= apply
+   else skip
+
+
 /-meta def cycle_ops : ℕ → list (Σ α, module_op α) → polya_state ℕ | n ops := 
 do set_changed ff,
    ops' ← ops.mmap (λ m, do m' ← m.2.update, return $ sigma.mk m.1 m'),
@@ -170,5 +221,8 @@ polya_on_hyps ns
 
 meta def tactic.interactive.polya_l (ns : parse (many ident)) : tactic unit :=
 polya_on_hyps ns ff
+
+meta def tactic.interactive.polya_all (rct : parse (optional (tk "!"))) : tactic unit :=
+polya_on_all_hyps rct.is_some
 
 end

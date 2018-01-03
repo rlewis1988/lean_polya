@@ -111,6 +111,11 @@ private meta def sign_proof.sketch_aux (is : Π {lhs rhs iq}, ineq_proof lhs rhs
   do ep' ← es ep,
      s   ← format_sign e c,
      return ⟨s, ep'.reason, ep'.justifications⟩
+| e c (sign_proof.eq_of_le_of_ge lep gep) :=
+  do lep' ← sign_proof.sketch_aux lep, 
+     gep' ← sign_proof.sketch_aux gep,
+     s    ← format_sign e c,
+     return ⟨s, "equality of opposite inequalities", [lep', gep']⟩
 | e c (sign_proof.ineq_of_eq_and_ineq_lhs c' ep ip) := 
   do ep' ← es ep,
      ip' ← is ip,

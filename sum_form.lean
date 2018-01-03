@@ -1,4 +1,4 @@
-import .datatypes .struct_eta .blackboard 
+import .datatypes .blackboard 
 
 -- TODO: maybe more of this can move to datatypes
 
@@ -27,7 +27,7 @@ meta def sum_form_comp_data.to_ineq_data : sum_form_comp_data → option (Σ lhs
 meta def sum_form_comp_data.to_eq_data : sum_form_comp_data → option (Σ lhs rhs, eq_data lhs rhs)
 | ⟨⟨sf, spec_comp.eq⟩, prf, _⟩ :=
   match sf.get_nonzero_factors with
-  | [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.of_sum_form_proof _ _ _ prf⟩⟩--eq_proof.hyp _ _ _ `(0 : ℚ)⟩⟩ -- TODO
+  | [(rhs, cr), (lhs, cl)] := some ⟨lhs, rhs, ⟨(-cr/cl), eq_proof.of_sum_form_proof _ _ _ prf⟩⟩
   | _ := none
   end
 | _ := none 
@@ -104,8 +104,8 @@ private meta def check_elim_lists (sfcd1 sfcd2 : sum_form_comp_data) : bool :=
 check_elim_lists_aux sfcd1 sfcd2 && check_elim_lists_aux sfcd2 sfcd1
 
 meta def sum_form_comp_data.needs_elim_against (sfcd1 sfcd2 : sum_form_comp_data) (e : expr) : bool :=
-(check_elim_lists sfcd1 sfcd2) &&
- (((sfcd1.vars.append sfcd2.vars).filter (λ e' : expr, e'.lt e)).length ≤ 2)
+(check_elim_lists sfcd1 sfcd2)-- &&
+ --(((sfcd1.vars.append sfcd2.vars).filter (λ e' : expr, e'.lt e)).length ≤ 2) -- change back to e' lt e
 
 /--
  Uses sfcd to eliminate the e from all comparisons in cmps, and adds the new comparisons to rv
@@ -132,7 +132,7 @@ meta def elim_list_into_set : rb_set sum_form_comp_data → list sum_form_comp_d
 
 
 meta def elim_list_set (cmps : list sum_form_comp_data) (start : rb_set sum_form_comp_data := mk_rb_set) : rb_set sum_form_comp_data :=
-elim_list_into_set start cmps
+elim_list_into_set start (trace_val cmps)
 
 meta def elim_list (cmps : list sum_form_comp_data) (start : rb_set sum_form_comp_data := mk_rb_set) : list sum_form_comp_data :=
 (elim_list_into_set start cmps).to_list

@@ -122,47 +122,4 @@ do lhs' ← tactic.i_to_expr lhs,
 
 end interactive
 end polya_tactic 
-
-variables x y z u v w : ℚ
-
-/-example (h1 : u > 0) (h2 : u < 1*v) (h3 : z > 0) (h4 : 1*z + 1*1 < 1*w) (h5 : rat.pow (1*u + 1*v + 1*z) 33 ≥ 1* rat.pow (1*u + 1*v + 1*w + 1*1) 55) : false :=
-begin [polya_tactic]
-add_hypotheses h1 h2 h3 h4 h5,
-additive,
-trace_state,
-multiplicative,
-trace_contr
-end
--/
-/-example (h1 : u > 0) (h2 : u < 1*(rat.pow (1*rat.pow v 2 + 23*1) 3)) (h3 : z > 0) (h4 : 1*z + 1*1 < 1*w) 
-(h5 : rat.pow (1*u + (1*rat.pow (1*rat.pow v 2 + 23*1) 3) + 1*z) 3 ≥ 1*(rat.pow (1*u + 1*rat.pow (1*rat.pow v 2 + 23*1) 3 + 1*w + 1*1) 5)) : false :=
-begin[polya_tactic]
- add_hypotheses h1 h2 h3 h4 h5,
- trace_exprs,
- trace_contr,
- --trace_state,
- additive,
- multiplicative,
- additive,
- trace_contr
-end
--/
-example  (h1 : u > 0) (h2 : u < 1*v) (h3 : v < 1*1) (h4 : 1 ≤ (1/2)*x) (h5 : x ≤ 1*y) (h6 : ((rat.pow u 2)*x) ≥ (1/2)*(v*rat.pow y 2)) 
-: false := 
-begin [polya_tactic]
-add_hypotheses h1 h2 h3 h4 h5 h6,
-trace_exprs,
-additive, multiplicative,trace_contr
-end
-
-
-theorem f (h1 : u > 0) (h2 : u < 1*v) (h3 : z > 0) (h4 : 1*z + 1*1 < 1*w) (h5 : rat.pow (1*u + 1*v + 1*z) 3 ≥ 1* rat.pow (1*u + 1*v + 1*w + 1*1) 5) : false :=
-begin [polya_tactic]
-add_hypotheses h1 h2 h3 h4 h5,
-trace_exprs,
-additive,
-multiplicative,
-trace_contr
---reconstruct
---extract_comparisons_between z w with hu hv,
-end 
+#exit

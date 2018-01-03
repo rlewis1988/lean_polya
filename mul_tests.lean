@@ -1,37 +1,10 @@
 import .control
 open polya tactic
-variables x y z u v w : ℚ
+variables x y z u v w  r : ℚ
 --set_option profiler true
 --set_option trace.app_builder true
 
---set_option profiler true
-
-
--- DEBUG. Seems to be related to normalization.
-/-example (h0 : (1 : ℚ) > 0) (h1 : u > 0) (h2 : u < 1*(rat.pow (1*rat.pow v 2 + 23*1) 3)) (h3 : z > 0) (h4 : 1*z + 1*1 < 1*w) 
-(h5 : rat.pow (1*u + (1*rat.pow (1*rat.pow v 2 + 23*1) 3) + 1*z) 3 ≥ 1*(rat.pow (1*u + 1*rat.pow (1*rat.pow v 2 + 23*1) 3 + 1*w + 1*1) 5)) : false :=
-by @tactic.try_for unit 10000 (do
-exps ← monad.mapm get_local [`h0, `h1, `h2, `h3, `h4, `h5],
-bb ← add_proofs_to_blackboard blackboard.mk_empty exps,
-bb.trace_exprs,
-trace "-----",
-bb.trace,
-trace "-----",
-(_, bb) ← return $ sum_form.add_new_ineqs mk_rb_set bb ,
---(_, bb) ← return $ prod_form.add_new_ineqs bb,
---(_, bb) ← return $ add_new_ineqs bb,
---(_, bb) ← return $ prod_form.add_new_ineqs bb,
-trace "-----", 
-bb.trace,
-trace $ ("contr found", bb.contr_found))
---pf ← bb.contr.reconstruct,
---apply pf-/
-
-
--- line 295
--- DEBUG
---example (h1 : x * (y+z) ≤ 0) (h2 : y + z > 0) (h3 : x ≥ 0) (h4 : x*w > 0) : false :=
---by polya h1 h2 h3 h4
+set_option profiler true
 
 
 
@@ -44,13 +17,24 @@ by polya h1 h2 h3
 
 -- reconstruction fails
 /-example (h1 : u > 1*1) (h2 : u < 1*v) (h3 : rat.pow u 15 > 1*rat.pow v 19007) : false :=
-by polya h1 h2 h3-/
-
+by polya h1 h2 h3
+-/
 
 
 example (h1 : x > 0) (h2 : x < 1*1) (h3 : rat.pow x 2 ≥ 1*x) : false :=
 by  polya h1 h2 h3
 
+
+/-
+
+0 \leq n, \; n < (K / 2)x, \; 0 < C, \; 0 < \varepsilon < 1 \myRightarrow \left(1 + \frac{\varepsilon}{3 (C + 3)}\right) \cdot n < K x
+-/
+section
+variables n K C eps : ℚ 
+example (h1 : 0 ≤ n) (h2 : n < (1/2)*K*x) (h3 : 0 < C) (h4 : 0 < eps) (h5 : eps < 1) (h6 : 1 + (1/3)*eps*rat.pow (C+3) (-1)*n < K*x) : false :=
+by polya h1 h2 h3 h4 h5 h6
+
+end
 
 
 /-
@@ -91,7 +75,7 @@ by polya h1 h2 h3 h4 h5-/
 example (h1 : x > 0) (h2 : y < 1*z) (h3 : x * y < 1*(x * z)) : false :=
 by polya h1 h2 h3
 
--- line 295 DEBUG, SEE ABOVE
+-- line 295
 example (h1 : x * (y+z) ≤ 0) (h2 : y + z > 0) (h3 : x ≥ 0) (h4 : x*w > 0) : false :=
 by polya h1 h2 h3 h4
 
@@ -99,13 +83,66 @@ by polya h1 h2 h3 h4
 example (h1 : x > 0) (h2 : x < 3*y) (h3 : u < 1*v) (h4 : v < 0) (h5 : 1 < 1*rat.pow v 2) (h6 : rat.pow v 2 < 1*x) (h7 : 1*(u*rat.pow (3*y) 2) + 1*1 ≥ 1*(1*(rat.pow x 2*v) + 1*x)) : false :=
 by polya h1 h2 h3 h4 h5 h6
 
--- line 304
-/-example (h1 : x > 0) (h2 : x < 1*y) (h3 : u > 0) (h4 : u < 1*v) (h5 : 1*w + 1*z > 0) (h6 : w + z < 1*(r - 1)) (h7 : 1*u + 1*(rat.pow (1*x + 1*1) 2 * (2*w + 2*z + 3*1)) ≤ 1*()-/
+-- line 304 hangs?
+/-example (h1 : x > 0) (h2 : x < y) (h3 : 0 < u) (h4 : u < v) (h5 : 0 < w + z) (h6 : w + z < r - 1)
+  (h7 : u + (rat.pow (1+x) 2)*(2*w + 2*z + 3) < 2*v + rat.pow (1+y) 2 * (2*r + 1)) : false :=
+by polya h1 h2 h3 h4 h5 h6 h7-/
 
+local infix `**`:1000 := rat.pow
 
+#exit
+-- line 309
+example (h1 : x + rat.pow y (-1) < 2) (h2 : y < 0) (h3 : y * rat.pow x (-1) > 1) (h4 : -2 ≤ x) (h5 : x < 2) (h6 : -2 ≤ y) (h7 : y ≤ 2) (h8 : rat.pow x 2 * rat.pow y (-1) > 1 - x) : false :=
+by polya h1 h2 h3 h4 h5 h6 h7 h8
+#exit
+-- line 314
+example (h1 : 0 < u) (h2 : u < v) (h3 : 1 < x) (h4 : x < y) (h5 : 0 < w) (h6 : w < z) (h7 : u + x*w < v+(rat.pow y 2)*z) : false :=
+by polya h1 h2 h3 h4 h5 h6 h7
 
+-- line 319
+example (h1 : x + rat.pow y (-1) < 2) (h2 : y < 0) (h3 : y * rat.pow x (-1) > 1) (h4 : -2 ≤ x) (h5 : x ≤ 2) (h6 : y ≤ 2) (h7 : -2 ≤ y) (h8 : rat.pow x 2 * rat.pow y (-1) > 1 - x) : false :=
+by polya h1 h2 h3 h4 h5 h6 h7 h8
 
+-- 323
+example (h1 : 0 < x) (h2 : x < y) (h3 : 0 < u) (h4 : u < v) (h5 : 0 < w + z) (h6 : w + z < r - 1)
+          (h7 : u + rat.pow (1 + x) 2 * (2 * w + 2 * z + 3) >= 2 * v + rat.pow (1 + y) 2 * (2 * r + 1)) : false :=
+by polya h1 h2 h3 h4 h5 h6 h7
 
+-- 328
+example (h1 : 0 < x)  (h2 : x < 3 * y) (h3 : u < v) (h3' : v < 0) (h4 : 1 < v**2) (h5 : v**2 < x) (h6 : u * (3 * y)**2 + 1 >= x**2 * v + x) : false :=
+by polya h1 h2 h3 h3' h4 h5 h6
+
+--337
+example (h1 : 1 < x) (h2 : 1 < y) (h3 : 1 < z) (h4 : 1 >= x * (1 + z * y)) : false :=
+by polya h1 h2 h3 h4
+
+-- 346
+example (h1 : x < 1) (h2 : 1 < y) (h3 : x * y > 1) (h4 : u + x >= y + 1) (h5 : x**2 * y < 2 - u * x * y) : false :=
+by polya h1 h2 h3 h4 h5
+
+-- 350
+example (h1 : x**21 > 0) (h2 : x**3 < 1) (h3 : y**55 > 0) (h4 : y < 1) (h5 : a + b < a * b) : false :=
+by polya h1 h2 h3 h4 h5
+
+-- 354
+example (h1 : 0 < x) (h2 : y < z) (h3 : y < 0) (h4 : z > 0) (h5 : x * y ≥ x * z) : false :=
+by polya h1 h2 h3 h4 h5
+
+--359
+example (h1 : 0 < z) (h2 : y < z) (h3 : y = 0) (h4 : z > 0) (h5 : x * y ≥ x * z) : false :=
+by polya h1 h2 h3 h4 h5
+
+-- 371
+example (h1 : x > 1) (h2 : z = y**2) (h3 : 1+z*x < 1+z) : false :=
+by polya h1 h2 h3
+
+-- 384
+example (h1 : x = z) (h2 : y = w) (h3 : x > 0) (h4 : y > 0) (h5 : x * y ≠ z * w) : false :=
+by polya h1 h2 h3 h4 h5
+
+-- 389
+example (h1 : x > 2*y) (h2 : x = 3*y) (h3 : y ≤ 0) : false :=
+by polya h1 h2 h3
 
 example (h1 : x > 0) (h2 : 1 < 1 * x) (h3 : 1 < 1 * (rat.pow x (-1))) : false :=
 by polya h1 h2 h3

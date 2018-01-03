@@ -501,11 +501,12 @@ by simp only [rat.pow_neg_one, rat.pow_one] at ⊢ this; simp [mul_inv_cancel (n
 
 theorem one_op_inv_mul_of_op_of_neg {o} [comp_op o] {lhs rhs c : ℚ} (h : o lhs (c*rhs)) (hp : lhs < 0) :
          rev o 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) :=
+--o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1 :=
 have (rat.pow lhs (-1)) < 0, by rw [rat.pow_neg_one]; apply one_div_neg_of_neg hp,
 have rev o ( (rat.pow lhs (-1))*lhs) ( (rat.pow lhs (-1))*(c*rhs)), from op_mul_neg this h,
 by simp only [rat.pow_neg_one, rat.pow_one] at ⊢ this; simp [mul_inv_cancel (ne_of_lt hp)] at this; simp *
 
--- change h arguments here to rat.pow rhs 1
+
 theorem one_op_inv_mul_of_lt_of_pos_pos_flipped {lhs rhs c : ℚ} {o} [one_op_one_div_class o]
         (h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1) 
         (hl : lhs > 0) (hr : rhs > 0) (hc : c > 0) : o 1 ((1/c) * ((rat.pow lhs 1)*(rat.pow rhs (-1)))) :=
@@ -535,14 +536,19 @@ have c * ((1/lhs) * rhs) > 0, by repeat {apply mul_pos, repeat {assumption}},
 have 1 ≤ 1 / (c * ((1/lhs) * rhs)), from one_le_one_div this h,
 by rw [-one_div_mul_one_div, -one_div_mul_one_div, one_div_one_div] at this; assumption-/
 
-theorem one_op_inv_mul_of_lt_of_pos_neg_flipped {lhs rhs c : ℚ} {o} [one_op_one_div_class o]
-        (h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1) 
-        (hl : lhs > 0) (hr : rhs < 0) (hc : c < 0) : o 1 ((1/c) * ((rat.pow lhs 1)*(rat.pow rhs (-1)))) :=
-have rat.pow lhs (-1) > 0, by rw rat.pow_neg_one; apply one_div_pos_of_pos hl,
+theorem one_op_inv_mul_of_lt_of_pos_neg_flipped {lhs rhs c : ℚ} {o} [comp_op o] [one_op_one_div_class o]
+        (h : (rev o) 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1)))) 
+        --  (h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1) 
+        (hl : lhs > 0) (hr : rhs < 0) (hc : c < 0) : 
+o 1 ((1/c) * ((rat.pow lhs 1)*(rat.pow rhs (-1)))) :=
+--(rev o) 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) :=
+--h 
+sorry
+/-have rat.pow lhs (-1) > 0, by rw rat.pow_neg_one; apply one_div_pos_of_pos hl,
 have c * ((rat.pow lhs (-1)) * rhs) > 0, 
   begin apply mul_pos_of_neg_of_neg _ _, assumption, apply mul_neg_of_pos_of_neg _ _, repeat {assumption} end,
 have o 1 (rat.pow (c * ((rat.pow lhs (-1)) * (rat.pow rhs 1))) (-1)), by simp only [rat.pow_one] at *; apply one_op_one_div this h,
-by simp only [rat.pow_neg_one, rat.pow_one] at this ⊢; rw [←one_div_mul_one_div, ←one_div_mul_one_div, one_div_one_div] at this; assumption
+by simp only [rat.pow_neg_one, rat.pow_one] at this ⊢; rw [←one_div_mul_one_div, ←one_div_mul_one_div, one_div_one_div] at this; assumption-/
 
 /-theorem one_lt_inv_mul_of_lt_of_neg_flipped {lhs rhs c : ℚ} (h : 1 > (c*((1/lhs)*rhs))) 
         (hl : lhs > 0) (hr : rhs < 0) (hc : c < 0) : 1 < ((1/c) * (lhs*(1/rhs))) :=
@@ -561,14 +567,18 @@ have 1 ≤ 1 / (c * ((1/lhs) * rhs)), from one_le_one_div this h,
 by rw [-one_div_mul_one_div, -one_div_mul_one_div, one_div_one_div] at this; assumption-/
                              
 
-theorem one_op_inv_mul_of_lt_of_neg_pos_flipped {lhs rhs c : ℚ} {o} [one_op_one_div_class o]
-        (h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1) 
-        (hl : lhs < 0) (hr : rhs > 0) (hc : c < 0) : o 1 ((1/c) * ((rat.pow lhs 1)*(rat.pow rhs (-1)))) :=
-have rat.pow lhs (-1) < 0, by rw rat.pow_neg_one; apply one_div_neg_of_neg hl,
+theorem one_op_inv_mul_of_lt_of_neg_pos_flipped {lhs rhs c : ℚ} {o} [comp_op o] [one_op_one_div_class o]
+        --(h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1) 
+          (h : (rev o) 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1)))) 
+        (hl : lhs < 0) (hr : rhs > 0) (hc : c < 0) :
+            -- o 1 ((1/c) * ((rat.pow lhs 1)*(rat.pow rhs (-1)))) :=
+            (rev o) 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) := h
+--have h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1, from rev_op_is_rev.mp h, -- kill this line to change order
+/-have rat.pow lhs (-1) < 0, by rw rat.pow_neg_one; apply one_div_neg_of_neg hl,
 have c * ((rat.pow lhs (-1)) * rhs) > 0, 
   begin apply mul_pos_of_neg_of_neg _ _, assumption, apply mul_neg_of_neg_of_pos _ _, repeat {assumption} end,
 have o 1 (rat.pow (c * ((rat.pow lhs (-1)) * (rat.pow rhs 1))) (-1)), by simp only [rat.pow_one] at *; apply one_op_one_div this h,
-by simp only [rat.pow_neg_one, rat.pow_one] at ⊢ this; rw [←one_div_mul_one_div, ←one_div_mul_one_div, one_div_one_div] at this; assumption
+by simp only [rat.pow_neg_one, rat.pow_one] at ⊢ this; rw [←one_div_mul_one_div, ←one_div_mul_one_div, one_div_one_div] at this; assumption-/
 
 theorem one_op_inv_mul_of_lt_of_neg_neg_flipped {lhs rhs c : ℚ} {o} [one_op_one_div_class o]
         (h : o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1) 
@@ -640,6 +650,10 @@ sorry
 
 theorem one_op_of_op {o} [comp_op o] {rhs c : ℚ} (h : o 1 (c * rat.pow rhs 1)) : o 1 (c*rhs) :=
 by simp [rat.pow_one, *] at *
+
+theorem op_zero_of_mul_op_zero_of_pos {o} [comp_op o] {rhs c : ℚ} (h : o (c*rhs) 0) (hc : c > 0) : o rhs 0 := sorry
+
+theorem op_zero_of_mul_op_zero_of_neg {o} [comp_op o] {rhs c : ℚ} (h : o (c*rhs) 0) (hc : c < 0) : rev o rhs 0 := sorry
 
 end polya
 --set_option pp.all true

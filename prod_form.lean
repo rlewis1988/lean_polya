@@ -1,4 +1,4 @@
-import .datatypes .struct_eta .blackboard .proof_reconstruction .reconstruction_theorems .radicals .proof_trace
+import .datatypes .blackboard .proof_reconstruction .reconstruction_theorems .radicals .proof_trace
 
 -- TODO: maybe more of this can move to datatypes
 
@@ -47,7 +47,7 @@ else if ii.implies_ineq (ineq.of_comp_and_slope comp.ge (slope.some m)) then
 else if ii.implies_ineq (ineq.of_comp_and_slope comp.le (slope.some m)) then
    some (if ii.implies_ineq $ ineq.of_comp_and_slope comp.lt (slope.some m) then gen_comp.lt else gen_comp.le)
 else none
-#eval (-50:ℤ) / 51
+
 -- returns the known comparisons of e with 1 and -1
 meta def oc (e : expr) : mul_state (option gen_comp × option gen_comp) :=
 do ii ← oi e,
@@ -207,11 +207,38 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
    if pf.exps.keys.length = known_signs.length then
     infer_expr_sign_data_aux e pf known_signs
    else return none
-set_option pp.all true
+
+private meta def recheck_known_signs_aux (ks : list gen_comp) (es : gen_comp)  (flip_coeff : bool) (i : ℕ): option gen_comp :=
+if i ≥ ks.length then none else
+let ks' := ks.remove_nth i,
+    prod_sign := (if flip_coeff then gen_comp.reverse else id) <$> sign_of_prod ks' in
+match prod_sign with
+| some sn := get_remaining_sign sn es
+| none := none
+end
+
+/--
+ if we know the sign of e and all of its components, recalculate the sign of each component to check.
+-/
+meta def recheck_known_signs (e : expr) (sd : option (sign_data e)) (pf : prod_form) (ks : list gen_comp) (flip_coeff : bool) : mul_state (list Σ e', sign_data e') :=
+match sd with
+| none := return []
+| some ⟨es, p⟩ := reduce_option_list <$>
+((list.upto ks.length).mmap $ λ i,
+  match recheck_known_signs_aux ks es flip_coeff i with
+  | some c := 
+   do sis ← all_signs,
+   let e' := pf.exps.keys.inth i,
+   let pfe := sign_proof.adhoc e' c (do s ← format_sign e' c, return ⟨s, "inferred from other sign data", []⟩) (aux_sign_infer_tac_2 e' e ⟨es, p⟩ pf sis c),
+   return $ some ⟨e', ⟨_, pfe⟩⟩
+  | none := return none
+  end)
+end
+
 /--
  Tries to infer sign data of variables in expression when the sign of the whole expression is known.
 -/
-meta def get_unknown_sign_data (e : expr) (sd : option (sign_data e)) (pf : prod_form) : mul_state (option Σ e', sign_data e') :=
+meta def get_unknown_sign_data (e : expr) (sd : option (sign_data e)) (pf : prod_form) : mul_state (list Σ e', sign_data e') :=
 do sds ← pf.exps.keys.mmap (sign_of_term pf),
    let known_signs := (sds.bfilter option.is_some),
    let num_vars := pf.exps.keys.length,
@@ -228,11 +255,11 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
          let sd' := sd.iget,
          let pfe := sign_proof.adhoc e' c' (do s ← format_sign e' c', return ⟨s, "inferred from other sign data", []⟩) (aux_sign_infer_tac_2 e' e sd' pf sis c'),
 -- (tactic.fail "unfinished adhoc -- get-unknown-sign-data"),
-         return $ some ⟨e', ⟨_, pfe⟩⟩
+         return $ [⟨e', ⟨_, pfe⟩⟩]
          -- e has sign ks
-       | none := return none
+       | none := return []
        end
-     | none := return none
+     | none := return []
      end
    else if known_signs.length = num_vars then
      /-let prod_sign := 
@@ -244,8 +271,13 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
          return $ some ⟨e, ⟨_, pfe⟩⟩
      | none := return none
      end-/
-     infer_expr_sign_data_aux e pf known_signs
-   else return none
+     do k1 ← infer_expr_sign_data_aux e pf known_signs,
+        k2 ← recheck_known_signs e sd pf (known_signs.map option.iget) (pf.coeff < 0),
+        match k1 with
+        | some k1' := return $ k1'::k2
+        | none := return k2
+        end
+   else return []
 
 end sign_inference
 
@@ -812,7 +844,9 @@ do l ← get_expr_list,
 private meta def gather_new_sign_info_pass_one : polya_state (list Σ e, sign_data e) :=
 do  dfs ← mk_signed_pfcd_list,
     ms ← mk_mul_state,
-    return $ reduce_option_list $ (dfs.mmap (λ pf_sig : prod_form × Σ e, option (sign_data e), get_unknown_sign_data pf_sig.2.1 pf_sig.2.2 pf_sig.1) ms).1
+    let vv : mul_state (list Σ e, sign_data e) := dfs.mfoldl (λ l (pf_sig : prod_form × Σ e, option (sign_data e)), l.append <$> (get_unknown_sign_data pf_sig.2.1 pf_sig.2.2 pf_sig.1)) [],
+    return $ (vv ms).1
+--    return $ reduce_option_list $ (dfs.mfoldl (λ (pf_sig : prod_form × Σ e, option (sign_data e)) (l : , l.append (get_unknown_sign_data pf_sig.2.1 pf_sig.2.2 pf_sig.1)) ms).1
     
 /-
 the second pass was originally to handle transitivity, but we can assume this is handled in the additive module

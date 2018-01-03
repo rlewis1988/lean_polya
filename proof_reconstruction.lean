@@ -292,6 +292,13 @@ let pex := match gc with
 | gen_comp.ne := ``(%%e ≠ 0)
 end in do tp ← infer_type pf, to_expr pex >>= unify tp >> return pf
 
+private meta def reconstruct_scaled_hyp (e : expr) (gc : gen_comp) (pf : expr) (q : ℚ) : tactic expr :=
+do sp ← mk_sign_pf q,
+   if q > 0 then
+    mk_mapp ``op_zero_of_mul_op_zero_of_pos [none, none, none, none, pf, sp]
+   else
+    mk_mapp ``op_zero_of_mul_op_zero_of_neg [none, none, none, none, pf, sp]
+
 section
 parameter rc : Π {e c}, sign_proof e c → tactic expr
 parameter sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr
@@ -426,14 +433,22 @@ do
  --    mk_mapp ``op_zero_of_pos_mul_op_zero [none, none, none, none, coeff_sign_]
  --  fail "sign_proof.reconstruct_of_sum_form_proof failed, not implemented yet"
 
+private lemma le_antisymm' {a b : ℚ} (h1 : a ≤ b) (h2 : a ≥ b) : a = b := le_antisymm h1 h2
+
+meta def reconstruct_eq_of_le_of_ge (rct : Π {e c}, sign_proof e c → tactic expr) {e} (lep : sign_proof e gen_comp.le) (gep : sign_proof e gen_comp.ge) : tactic expr :=
+do lep' ← rct lep, gep' ← rct gep,
+   mk_app ``le_antisymm' [lep', gep']
+
 meta def reconstruct_aux (sfpr : Π {sf}, Π (sp : sum_form_proof sf), tactic expr) : Π {e c}, sign_proof e c → tactic expr
 | .(_) .(_) (hyp e c pf) := reconstruct_hyp e c pf
+| .(_) .(_) (scaled_hyp e c pf q) := reconstruct_scaled_hyp e c pf q
 | .(_) .(_) (@ineq_lhs c _ _ _ ip) := reconstruct_ineq_lhs @reconstruct_aux @sfpr c ip
 | .(_) .(_) (@ineq_rhs c _ _ _ ip) := reconstruct_ineq_rhs @reconstruct_aux @sfpr c ip
 | .(_) .(_) (@eq_of_two_eqs_lhs _ _ _ _ ep1 ep2) := reconstruct_eq_of_two_eqs_lhs @reconstruct_aux @sfpr ep1 ep2
 | .(_) .(_) (@eq_of_two_eqs_rhs _ _ _ _ ep1 ep2) := reconstruct_eq_of_two_eqs_rhs @reconstruct_aux @sfpr ep1 ep2
 | .(_) .(_) (@diseq_of_diseq_zero _ _ dp) := reconstruct_diseq_of_diseq_zero dp
 | .(_) .(_) (@eq_of_eq_zero _ _ ep) := reconstruct_eq_of_eq_zero @reconstruct_aux @sfpr ep
+| .(_) .(_) (eq_of_le_of_ge lep gep) := reconstruct_eq_of_le_of_ge @reconstruct_aux lep gep
 | .(_) .(_) (@ineq_of_eq_and_ineq_lhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_lhs @sfpr c' ep ip
 | .(_) .(_) (@ineq_of_eq_and_ineq_rhs _ _ _ _ c' ep ip) := reconstruct_ineq_of_eq_and_ineq_rhs @sfpr c' ep ip
 | .(_) .(_) (@ineq_of_ineq_and_eq_zero_rhs _ _ _ c ip sp) := reconstruct_ineq_of_ineq_and_eq_zero_rhs c ip sp
@@ -640,7 +655,7 @@ private meta def reconstruct_sign {e} : sign_data e → sign_data e → tactic e
 | ⟨gen_comp.ge, prf1⟩ ⟨gen_comp.lt, prf2⟩ := reconstruct_sign_ge_lt prf1 prf2
 | ⟨gen_comp.gt, prf1⟩ ⟨gen_comp.lt, prf2⟩ := reconstruct_sign_gt_lt prf1 prf2
 | ⟨gen_comp.lt, prf1⟩ ⟨gen_comp.gt, prf2⟩ := reconstruct_sign_gt_lt prf2 prf1
-| s1 s2 := fail "reconstruct_sign failed: given non-opposite comps"
+| s1 s2 := trace e >> trace s1.c >> trace s2.c >> fail "reconstruct_sign failed: given non-opposite comps"
 
 private meta def reconstruct_strict_ineq_self {e} (id : ineq_data e e) : tactic expr := 
 match id.inq.to_comp, id.inq.to_slope with
@@ -747,8 +762,9 @@ match (spec_comp_and_flipped_of_comp iq.to_comp), iq.to_slope with
      else do
         msgn ← mk_sign_pf m,
         sprp ← spr.reconstruct,
+        trace "HERE", infer_type opp >>= trace, infer_type splp >>= trace, infer_type sprp >>= trace, infer_type msgn >>= trace, trace unflipped_name, trace iq,
         mk_app flipped_name-- (if c=spec_comp.lt then flipped_lt_name else flipped_le_name) 
-               [opp, splp, sprp, msgn]
+               [opp, splp, sprp, msgn] 
 end
 
 

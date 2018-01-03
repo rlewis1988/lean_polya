@@ -1,4 +1,4 @@
-import .datatypes .normalizer2
+import .datatypes .normalizer3
 namespace polya
 
 meta inductive expr_form
@@ -325,7 +325,7 @@ match sd.c with
 end
 
 private meta def add_sign_aux (add_ineq : Π l r, ineq_data l r → polya_state unit) 
-        {e} (sd : sign_data e) : polya_state unit :=
+        {e} : sign_data e → polya_state unit | sd :=
 do si ← get_sign_info e, 
 --return $ trace_val ("si:", si),
 match si with
@@ -333,8 +333,14 @@ match si with
 | some osd := 
   if osd.c.implies sd.c then skip
   else if sd.c.implies osd.c then ((λ bb, bb.insert_sign e sd) : polya_state unit) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
-  else let ctr := contrad.sign sd osd in
-       assert_contradiction ctr 
+  else if h : (sd.c = gen_comp.ge) ∧ (osd.c = gen_comp.le) then
+    add_sign_aux ⟨_, sign_proof.eq_of_le_of_ge (by rw ←h.right; exact osd.prf) (by rw ←h.left; exact sd.prf)⟩
+  else if h : (sd.c = gen_comp.le) ∧ (osd.c = gen_comp.ge) then 
+    add_sign_aux ⟨_, sign_proof.eq_of_le_of_ge (by rw ←h.left; exact sd.prf) (by rw ←h.right; exact osd.prf)⟩
+  else if sd.c.contr osd.c then
+   let ctr := contrad.sign sd osd in
+       assert_contradiction (trace_val ("found contr in add_sign_aux", ctr)).2 
+  else skip
 end
 
 

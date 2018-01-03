@@ -31,6 +31,7 @@ e.is_app_of ``has_mul.mul || e.is_app_of ``rat.pow
 open tactic
 meta def get_comps_of_mul (e : expr) : tactic (expr × ℚ) := match e with
 | `(%%lhs * %%rhs) := (do c ← eval_expr ℚ lhs, return (rhs, c)) <|> return (e, 1)
+| `(%%num / %%denom) := (do c ← eval_expr ℚ denom, return (num, 1/c)) <|> return (e, 1)
 | f := return (f, 1)
 end
 
@@ -82,7 +83,10 @@ else if is_prod e then
 else return $ term.atom e
           
 meta def expr.to_sterm : expr → tactic sterm | e :=
-match e with
+if is_num e then
+  do q ← eval_expr ℚ e,
+     return $ sterm.scaled q (term.atom `(1 : ℚ))
+else match e with
 | `(%%c*%%t) := 
   if is_num c then
     do q ← eval_expr ℚ c,
@@ -219,9 +223,9 @@ theorem canonized_inequality {P : Prop} (h : P) (canP : Prop) : canP := sorry
 
 meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic expr :=
 do sterm.scaled clhs tlhs ← expr.canonize lhs, 
-   trace "tlhs", trace tlhs,
+--   trace "tlhs", trace tlhs,
    srhs ← expr.canonize rhs,
-   trace "srhs", trace srhs,
+--   trace "srhs", trace srhs,
    elhs ← tlhs.to_expr,
    erhs ← (srhs.scale (1/clhs)).to_expr,
    tp ← op.to_function elhs erhs, --to_expr ``(%%op %%elhs %%erhs),
@@ -251,7 +255,7 @@ do tp ← infer_type e, match tp with
 | `(%%lhs > %%rhs) := prove_inequality lhs rhs e gen_comp.gt
 | `(%%lhs = %%rhs) := prove_inequality lhs rhs e gen_comp.eq
 | `(%%lhs ≠ %%rhs) := prove_inequality lhs rhs e gen_comp.ne
-| _ := trace e >> fail "didn't recognize e"
+| _ := /-trace e >>-/ do s ← to_string <$> pp e, fail $ "didn't recognize " ++ s
 end
 
 end canonize
@@ -260,6 +264,6 @@ end canonize
 
 constants a b c u v w z y x: ℚ
 --run_cmd (expr.to_term `(1*a + 3*(b + c) + 5*b)) >>= term.canonize >>= trace
-run_cmd expr.canonize `(rat.pow (1*u + (1*rat.pow (1*rat.pow v 2 + 23*1) 3) + 1*z) 3) >>= trace
+--run_cmd expr.canonize `(rat.pow (1*u + (1*rat.pow (1*rat.pow v 2 + 23*1) 3) + 1*z) 3) >>= trace
 
 end polya
