@@ -1189,7 +1189,6 @@ meta def of_eq_data {lhs rhs} (ed : eq_data lhs rhs) (sp : sign_proof lhs gen_co
 meta instance has_to_format : has_to_format prod_form_comp_data :=
 ⟨λ sfcd, to_fmt sfcd.pfc⟩
 
-
 end prod_form_comp_data
 
 meta def prod_form_proof.to_format {pfc} (pfp : prod_form_proof pfc) : format :=
@@ -1233,6 +1232,9 @@ meta def sum_form_comp.order : sum_form_comp → sum_form_comp → ordering
 -- TODO: do we need to take elim_vars into account for this order?
 meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data → ordering
 | ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2
+
+meta instance : has_lt sum_form_comp_data := ⟨λ x y, sum_form_comp_data.order x y = ordering.lt⟩
+meta instance : decidable_rel (@has_lt.lt sum_form_comp_data _) := λ _ _, by apply_instance
 
 meta inductive contrad
 | none : contrad
