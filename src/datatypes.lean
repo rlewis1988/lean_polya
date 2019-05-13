@@ -11,8 +11,6 @@ def {u v} list.mfoldl' {m : Type u → Type v} [monad m] {s : Type u} : (s → s
   s' ← f s h,
   list.mfoldl f s' r
 
-instance group_has_pow_int {α} [group α] : has_pow_int α :=
-⟨gpow⟩
 
 local infix `^` := rat.pow
    
@@ -20,12 +18,6 @@ meta def reduce_option_list {α} : list (option α) → list α
 | [] := []
 | (none::l) := reduce_option_list l
 | (some a::l) := a::reduce_option_list l
-
-meta def rb_set.insert_list {α : Type} (s : rb_set α) (l : list α) : rb_set α :=
-l.foldr (λ a s', s'.insert a) s
-
-/-instance : has_ordering ℚ :=
-⟨λ a b, if a = b then ordering.eq else if a < b then ordering.lt else ordering.gt⟩-/
 
 namespace hash_map
 def {u v} find' {α : Type u} {β : α → Type v} [decidable_eq α] (m : hash_map α β) (a : α) [inhabited (β a)] : β a :=
@@ -37,12 +29,6 @@ end hash_map
 
 meta def string.to_name (s : string) : name :=
 name.mk_string s name.anonymous
-
-meta def rb_set.of_list {α} [has_ordering α] (l : list α) : rb_set α :=
-l.foldl (λ s a, s.insert a) mk_rb_set
-
-meta def rb_set.union {α} (s1 s2 : rb_set α) : rb_set α :=
-s1.fold s2 (λ s c, c.insert s)
 
 namespace polya
 
@@ -394,7 +380,8 @@ instance : inhabited ineq :=
 def is_axis (i : ineq) : bool :=
 (i.x = 0) || (i.y = 0)
 
-open comp slope
+open polya.comp slope
+
 def to_comp (i : ineq) : comp := -- DOUBLE CHECK THIS
 /-if i.x ≥ 0 then
   if i.y > 0 then
@@ -502,6 +489,8 @@ meta def proof_sketch.reason : proof_sketch → string
 
 
 end proof_sketch
+
+open native
 
 @[reducible]
 meta def sum_form := rb_map expr ℚ
@@ -841,6 +830,7 @@ section
 open sign_proof
 meta def sign_proof.to_format : Π {e c}, sign_proof e c → format
 | (_) (_) (hyp _ _ _) := "hyp"
+| (_) (_) (scaled_hyp _ _ _ _) := "scaled_hyp"
 | (_) (_) (ineq_lhs _ _) := "ineq_lhs"
 | (_) (_) (ineq_rhs _ _) := "ineq_rhs"
 | (_) (_) (eq_of_two_eqs_rhs _ _) := "eq_of_two_eqs_rhs"
@@ -1228,7 +1218,7 @@ private meta def compare_coeff_lists (sf1 sf2 : sum_form) : list expr → list e
 | (h1::t1) (h2::t2) := 
    if h1 = h2 then let ccomp := compare_coeffs sf1 sf2 h1 in
      if ccomp = ordering.eq then compare_coeff_lists t1 t2 else ccomp
-   else has_ordering.cmp h1 h2
+   else cmp h1 h2
 
 
 meta def sum_form.order (sf1 sf2 : sum_form) : ordering :=
@@ -1243,12 +1233,6 @@ meta def sum_form_comp.order : sum_form_comp → sum_form_comp → ordering
 -- TODO: do we need to take elim_vars into account for this order?
 meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data → ordering
 | ⟨sfc1, _, _⟩ ⟨sfc2, _, _⟩ := sfc1.order sfc2
-
-meta instance sum_form.has_ordering : has_ordering sum_form :=
-⟨sum_form.order⟩
-
-meta instance sum_form_comp_data.has_ordering : has_ordering sum_form_comp_data := 
-⟨sum_form_comp_data.order⟩
 
 meta inductive contrad
 | none : contrad

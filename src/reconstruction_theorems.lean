@@ -1,4 +1,4 @@
-import .datatypes .norm_num
+import .datatypes tactic.norm_num
 namespace polya
 
 
@@ -274,8 +274,8 @@ begin
  rw h at h2,
  have h3 := sub_eq_zero_of_eq h2,
  rw ←sub_mul at h3,
- cases eq_zero_or_eq_zero_of_mul_eq_zero h3,
- apply absurd (eq_of_sub_eq_zero a) hc,
+ cases eq_zero_or_eq_zero_of_mul_eq_zero h3 with ha hb,
+ apply absurd (eq_of_sub_eq_zero ha) hc,
  assumption
 end
 
@@ -348,46 +348,58 @@ show rhs > 0, from pos_of_mul_pos_left this (le_of_lt h2)-/
 omit h
 theorem sub_lt_of_lt (h1 : lhs < c*rhs) : 1*lhs + (-c)*rhs < 0 :=
 begin
- simp,
- apply sub_neg_of_lt _,
- rw mul_comm, assumption
+ rw [neg_mul_eq_neg_mul_symm, one_mul],
+ exact sub_neg_of_lt h1
 end
 
 theorem sub_le_of_le (h1 : lhs ≤ c*rhs) : 1*lhs + (-c)*rhs ≤ 0 :=
 begin
- simp,
- apply sub_nonpos_of_le,
- rw mul_comm, assumption
+ rw [neg_mul_eq_neg_mul_symm, one_mul],
+ rw [add_neg_le_iff_le_add', add_zero],
+ exact h1
 end
 
 theorem sub_lt_of_gt (h1 : lhs > c*rhs) : (-1)*lhs + c*rhs < 0 :=
 begin
  rw [add_comm, ←neg_mul_eq_neg_mul, one_mul],
- apply sub_neg_of_lt _,
- assumption
+ exact sub_neg_of_lt h1
 end
 
 theorem sub_le_of_ge (h1 : lhs ≥ c*rhs) : (-1)*lhs + c*rhs ≤ 0 :=
 begin
  rw [add_comm, ←neg_mul_eq_neg_mul, one_mul],
- apply sub_nonpos_of_le,
- assumption
+ exact sub_nonpos_of_le h1
 end
 
 theorem mul_lt_of_gt {rhs : ℚ} (h1 : lhs > 0*rhs) : (-1)*lhs < 0 :=
-by simp; simp at h1; apply neg_neg_of_pos h1
-
-theorem mul_le_of_ge {rhs : ℚ} (h1 : lhs ≥ 0*rhs) : (-1)*lhs ≤ 0 :=
-by simp; simp at h1; apply neg_nonpos_of_nonneg h1
-
-theorem mul_lt_of_lt {rhs : ℚ} (h1 : lhs < 0*rhs) : 1*lhs < 0 :=
-by simp; simp at h1; assumption
-
-theorem mul_le_of_le {rhs : ℚ} (h1 : lhs ≤ 0*rhs) : 1*lhs ≤ 0 :=
-by simp; simp at h1; assumption
-
+begin
+  simp at h1,
+  simp only [neg_mul_eq_neg_mul_symm, one_mul],
+  exact neg_neg_of_pos h1
 end
 
+theorem mul_le_of_ge {rhs : ℚ} (h1 : lhs ≥ 0*rhs) : (-1)*lhs ≤ 0 :=
+begin
+  simp at h1,
+  simp only [neg_mul_eq_neg_mul_symm, one_mul],
+  exact neg_le_of_neg_le h1
+end
+
+theorem mul_lt_of_lt {rhs : ℚ} (h1 : lhs < 0*rhs) : 1*lhs < 0 :=
+begin
+  simp at h1,
+  rw [one_mul],
+  exact h1
+end
+
+theorem mul_le_of_le {rhs : ℚ} (h1 : lhs ≤ 0*rhs) : 1*lhs ≤ 0 :=
+begin
+  simp at h1,
+  rw [one_mul],
+  exact h1
+end
+
+end
 
 meta def sum_form_name_of_comp_single : comp → name
 | comp.lt := ``mul_lt_of_lt
@@ -497,14 +509,26 @@ theorem one_op_inv_mul_of_op_of_pos {o} [comp_op o] {lhs rhs c : ℚ} (h : o lhs
          o 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) :=
 have (rat.pow lhs (-1)) > 0, by rw [rat.pow_neg_one]; apply one_div_pos_of_pos hp,
 have o ( (rat.pow lhs (-1))*lhs) ( (rat.pow lhs (-1))*(c*rhs)), from comp_op.op_mul this h,
-by simp only [rat.pow_neg_one, rat.pow_one] at ⊢ this; simp [mul_inv_cancel (ne_of_gt hp)] at this; simp *
+begin
+  rw [rat.pow_neg_one, ← inv_eq_one_div] at ⊢ this,
+  rw [rat.pow_one],
+  rw [inv_mul_cancel (ne_of_gt hp)] at this,
+  rw [mul_comm lhs⁻¹, ← mul_assoc, mul_comm (c*rhs)],
+  exact this
+end
 
 theorem one_op_inv_mul_of_op_of_neg {o} [comp_op o] {lhs rhs c : ℚ} (h : o lhs (c*rhs)) (hp : lhs < 0) :
          rev o 1 (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) :=
 --o (c*((rat.pow lhs (-1))*(rat.pow rhs 1))) 1 :=
 have (rat.pow lhs (-1)) < 0, by rw [rat.pow_neg_one]; apply one_div_neg_of_neg hp,
 have rev o ( (rat.pow lhs (-1))*lhs) ( (rat.pow lhs (-1))*(c*rhs)), from op_mul_neg this h,
-by simp only [rat.pow_neg_one, rat.pow_one] at ⊢ this; simp [mul_inv_cancel (ne_of_lt hp)] at this; simp *
+begin
+  rw [rat.pow_neg_one, ← inv_eq_one_div] at ⊢ this,
+  rw [rat.pow_one],
+  rw [inv_mul_cancel (ne_of_lt hp)] at this,
+  rw [mul_comm lhs⁻¹, ← mul_assoc, mul_comm (c*rhs)],
+  exact this
+end
 
 
 theorem one_op_inv_mul_of_lt_of_pos_pos_flipped {lhs rhs c : ℚ} {o} [one_op_one_div_class o]

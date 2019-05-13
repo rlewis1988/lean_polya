@@ -9,17 +9,21 @@ meta inductive expr_form
 
 section
 open expr_form
+
 meta def expr_form.order : expr_form → expr_form → ordering
-| (sum_f s1) (sum_f s2) := has_ordering.cmp s1 s2
+| (sum_f s1) (sum_f s2) := sum_form.order s1 s2
 | (sum_f _) (prod_f _) := ordering.lt
 | (prod_f _) (sum_f _) := ordering.gt
 | (prod_f _) (prod_f _) := ordering.eq
-| (atom_f e1) (atom_f e2) := has_ordering.cmp e1 e2
+| (atom_f e1) (atom_f e2) := cmp e1 e2
 | (atom_f _) _ := ordering.lt
 | _ (atom_f _) := ordering.gt
 
+meta def expr_form.lt (x : expr_form) (y : expr_form) :=
+expr_form.order x y = ordering.lt
 
-meta instance expr_form.has_ordering : has_ordering expr_form := ⟨expr_form.order⟩
+meta instance : has_lt expr_form := ⟨expr_form.lt⟩
+meta instance : decidable_rel expr_form.lt := λ x y, by delta expr_form.lt; apply_instance
 
 meta def expr_form.format : expr_form → format
 | (sum_f sf) := "sum:" ++ to_fmt sf
@@ -29,6 +33,8 @@ meta def expr_form.format : expr_form → format
 meta instance expr_form.has_to_format : has_to_format expr_form := ⟨expr_form.format⟩
 
 end
+
+open native
 
 meta structure blackboard : Type :=
 (ineqs : hash_map (expr×expr) (λ p, ineq_info p.1 p.2))
@@ -160,22 +166,23 @@ section tactic_state_extension
 open monad
 
 meta def polya_state := state blackboard
-meta instance : monad polya_state := state.monad _
+meta instance : monad polya_state := by delta polya_state; apply_instance
+meta instance : monad_state blackboard polya_state := by delta polya_state; apply_instance
 meta def skip : polya_state unit := return ()
 
 end tactic_state_extension
 
 section tactics
-open state
+open state_t
 
 meta def lift_op (f : blackboard → blackboard) : polya_state unit :=
-λ bb, ((), f bb)
+modify f
 
 meta instance tac_coe : has_coe (blackboard → blackboard) (polya_state unit) :=
 ⟨lift_op⟩
 
 meta def lift_acc {α} (f : blackboard → α) : polya_state α :=
-λ bb, (f bb, bb)
+f <$> get
 
 meta instance tac_coe' (α) : has_coe (blackboard → α) (polya_state α) :=
 ⟨lift_acc⟩
@@ -329,10 +336,10 @@ private meta def add_sign_aux (add_ineq : Π l r, ineq_data l r → polya_state 
 do si ← get_sign_info e, 
 --return $ trace_val ("si:", si),
 match si with
-| none := ((λ bb, bb.insert_sign e sd) : polya_state unit) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
+| none := lift_op (blackboard.insert_sign e sd) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
 | some osd := 
   if osd.c.implies sd.c then skip
-  else if sd.c.implies osd.c then ((λ bb, bb.insert_sign e sd) : polya_state unit) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
+  else if sd.c.implies osd.c then modify (blackboard.insert_sign e sd) >> set_changed tt >> add_zero_ineqs_aux add_ineq sd
   else if h : (sd.c = gen_comp.ge) ∧ (osd.c = gen_comp.le) then
     add_sign_aux ⟨_, sign_proof.eq_of_le_of_ge (by rw ←h.right; exact osd.prf) (by rw ←h.left; exact sd.prf)⟩
   else if h : (sd.c = gen_comp.le) ∧ (osd.c = gen_comp.ge) then 
@@ -588,13 +595,12 @@ meta def get_comps_of_exp (e : expr) : tactic (expr × ℤ) := match e with
 | f := return (f, 1)
 end-/
 
-
 meta def process_expr_tac : blackboard → expr → tactic blackboard | bb e := 
 if is_sum e then 
   let scs := get_sum_components e in do
   sum_components ← monad.mapm get_comps_of_mul scs,
   let sf : sum_form := rb_map.of_list sum_components,
-  let (_, bb') := add_expr_and_update_ineqs e (expr_form.sum_f sf) bb, 
+  let (_, bb') := state_t.run (add_expr_and_update_ineqs e (expr_form.sum_f sf)) bb, 
   monad.foldl process_expr_tac bb' (sum_components.map prod.fst)
 else if is_prod e then 
   --trace "is_prod:" >> trace e >>
@@ -602,25 +608,25 @@ else if is_prod e then
   --trace ("scs", scs),
   prod_components ← monad.mapm get_comps_of_exp scs,
   let sf : prod_form := ⟨1, rb_map.of_list prod_components⟩,
-  let (_, bb') := add_expr_and_update_ineqs e (expr_form.prod_f sf) bb,
+  let (_, bb') := state_t.run (add_expr_and_update_ineqs e (expr_form.prod_f sf)) bb,
   monad.foldl process_expr_tac bb' (prod_components.map prod.fst)--scs 
-else do /-trace "atom", trace e,-/ return $ prod.snd $ add_expr_and_update_ineqs e (expr_form.atom_f e) bb
+else do /-trace "atom", trace e,-/ return $ prod.snd $ state_t.run (add_expr_and_update_ineqs e (expr_form.atom_f e)) bb
 
 meta def tac_add_eq {lhs rhs} (bb : blackboard) (ed : eq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
-   return (add_eq ed bb').2
+   return (state_t.run (add_eq ed) bb').2
 
 meta def tac_add_diseq {lhs rhs} (bb : blackboard) (ed : diseq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
-   return (add_diseq ed bb').2
+   return (state_t.run (add_diseq ed) bb').2
 
 meta def tac_add_ineq {lhs rhs} (bb : blackboard) (ed : ineq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
-   return (add_ineq ed bb').2
+   return (state_t.run (add_ineq ed) bb').2
 
 meta def tac_add_sign {e} (bb : blackboard) (sd : sign_data e) : tactic blackboard :=
 do bb' ← process_expr_tac bb e,
-   return (add_sign sd bb').2
+   return (state_t.run (add_sign sd) bb').2
 /-
 
 

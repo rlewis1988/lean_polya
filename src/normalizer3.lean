@@ -1,4 +1,4 @@
-import datatypes norm_num-- blackboard
+import datatypes -- blackboard
 namespace polya
 
 section aux
@@ -48,6 +48,8 @@ end
 
 end aux
 
+open native
+
 /-meta mutual inductive sterm, term
 with sterm : Type
 | scaled : ℚ → term → sterm
@@ -61,16 +63,26 @@ meta inductive term : Type
 | atom : expr → term
 
 namespace term
-meta def order : term → term → ordering
-| (add_term m) (add_term n) := @has_ordering.cmp _ (@list.has_ordering _ ⟨order⟩) m.keys n.keys
+
+meta mutual def cmp, list_cmp
+with cmp : term → term → ordering
+| (add_term m) (add_term n) := list_cmp m.keys n.keys
 | (add_term _) _ := ordering.gt
 | _ (add_term _) := ordering.lt
-| (mul_term m) (mul_term n) := @has_ordering.cmp _ (@list.has_ordering _ ⟨order⟩) m.keys n.keys
+| (mul_term m) (mul_term n) := list_cmp m.keys n.keys
 | (mul_term _) (atom _) := ordering.gt
 | (atom _) (mul_term _) := ordering.lt
-| (atom e1) (atom e2) := has_ordering.cmp e1 e2
+| (atom e1) (atom e2) := cmp_using has_lt.lt e1 e2
+with list_cmp : list term → list term → ordering
+| [] [] := ordering.eq
+| [] _  := ordering.lt
+| _  [] := ordering.gt
+| (x::xs) (y::ys) := let c := cmp x y in if c = ordering.eq then list_cmp xs ys else c
 
-meta instance : has_ordering term := ⟨order⟩ 
+meta def lt (x y : term) := cmp x y = ordering.lt
+
+meta instance : has_lt term := ⟨lt⟩
+meta instance : decidable_rel lt := λ x y, by delta lt; apply_instance
 
 meta def add_term_empty : term :=
 add_term mk_rb_map
