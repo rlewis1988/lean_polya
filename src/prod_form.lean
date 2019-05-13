@@ -226,7 +226,7 @@ meta def recheck_known_signs (e : expr) (sd : option (sign_data e)) (pf : prod_f
 match sd with
 | none := return []
 | some ⟨es, p⟩ := reduce_option_list <$>
-((list.upto ks.length).mmap $ λ i, --TODO: wath is list.upto supposed to do?
+((list.range ks.length).mmap $ λ i,
   match recheck_known_signs_aux ks es flip_coeff i with
   | some c := 
    do sis ← all_signs,

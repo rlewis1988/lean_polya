@@ -137,7 +137,7 @@ meta def polya_bundle.update_ith (i : ℕ) : polya_bundle → polya_bundle
   end
 
 meta def polya_bundle.one_cycle (bundle : polya_bundle) : polya_bundle :=
-(list.upto bundle.num_modules).reverse.foldl (λ pb k, pb.update_ith k) bundle
+(list.range bundle.num_modules).reverse.foldl (λ pb k, pb.update_ith k) bundle
 
 meta def polya_bundle.cycle : ℕ → polya_bundle → (ℕ × polya_bundle) | n pb :=
 let pb' := pb.set_changed ff,
