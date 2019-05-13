@@ -1,4 +1,4 @@
-import datatypes norm_num-- blackboard
+import datatypes tactic.norm_num-- blackboard
 namespace polya
 
 section aux
