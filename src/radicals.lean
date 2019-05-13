@@ -1,17 +1,7 @@
-import rat_additions norm_num--comp_val
+import rat_additions tactic.norm_num --comp_val
 open tactic
 
 lemma rat_pow_mul (a : ℚ) (e : ℤ) : rat.pow a (e + e) = rat.pow a e * rat.pow a e := sorry
-
-@[simp]
---lemma pow_bit0 (b : ℚ) (e : ℤ) : rat.pow b (bit0 e) = rat.pow b e * rat.pow b e :=
-lemma pow_bit0 (b : ℚ) (e : ℤ) : rat.pow b (bit0 e) = let v := rat.pow b e in v * v :=
-rat_pow_mul _ _
-
-@[simp]
---lemma pow_bit1 (b : ℚ) (e : ℤ) : rat.pow b (bit1 e) = b*rat.pow b e * rat.pow b e :=
-lemma pow_bit1 (b : ℚ) (e : ℤ) : rat.pow b (bit1 e) = let v := rat.pow b e in b*v*v :=
-sorry
 
 @[simp]
 lemma rat.pow_zero (b : ℚ) : rat.pow b 0 = 1 := sorry
@@ -43,7 +33,7 @@ rat_pow_simp_lemmas >>= simp_target
 meta def prove_rat_pow : tactic unit :=
 simp_rat_pow >>  pf_by_norm_num
 
-example : rat.pow 5 3 = 125 := by prove_rat_pow
+--example : rat.pow 5 3 = 125 := by prove_rat_pow
 
 inductive approx_dir
 | over | under | none

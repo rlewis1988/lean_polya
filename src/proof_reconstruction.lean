@@ -1,4 +1,4 @@
-import .datatypes .sum_form .reconstruction_theorems norm_num
+import .datatypes .sum_form .reconstruction_theorems tactic.norm_num
 namespace polya
 
 open expr tactic diseq_proof
@@ -432,8 +432,6 @@ do
  --  else if coeff > 0 then
  --    mk_mapp ``op_zero_of_pos_mul_op_zero [none, none, none, none, coeff_sign_]
  --  fail "sign_proof.reconstruct_of_sum_form_proof failed, not implemented yet"
-
-private lemma le_antisymm' {a b : ℚ} (h1 : a ≤ b) (h2 : a ≥ b) : a = b := le_antisymm h1 h2
 
 meta def reconstruct_eq_of_le_of_ge (rct : Π {e c}, sign_proof e c → tactic expr) {e} (lep : sign_proof e gen_comp.le) (gep : sign_proof e gen_comp.ge) : tactic expr :=
 do lep' ← rct lep, gep' ← rct gep,

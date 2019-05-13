@@ -83,10 +83,17 @@ private meta def ineq_proof.sketch_aux (ss : Π {e c}, sign_proof e c → tactic
 /-  do s ← format_ineq lhs rhs i,
      return ⟨s, "justification unknown", []⟩-/
 
-private meta def sign_proof.sketch_aux (is : Π {lhs rhs iq}, ineq_proof lhs rhs iq → tactic proof_sketch) (es : Π {lhs rhs c}, eq_proof lhs rhs c → tactic proof_sketch)  (sfs : Π {sfc}, sum_form_proof sfc → tactic proof_sketch) : Π {e c}, sign_proof e c → tactic proof_sketch
+private meta def sign_proof.sketch_aux
+     (is : Π {lhs rhs iq}, ineq_proof lhs rhs iq → tactic proof_sketch)
+     (es : Π {lhs rhs c}, eq_proof lhs rhs c → tactic proof_sketch)
+     (sfs : Π {sfc}, sum_form_proof sfc → tactic proof_sketch) :
+     Π {e c}, sign_proof e c → tactic proof_sketch
 | _ _ (sign_proof.hyp e c _) := 
   do s ← format_sign e c,
      return ⟨s, "hypothesis", []⟩
+| _ _ (sign_proof.scaled_hyp e c _ _) :=
+  do s ← format_sign e c,
+     return ⟨s, "scaled hypothesis", []⟩
 | lhs _ (sign_proof.ineq_lhs c ip) :=
   do ip' ← is ip,
      s ← format_sign lhs c,

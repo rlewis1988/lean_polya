@@ -6,7 +6,6 @@ namespace polya
 
 meta def approx_prec := 100
 
-
 private meta def round_rat_to_prec_over (q : ℚ) (prec : ℕ) : ℚ :=
 let z' := ((q.num.nat_abs*prec)/q.denom) + 1 in
 rat.mk_nat (if q.num > 0 then z' else -z') prec
@@ -18,20 +17,23 @@ else let ncoeff := round_rat_to_prec_over pfcd.pfc.pf.coeff prec in
 ⟨{pfcd.pfc with pf := {pfcd.pfc.pf with coeff := ncoeff}}, prod_form_proof.adhoc _ pfcd.prf.sketch (tactic.fail "pfcd.round not implemented yet"), pfcd.elim_list ⟩
 
 
-
-meta def mul_state := state (hash_map expr (λ e, sign_data e) × hash_map expr (λ e, ineq_info e rat_one))
-meta instance mul_state.monad : monad mul_state := state.monad _
+private meta def σ := hash_map expr sign_data × hash_map expr (λ e, ineq_info e rat_one)
+meta def mul_state := state σ
+meta instance mul_state.monad : monad mul_state := by delta mul_state; apply_instance
+meta instance mul_state.monad_state : monad_state σ mul_state := by delta mul_state; apply_instance
 private meta def inh_sd (e : expr) : inhabited (sign_data e) := ⟨⟨gen_comp.ne, sign_proof.adhoc _ _ (tactic.failed) (tactic.failed)⟩⟩
 local attribute [instance] inh_sd
 
+open hash_map
+
 private meta def si (e : expr) : mul_state (sign_data e) :=
-λ hm, (hm.1.find' e, hm)
+(λ hm : σ, hm.1.find' e) <$> get
 
 private meta def si' (e : expr) : mul_state (option (sign_data e)) :=
-λ hm, (hm.1.find e, hm)
+(λ hm : σ, hm.1.find e) <$> get
 
 private meta def oi (e : expr) : mul_state (ineq_info e rat_one) :=
-λ hm, (/-trace_val $ -/ hm.2.find' e, hm)
+(λ hm : σ, hm.2.find' e) <$> get
 
 -- returns true if the mul_state implies coeff*e c 1
 private meta def implies_one_comp (coeff : ℚ) (e : expr) (c : comp) : mul_state bool :=
@@ -96,7 +98,7 @@ match c with
 end
 
 private meta def all_signs : mul_state (hash_map expr sign_data) :=
-λ hm, (hm.1, hm)
+prod.fst <$> get
 
 section sign_inference
 
