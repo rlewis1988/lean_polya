@@ -1,5 +1,5 @@
 import .control
-open polya monad
+open polya monad native
 
 meta structure polya_cache := 
 (sum_cache : rb_set sum_form_comp_data)
@@ -11,7 +11,7 @@ meta def polya_tactic := state_t polya_cache tactic
 namespace polya_tactic
 
 meta instance : monad polya_tactic :=
-state_t.monad _ _
+state_t.monad
 
 private meta def lift_tactic (α) : tactic α → polya_tactic α :=
 state_t.lift
@@ -55,7 +55,7 @@ return ()
 meta def execute (c : polya_tactic unit) : tactic unit :=
 do bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
 let pc : polya_cache := ⟨mk_rb_set, mk_rb_set, bb⟩ in 
-c pc >> return ()
+c.run pc >> return ()
 
 
 /-meta def istep {α} (line0 col0 line col : ℕ) (c : polya_tactic α) : polya_tactic unit :=

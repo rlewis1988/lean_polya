@@ -130,7 +130,7 @@ meta def polya_bundle.update_ith (i : ℕ) : polya_bundle → polya_bundle
 | ⟨modules, n, bb⟩ := 
   match modules.find i with
   | some ⟨α, a, op⟩ := 
-   let (a', bb') := op a bb,
+   let (a', bb') := (op a).run bb,
        modules' := modules.insert i ⟨α, a', op⟩ in
    ⟨modules', n, bb'⟩
   | none := ⟨modules, n, bb⟩
@@ -144,6 +144,8 @@ let pb' := pb.set_changed ff,
     pb' := pb'.one_cycle,
     ch := pb'.is_changed, cont := pb'.contr_found in
 if ch && bnot cont then polya_bundle.cycle (trace_val (n+1)) pb' else ((n+1), pb')
+
+open native
 
 meta def add_module : module_op (rb_set sum_form_comp_data) :=
 { a := mk_rb_set,
@@ -170,7 +172,7 @@ do exps ← hys.mmap get_local,
    trace ("number of cycles:", n),
    trace ("contr found", pb.contr_found),
    if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else
-   if rct then pb.bb.contr.reconstruct >>= apply
+   if rct then pb.bb.contr.reconstruct >>= apply >> skip
    else skip
 
 private meta def try_add_hyp (h : expr) (bb : blackboard) : tactic blackboard :=
@@ -190,7 +192,7 @@ do hyps ← local_context,
    trace ("number of cycles:", n),
    trace ("contr found", pb.contr_found),
    if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else
-   if rct then pb.bb.contr.reconstruct >>= apply
+   if rct then pb.bb.contr.reconstruct >>= apply >> skip
    else skip
 
 

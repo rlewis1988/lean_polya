@@ -19,8 +19,8 @@ else let ncoeff := round_rat_to_prec_over pfcd.pfc.pf.coeff prec in
 
 private meta def σ := hash_map expr sign_data × hash_map expr (λ e, ineq_info e rat_one)
 meta def mul_state := state σ
-meta instance mul_state.monad : monad mul_state := by delta mul_state; apply_instance
-meta instance mul_state.monad_state : monad_state σ mul_state := by delta mul_state; apply_instance
+meta instance mul_state.monad : monad mul_state := state_t.monad
+meta instance mul_state.monad_state : monad_state σ mul_state := state_t.monad_state
 private meta def inh_sd (e : expr) : inhabited (sign_data e) := ⟨⟨gen_comp.ne, sign_proof.adhoc _ _ (tactic.failed) (tactic.failed)⟩⟩
 local attribute [instance] inh_sd
 

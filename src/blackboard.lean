@@ -22,8 +22,8 @@ meta def expr_form.order : expr_form → expr_form → ordering
 meta def expr_form.lt (x : expr_form) (y : expr_form) :=
 expr_form.order x y = ordering.lt
 
-meta instance : has_lt expr_form := ⟨expr_form.lt⟩
-meta instance : decidable_rel expr_form.lt := λ x y, by delta expr_form.lt; apply_instance
+meta instance expr_form.has_lt : has_lt expr_form := ⟨expr_form.lt⟩
+meta instance expr_form.decidable_lt : decidable_rel expr_form.lt := λ x y, by delta expr_form.lt; apply_instance
 
 meta def expr_form.format : expr_form → format
 | (sum_f sf) := "sum:" ++ to_fmt sf
@@ -166,8 +166,8 @@ section tactic_state_extension
 open monad
 
 meta def polya_state := state blackboard
-meta instance : monad polya_state := by delta polya_state; apply_instance
-meta instance : monad_state blackboard polya_state := by delta polya_state; apply_instance
+meta instance : monad polya_state := state_t.monad
+meta instance : monad_state blackboard polya_state := state_t.monad_state
 meta def skip : polya_state unit := return ()
 
 end tactic_state_extension
