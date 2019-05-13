@@ -600,7 +600,7 @@ if is_sum e then
   let scs := get_sum_components e in do
   sum_components ← monad.mapm get_comps_of_mul scs,
   let sf : sum_form := rb_map.of_list sum_components,
-  let (_, bb') := state_t.run (add_expr_and_update_ineqs e (expr_form.sum_f sf)) bb, 
+  let (_, bb') := (add_expr_and_update_ineqs e (expr_form.sum_f sf)).run bb, 
   monad.foldl process_expr_tac bb' (sum_components.map prod.fst)
 else if is_prod e then 
   --trace "is_prod:" >> trace e >>
@@ -608,25 +608,25 @@ else if is_prod e then
   --trace ("scs", scs),
   prod_components ← monad.mapm get_comps_of_exp scs,
   let sf : prod_form := ⟨1, rb_map.of_list prod_components⟩,
-  let (_, bb') := state_t.run (add_expr_and_update_ineqs e (expr_form.prod_f sf)) bb,
+  let (_, bb') := (add_expr_and_update_ineqs e (expr_form.prod_f sf)).run bb,
   monad.foldl process_expr_tac bb' (prod_components.map prod.fst)--scs 
-else do /-trace "atom", trace e,-/ return $ prod.snd $ state_t.run (add_expr_and_update_ineqs e (expr_form.atom_f e)) bb
+else do /-trace "atom", trace e,-/ return $ prod.snd $ (add_expr_and_update_ineqs e (expr_form.atom_f e)).run bb
 
 meta def tac_add_eq {lhs rhs} (bb : blackboard) (ed : eq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
-   return (state_t.run (add_eq ed) bb').2
+   return ((add_eq ed).run bb').2
 
 meta def tac_add_diseq {lhs rhs} (bb : blackboard) (ed : diseq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
-   return (state_t.run (add_diseq ed) bb').2
+   return ((add_diseq ed).run bb').2
 
 meta def tac_add_ineq {lhs rhs} (bb : blackboard) (ed : ineq_data lhs rhs) : tactic blackboard :=
 do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
-   return (state_t.run (add_ineq ed) bb').2
+   return ((add_ineq ed).run bb').2
 
 meta def tac_add_sign {e} (bb : blackboard) (sd : sign_data e) : tactic blackboard :=
 do bb' ← process_expr_tac bb e,
-   return (state_t.run (add_sign sd) bb').2
+   return ((add_sign sd).run bb').2
 /-
 
 
