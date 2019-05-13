@@ -8,8 +8,6 @@ This extends it to work on arbitrary algebraic structures.
 For efficiency reasons, this should be ported to C++ eventually.
 -/
 
-#exit
-
 import data.rat
 open tactic expr
 universe u
@@ -31,14 +29,13 @@ theorem bit0_gt_bit1 (h : a ≥ b + 1) : bit0 a > bit1 b :=
 begin
 unfold bit0 bit1,
 apply lt_of_lt_of_le,
-rotate 1,
-apply add_le_add,
-repeat {apply h},
-simp,
-apply add_lt_add_left,
-apply add_lt_add_left,
-apply lt_add_of_pos_left,
-apply zero_lt_one
+{ apply add_lt_add_left,
+  apply lt_add_of_pos_left,
+  apply zero_lt_one },
+{ rw [add_assoc, add_comm, ← add_assoc, add_assoc], 
+    apply add_le_add,
+    { exact h },
+    { rw add_comm, exact h }}
 end
 
 theorem bit0_gt_bit1' {c : α} (h : a ≥ c) (h2 : b+1=c) : bit0 a > bit1 b :=
@@ -218,19 +215,17 @@ meta def is_signed_num : expr → bool
 | `(-%%a) := is_num a
 | a := is_num a
 
-#check @rewrite_core
-
 
 meta def gen_comp_val : tactic unit := 
 do t ← target,
    [_, _, lhs, rhs] ← return $ get_app_args t,
    if is_num lhs then
-      if is_num rhs then gen_comp_val_prf t >>= apply
-      else do (rhs', prf) ← norm_num rhs, rewrite_target prf, target >>= gen_comp_val_prf >>= apply
+      if is_num rhs then gen_comp_val_prf t >>= apply >> skip
+      else do (rhs', prf) ← norm_num rhs, rewrite_target prf, target >>= gen_comp_val_prf >>= apply >> skip
    else 
       do (lhs', prfl) ← norm_num lhs, rewrite_target prfl,
       if is_num rhs then do trace "here", trace_state, t ← target, t ← gen_comp_val_prf t, trace "now here", infer_type t >>= trace, failed-- exact t
-      else do (rhs', prf) ← norm_num rhs, rewrite_target prf, t ← target >>= gen_comp_val_prf, apply t
+      else do (rhs', prf) ← norm_num rhs, rewrite_target prf, t ← target >>= gen_comp_val_prf, apply t, skip
 
 
 meta def make_expr_into_num : expr → tactic expr := λ e, 
