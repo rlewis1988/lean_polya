@@ -10,17 +10,18 @@ meta def polya_tactic := state_t polya_cache tactic
 
 namespace polya_tactic
 
-meta instance : monad polya_tactic :=
-state_t.monad
-
-private meta def lift_tactic (α) : tactic α → polya_tactic α :=
-state_t.lift
-
-private meta def lift_polya_state (α) : polya_state α → polya_tactic α :=
-λ t s, let (a, bb') := t s.bb in return (a, ⟨s.sum_cache, s.prod_cache, bb'⟩)
+meta instance : monad polya_tactic := state_t.monad
+meta instance : monad_state polya_cache polya_tactic := state_t.monad_state
 
 meta instance polya_tactic.of_tactic : has_monad_lift tactic polya_tactic :=
-⟨lift_tactic⟩
+state_t.has_monad_lift
+
+private meta def lift_polya_state (α) (m : polya_state α) : polya_tactic α :=
+do
+    s ← get,
+    let (a, bb') := m.run s.bb,
+    put ⟨s.sum_cache, s.prod_cache, bb'⟩,
+    return a
 
 meta instance polya_tactic.of_polya_state : has_monad_lift polya_state polya_tactic :=
 ⟨lift_polya_state⟩
@@ -31,20 +32,7 @@ meta instance tpt (α) : has_coe (tactic α) (polya_tactic α) :=
 meta instance pst (α) : has_coe (polya_state α) (polya_tactic α) :=
 ⟨monad_lift⟩
 
-meta def polya_tactic_orelse {α} (t₁ t₂ : polya_tactic α) : polya_tactic α :=
-λ ss ts, result.cases_on (t₁ ss ts)
-  result.success
-  (λ e₁ ref₁ s', result.cases_on (t₂ ss ts)
-    result.success
-    result.exception)
-
-meta instance : monad_fail polya_tactic :=
-{ polya_tactic.monad with fail := λ α s, (tactic.fail (to_fmt s) : polya_tactic α) }
-
-meta instance : alternative polya_tactic :=
-{ polya_tactic.monad with
-  failure := λ α, @tactic.failed α,
-  orelse := @polya_tactic_orelse }
+meta instance : alternative polya_tactic := state_t.alternative
 
 meta def step {α} (c : polya_tactic α) : polya_tactic unit :=
 c >> return ()
@@ -71,47 +59,60 @@ namespace interactive
 open lean lean.parser interactive interactive.types
 
 meta def add_expr (e : parse texpr) : polya_tactic unit :=
-λ ps, do bb' ← tactic.i_to_expr e >>= process_expr_tac ps.bb, return ((), ⟨ps.sum_cache, ps.prod_cache, bb'⟩)
+do
+    ps ← get,
+    bb' ← ↑(tactic.i_to_expr e >>= process_expr_tac ps.bb),
+    put ⟨ps.sum_cache, ps.prod_cache, bb'⟩
 
 meta def add_comparison (e : parse texpr) : polya_tactic unit :=
-λ ps, do bb' ← tactic.i_to_expr e >>= add_proof_to_blackboard ps.bb, return ((), ⟨ps.sum_cache, ps.prod_cache, bb'⟩)
+do
+    ps ← get,
+    bb' ← ↑(tactic.i_to_expr e >>= add_proof_to_blackboard ps.bb),
+    put ⟨ps.sum_cache, ps.prod_cache, bb'⟩
 
 meta def add_hypotheses (ns : parse (many ident)) : polya_tactic unit :=
-λ ps,
-do exps ← ns.mmap tactic.get_local,
-   bb' ← add_proofs_to_blackboard ps.bb exps,
-   return ((), ⟨ps.sum_cache, ps.prod_cache, bb'⟩)
+do 
+    ps ← get,
+    exps ← ns.mmap ↑tactic.get_local, -- TODO: is it different than ↑(ns.mmap tactic.get_local) ?
+    bb' ← add_proofs_to_blackboard ps.bb exps,
+    put ⟨ps.sum_cache, ps.prod_cache, bb'⟩
 
 meta def additive : polya_tactic unit :=
-λ ps,
-let (nsc, bb') := sum_form.add_new_ineqs ps.sum_cache ps.bb in
-return ((), ⟨nsc, ps.prod_cache, bb'⟩)
+do
+    ps ← get,
+    let (nsc, bb') := (sum_form.add_new_ineqs ps.sum_cache).run ps.bb in
+    put ⟨nsc, ps.prod_cache, bb'⟩
 
 meta def multiplicative : polya_tactic unit :=
-λ ps,
-let (nsc, bb') := prod_form.add_new_ineqs ps.prod_cache ps.bb in
-return ((), ⟨ps.sum_cache, nsc, bb'⟩)
+do
+    ps ← get,
+    let (nsc, bb') := (prod_form.add_new_ineqs ps.prod_cache).run ps.bb in
+    put ⟨ps.sum_cache, nsc, bb'⟩
 
 meta def trace_exprs : polya_tactic unit :=
-do ps ← state_t.read,
-   ps.bb.trace_exprs
+do
+    ps ← get,
+    ps.bb.trace_exprs
 
 meta def trace_state : polya_tactic unit :=
-do ps ← state_t.read,
-   ps.bb.trace
+do
+    ps ← get,
+    ps.bb.trace
 
 meta def trace_contr : polya_tactic unit :=
-do ps ← state_t.read,
-   match ps.bb.contr with
-   | contrad.none := tactic.trace "no contradiction found"
-   | _ := tactic.trace "contradiction found"
-   end
+do
+    ps ← get,
+    match ps.bb.contr with
+    | contrad.none := tactic.trace "no contradiction found"
+    | _ := tactic.trace "contradiction found"
+    end
 
 meta def reconstruct : polya_tactic unit :=
-do ps ← state_t.read,
-   e ← ps.bb.contr.reconstruct,
-   tactic.apply e
-
+do
+    ps ← get,
+    e ← ps.bb.contr.reconstruct,
+    _ ← tactic.apply e,
+    return ()
 
 meta def extract_comparisons_between (lhs rhs : parse parser.pexpr) (nms : parse with_ident_list) : polya_tactic unit :=
 do lhs' ← tactic.i_to_expr lhs,
@@ -122,4 +123,3 @@ do lhs' ← tactic.i_to_expr lhs,
 
 end interactive
 end polya_tactic 
-#exit
