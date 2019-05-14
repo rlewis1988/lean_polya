@@ -278,9 +278,6 @@ do m0 ← mk_mvar, m1 ← mk_mvar, m2 ← mk_mvar,
    return m0
 
 
-/-
-TODO: use of skip tactic seems to be problematic
--/
 set_option profiler true
 example : (198 : ℚ) / 100 ≤ 2 :=
 by gen_comp_val--btrivial
