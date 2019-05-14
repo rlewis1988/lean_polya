@@ -217,9 +217,7 @@ end
 
 lemma rat.pow_pow (a : ℚ) (z1 z2 : ℤ) : rat.pow (rat.pow a z1) z2 = rat.pow a (z1*z2) := sorry
 
-
 lemma rat.one_div_pow (q : ℚ) (z : ℤ) : rat.pow (1/q) z = rat.pow q (-z) := sorry
-
 
 namespace int
 open nat

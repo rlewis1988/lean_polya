@@ -1,7 +1,6 @@
 import .datatypes tactic.norm_num
 namespace polya
 
-
 theorem eq_or_gt_of_ge {α} [decidable_linear_order α] {a b : α} (h : a ≥ b) : a = b ∨ a > b :=
 have h1 : ¬ b > a, from not_lt_of_ge h,
 eq_or_lt_of_not_lt h1
@@ -680,5 +679,3 @@ theorem op_zero_of_mul_op_zero_of_pos {o} [comp_op o] {rhs c : ℚ} (h : o (c*rh
 theorem op_zero_of_mul_op_zero_of_neg {o} [comp_op o] {rhs c : ℚ} (h : o (c*rhs) 0) (hc : c < 0) : rev o rhs 0 := sorry
 
 end polya
---set_option pp.all true
---#check @
