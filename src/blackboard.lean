@@ -6,7 +6,6 @@ meta inductive expr_form
 | prod_f : prod_form → expr_form
 | atom_f : expr → expr_form
 
-
 section
 open expr_form
 

@@ -2,7 +2,6 @@ import datatypes tactic.norm_num-- blackboard
 namespace polya
 
 section aux
-#check expr.is_numeral
 
 meta def is_num : expr → bool
 | `(bit0 %%e) := is_num e
@@ -141,8 +140,6 @@ meta instance term.has_to_tactic_format : has_to_tactic_format term :=
 
 meta instance sterm.has_to_tactic_format : has_to_tactic_format sterm :=
 ⟨sterm.to_tactic_format⟩
-
-
 
 section canonize
 
