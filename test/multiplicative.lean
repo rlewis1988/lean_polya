@@ -1,4 +1,4 @@
-import .control
+import control
 
 open polya tactic
 variables x y z u v w  r : ℚ
