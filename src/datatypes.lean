@@ -1206,28 +1206,28 @@ end
 meta instance prod_form_proof.has_to_format {pfc} : has_to_format (prod_form_proof pfc) :=
 ⟨prod_form_proof.to_format⟩
 
-private meta def compare_coeffs (sf1 sf2 : sum_form) (h : expr) : ordering :=
-let c1 := sf1.get_coeff h, c2 := sf2.get_coeff h in
-if c1 < c2 then ordering.lt else if c2 < c1 then ordering.gt else ordering.eq
+private meta def sum_form.lt_core (sf1 sf2 : sum_form) : bool :=
+sf1.to_list < sf2.to_list
+private meta def prod_form.lt_core (pf1 pf2 : prod_form) : bool :=
+pf1.coeff < pf2.coeff ∨ (pf1.coeff = pf2.coeff ∧ pf1.exps.to_list < pf2.exps.to_list)
+meta def sum_form.lt : sum_form → sum_form → Prop := λ sf1 sf2, ↑(sum_form.lt_core sf1 sf2)
+meta def prod_form.lt : prod_form → prod_form → Prop := λ pf1 pf2, ↑(prod_form.lt_core pf1 pf2)
 
-private meta def compare_coeff_lists (sf1 sf2 : sum_form) : list expr → list expr → ordering
-| [] [] := ordering.eq
-| [] _ := ordering.lt
-| _ [] := ordering.gt
-| (h1::t1) (h2::t2) := 
-   if h1 = h2 then let ccomp := compare_coeffs sf1 sf2 h1 in
-     if ccomp = ordering.eq then compare_coeff_lists t1 t2 else ccomp
-   else cmp h1 h2
+meta instance sum_form.has_lt : has_lt sum_form := ⟨sum_form.lt⟩
+meta instance sum_form.lt_decidable : decidable_rel sum_form.lt := by delta sum_form.lt; apply_instance
+meta instance prod_form.has_lt : has_lt prod_form := ⟨prod_form.lt⟩
+meta instance prod_form.lt_decidable : decidable_rel prod_form.lt := by delta prod_form.lt; apply_instance
 
-
-meta def sum_form.order (sf1 sf2 : sum_form) : ordering :=
-compare_coeff_lists sf1 sf2 sf1.keys sf2.keys
+meta def sum_form.cmp : sum_form → sum_form → ordering :=
+cmp_using sum_form.lt
+meta def prod_form.cmp : prod_form → prod_form → ordering :=
+cmp_using prod_form.lt
 
 meta def sum_form_comp.order : sum_form_comp → sum_form_comp → ordering
 | ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.le⟩ := ordering.lt
 | ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
 | ⟨_, spec_comp.le⟩ ⟨_, spec_comp.eq⟩ := ordering.lt
-| ⟨sf1, _⟩ ⟨sf2, _⟩ := sum_form.order sf1.normalize sf2.normalize
+| ⟨sf1, _⟩ ⟨sf2, _⟩ := sum_form.cmp sf1.normalize sf2.normalize
 
 -- TODO: do we need to take elim_vars into account for this order?
 meta def sum_form_comp_data.order : sum_form_comp_data → sum_form_comp_data → ordering
