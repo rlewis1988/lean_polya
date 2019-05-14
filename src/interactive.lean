@@ -73,7 +73,7 @@ do
 meta def add_hypotheses (ns : parse (many ident)) : polya_tactic unit :=
 do 
     ps ← get,
-    exps ← ns.mmap ↑tactic.get_local, -- TODO: is it different than ↑(ns.mmap tactic.get_local) ?
+    exps ← ns.mmap ↑tactic.get_local,
     bb' ← add_proofs_to_blackboard ps.bb exps,
     put ⟨ps.sum_cache, ps.prod_cache, bb'⟩
 
