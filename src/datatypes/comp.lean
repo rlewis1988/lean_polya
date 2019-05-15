@@ -445,5 +445,22 @@ i1.x*i2.y - i1.y*i2.x > 0
 def two_imply (i1 i2 : ineq) (ninq : ineq) : bool :=
 (ninq.clockwise_of i1 && i2.clockwise_of ninq) || (i1.implies ninq) || (i2.implies ninq)
 
+-- TODO
+section
+open tactic
+
+-- TODO : add proof argument and move
+meta def to_type (id : ineq) (lhs rhs : expr) : tactic expr :=
+match id.to_slope with
+| slope.horiz := id.to_comp.to_function rhs `(0 : ℚ) --, to_expr `(fake_ineq_to_expr_proof %%tp)
+| slope.some m := 
+ -- let rhs' : expr := (if m=0 then `(0 : ℚ) else `(m*%%rhs : ℚ)) in
+do rhs' ← to_expr (if m=0 then ``(0 : ℚ) else ``(%%(↑(reflect m) : expr)*%%rhs : ℚ)),
+     id.to_comp.to_function lhs rhs'
+     --to_expr `(fake_ineq_to_expr_proof %%tp)
+end 
+
+end 
+
 end ineq
 end polya

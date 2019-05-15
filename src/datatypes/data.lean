@@ -28,24 +28,6 @@ meta instance ineq_data.has_to_format (lhs rhs) : has_to_format (ineq_data lhs r
 /-meta instance ineq_data.has_decidable_eq (lhs rhs) : decidable_eq (ineq_data lhs rhs) :=
 by tactic.mk_dec_eq_instance-/
 
--- TODO: move this to comp.lean?
--- TODO
-section
-open tactic
-
--- TODO : add proof argument and move
-meta def ineq.to_type (id : ineq) (lhs rhs : expr) : tactic expr :=
-match id.to_slope with
-| slope.horiz := id.to_comp.to_function rhs `(0 : ℚ) --, to_expr `(fake_ineq_to_expr_proof %%tp)
-| slope.some m := 
- -- let rhs' : expr := (if m=0 then `(0 : ℚ) else `(m*%%rhs : ℚ)) in
-do rhs' ← to_expr (if m=0 then ``(0 : ℚ) else ``(%%(↑(reflect m) : expr)*%%rhs : ℚ)),
-     id.to_comp.to_function lhs rhs'
-     --to_expr `(fake_ineq_to_expr_proof %%tp)
-end 
-
-end 
-
 /- meta def ineq_data.to_expr {lhs rhs} (id : ineq_data lhs rhs) : tactic expr :=
 id.inq.to_expr lhs rhs -/
 
