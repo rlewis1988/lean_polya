@@ -188,9 +188,9 @@ do --sds ← pf.exps.keys.mmap $ λ e, sigma.mk e <$> (si e),
 /--
  Assumes known_signs.length = pf.length
 -/
-meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : list (option gen_comp)) : mul_state (option Σ e', sign_data e') :=
+meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : list gen_comp) : mul_state (option Σ e', sign_data e') :=
   let prod_sign := 
-    (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod (known_signs.map option.iget) in
+    (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod known_signs in
   match prod_sign with
   | some ks :=
     do sis ← all_signs,
@@ -205,7 +205,7 @@ meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : lis
 -/
 meta def infer_expr_sign_data (e : expr) (pf : prod_form) : mul_state (option Σ e', sign_data e') :=
 do sds ← pf.exps.keys.mmap (sign_of_term pf),
-   let known_signs := (sds.bfilter option.is_some),
+   let known_signs := sds.reduce_option,
    if pf.exps.keys.length = known_signs.length then
     infer_expr_sign_data_aux e pf known_signs
    else return none
@@ -242,11 +242,11 @@ end
 -/
 meta def get_unknown_sign_data (e : expr) (sd : option (sign_data e)) (pf : prod_form) : mul_state (list Σ e', sign_data e') :=
 do sds ← pf.exps.keys.mmap (sign_of_term pf),
-   let known_signs := (sds.bfilter option.is_some),
+   let known_signs := sds.reduce_option,
    let num_vars := pf.exps.keys.length,
    if (known_signs.length = num_vars - 1) && sd.is_some then
      let prod_sign := 
-      (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod (known_signs.map option.iget) in
+      (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod known_signs in
      match prod_sign with
      | some ks :=
        match get_remaining_sign ks sd.iget.c with
@@ -274,7 +274,7 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
      | none := return none
      end-/
      do k1 ← infer_expr_sign_data_aux e pf known_signs,
-        k2 ← recheck_known_signs e sd pf (known_signs.map option.iget) (pf.coeff < 0),
+        k2 ← recheck_known_signs e sd pf known_signs (pf.coeff < 0),
         match k1 with
         | some k1' := return $ k1'::k2
         | none := return k2
