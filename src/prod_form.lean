@@ -6,7 +6,6 @@ namespace polya
 
 meta def approx_prec := 100
 
-
 private meta def round_rat_to_prec_over (q : ℚ) (prec : ℕ) : ℚ :=
 let z' := ((q.num.nat_abs*prec)/q.denom) + 1 in
 rat.mk_nat (if q.num > 0 then z' else -z') prec
@@ -18,20 +17,23 @@ else let ncoeff := round_rat_to_prec_over pfcd.pfc.pf.coeff prec in
 ⟨{pfcd.pfc with pf := {pfcd.pfc.pf with coeff := ncoeff}}, prod_form_proof.adhoc _ pfcd.prf.sketch (tactic.fail "pfcd.round not implemented yet"), pfcd.elim_list ⟩
 
 
-
-meta def mul_state := state (hash_map expr (λ e, sign_data e) × hash_map expr (λ e, ineq_info e rat_one))
-meta instance mul_state.monad : monad mul_state := state.monad _
+private meta def σ := hash_map expr sign_data × hash_map expr (λ e, ineq_info e rat_one)
+meta def mul_state := state σ
+meta instance mul_state.monad : monad mul_state := state_t.monad
+meta instance mul_state.monad_state : monad_state σ mul_state := state_t.monad_state
 private meta def inh_sd (e : expr) : inhabited (sign_data e) := ⟨⟨gen_comp.ne, sign_proof.adhoc _ _ (tactic.failed) (tactic.failed)⟩⟩
 local attribute [instance] inh_sd
 
+open hash_map
+
 private meta def si (e : expr) : mul_state (sign_data e) :=
-λ hm, (hm.1.find' e, hm)
+(λ hm : σ, hm.1.find' e) <$> get
 
 private meta def si' (e : expr) : mul_state (option (sign_data e)) :=
-λ hm, (hm.1.find e, hm)
+(λ hm : σ, hm.1.find e) <$> get
 
 private meta def oi (e : expr) : mul_state (ineq_info e rat_one) :=
-λ hm, (/-trace_val $ -/ hm.2.find' e, hm)
+(λ hm : σ, hm.2.find' e) <$> get
 
 -- returns true if the mul_state implies coeff*e c 1
 private meta def implies_one_comp (coeff : ℚ) (e : expr) (c : comp) : mul_state bool :=
@@ -96,7 +98,7 @@ match c with
 end
 
 private meta def all_signs : mul_state (hash_map expr sign_data) :=
-λ hm, (hm.1, hm)
+prod.fst <$> get
 
 section sign_inference
 
@@ -224,7 +226,7 @@ meta def recheck_known_signs (e : expr) (sd : option (sign_data e)) (pf : prod_f
 match sd with
 | none := return []
 | some ⟨es, p⟩ := reduce_option_list <$>
-((list.upto ks.length).mmap $ λ i,
+((list.range ks.length).mmap $ λ i,
   match recheck_known_signs_aux ks es flip_coeff i with
   | some c := 
    do sis ← all_signs,
@@ -626,6 +628,8 @@ meta def ne_proofs_of_cancelled (pf1 pf2 : prod_form) : mul_state (list Σ e : e
 
 meta def prod_form_proof.pfc {pfc} : prod_form_proof pfc → prod_form_comp := λ _, pfc
 
+open native
+
 -- assumes the exponent of pvt in both is nonzero. Does not enforce elim_list preservation
 meta def prod_form_comp_data.elim_expr_aux : prod_form_comp_data → prod_form_comp_data → expr → 
      mul_state (option prod_form_comp_data)
@@ -665,7 +669,7 @@ private meta def compare_coeff_lists (sf1 sf2 : prod_form) : list expr → list 
 | (h1::t1) (h2::t2) := 
    if h1 = h2 then let ccomp := compare_coeffs sf1 sf2 h1 in
      if ccomp = ordering.eq then compare_coeff_lists t1 t2 else ccomp
-   else has_ordering.cmp h1 h2
+   else cmp h1 h2
 
 meta def prod_form.order (sf1 sf2 : prod_form) : ordering :=
 compare_coeff_lists sf1 sf2 sf1.exps.keys sf2.exps.keys
@@ -681,12 +685,12 @@ meta def prod_form_comp.order : prod_form_comp → prod_form_comp → ordering
 meta def prod_form_comp_data.order : prod_form_comp_data → prod_form_comp_data → ordering
 | ⟨sfc1, _, ev1⟩ ⟨sfc2, _, ev2⟩ := 
 match sfc1.order sfc2 with
-| ordering.eq := has_ordering.cmp ev1.keys ev2.keys
+| ordering.eq := cmp ev1.keys ev2.keys
 | a := a
 end
 
-meta instance : has_ordering prod_form_comp_data := ⟨prod_form_comp_data.order⟩
-
+meta instance prod_form_comp_data.has_lt : has_lt prod_form_comp_data := ⟨λ x y, prod_form_comp_data.order x y = ordering.lt⟩
+meta instance prod_form_comp_data.decidable_lt : decidable_rel (@has_lt.lt prod_form_comp_data _) := λ _ _, by apply_instance
 
 meta def prod_form_comp_data.elim_into (sfcd1 sfcd2 : prod_form_comp_data) (pvt : expr)
      (rv : rb_set prod_form_comp_data) : mul_state (rb_set prod_form_comp_data) :=
@@ -806,7 +810,7 @@ do il ← /-trace_val <$>-/ get_ineq_list, el ← /-trace_val <$>-/ get_eq_list,
    il' ← /-trace_val <$>-/ reduce_option_list <$> il.mmap (λ ⟨_, _, id⟩, pfcd_of_ineq_data id),
    el' ← /-trace_val <$>-/ reduce_option_list <$> el.mmap (λ ⟨_, _, ed⟩, pfcd_of_eq_data ed),
    let dfs' := /-trace_val $-/ dfs.map mk_eqs_of_expr_prod_form_pair in -- TODO: does this filter ones without sign info?
-   return $ list.map remove_one_from_pfcd $ ((il'.append el').append dfs').qsort (λ a b, if has_ordering.cmp a b = ordering.lt then tt else ff)
+   return $ list.map remove_one_from_pfcd $ ((il'.append el').append dfs').qsort (λ a b, if cmp a b = ordering.lt then tt else ff)
 
 private meta def mk_signed_pfcd_list : polya_state (list (prod_form × Σ e, option (sign_data e))) :=
 do mds ← get_mul_defs,
@@ -845,7 +849,7 @@ private meta def gather_new_sign_info_pass_one : polya_state (list Σ e, sign_da
 do  dfs ← mk_signed_pfcd_list,
     ms ← mk_mul_state,
     let vv : mul_state (list Σ e, sign_data e) := dfs.mfoldl (λ l (pf_sig : prod_form × Σ e, option (sign_data e)), l.append <$> (get_unknown_sign_data pf_sig.2.1 pf_sig.2.2 pf_sig.1)) [],
-    return $ (vv ms).1
+    return $ (vv.run ms).1
 --    return $ reduce_option_list $ (dfs.mfoldl (λ (pf_sig : prod_form × Σ e, option (sign_data e)) (l : , l.append (get_unknown_sign_data pf_sig.2.1 pf_sig.2.2 pf_sig.1)) ms).1
     
 /-
@@ -1030,7 +1034,7 @@ do --new_sign_info ← gather_new_sign_info,
    gather_new_sign_info >>= list.mmap (λ sig, add_sign $ /-trace_val-/ sig.2),
    sfcds ← /-trace_val <$>-/ mk_pfcd_list,
    ms ← mk_mul_state,
-   let ((pfcs, ineqs), _) := mk_ineq_list_of_unelimed sfcds start ms,
+   let ((pfcs, ineqs), _) := (mk_ineq_list_of_unelimed sfcds start).run ms,
    monad.mapm' 
     (λ s : Σ lhs rhs, ineq_data lhs rhs, add_ineq s.2.2)
     ineqs,

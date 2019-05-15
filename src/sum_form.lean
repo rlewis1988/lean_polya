@@ -4,7 +4,6 @@ import .datatypes .blackboard
 
 namespace polya
 
-
 section sfcd_to_ineq
 
  -- assumes lhs < rhs as exprs. cl*lhs + cr*rhs R 0 ==> ineq_data
@@ -32,8 +31,6 @@ meta def sum_form_comp_data.to_eq_data : sum_form_comp_data → option (Σ lhs r
   end
 | _ := none 
 
-
-
 meta def sum_form_comp_data.to_sign_data : sum_form_comp_data → option Σ e, sign_data e
 | ⟨sfc, prf, _⟩ := 
   match sfc.sf.get_nonzero_factors with
@@ -45,6 +42,7 @@ meta def sum_form_comp_data.to_sign_data : sum_form_comp_data → option Σ e, s
 
 end sfcd_to_ineq
 
+open native
 
 -- assumes the coeff of pvt in both is nonzero. Does not enforce elim_list preservation
 meta def sum_form_comp_data.elim_expr_aux : sum_form_comp_data → sum_form_comp_data → expr → 
@@ -95,7 +93,7 @@ sfcd.vars.foldr (λ e rv, elim_expr_from_comp_data sfcd cmps e rv) mk_rb_set
 -/
 
 meta def elim_expr_from_comp_data_list (cmps : list sum_form_comp_data) (e : expr) : list sum_form_comp_data :=
-(elim_expr_from_comp_data_set (rb_set.of_list cmps) e).to_list
+(elim_expr_from_comp_data_set (rb_map.set_of_list cmps) e).to_list
 
 private meta def check_elim_lists_aux (sfcd1 sfcd2 : sum_form_comp_data) : bool :=
 sfcd1.vars.all (λ e, bnot (sfcd2.elim_list.contains e))
@@ -138,7 +136,7 @@ meta def elim_list (cmps : list sum_form_comp_data) (start : rb_set sum_form_com
 (elim_list_into_set start cmps).to_list
 
 meta def vars_of_sfcd_set (cmps : rb_set sum_form_comp_data) : rb_set expr :=
-cmps.fold mk_rb_set (λ sfcd s, s.insert_list sfcd.vars)
+cmps.fold mk_rb_set (λ sfcd s, sfcd.vars.foldl rb_set.insert s)
 
 
 def list.first {α} (P : α → bool) : list α → option α 
@@ -151,20 +149,20 @@ let elimd := (vars_of_sfcd_set cmps).fold cmps (λ s cmps', elim_expr_from_comp_
 list.first sum_form_comp_data.is_contr elimd.keys -- dot notation doesn't work here??
 
 meta def find_contrad_sfcd_in_sfcd_list (cmps : list sum_form_comp_data) : option sum_form_comp_data :=
-find_contrad_sfcd_in_sfcd_set (rb_set.of_list cmps)
+find_contrad_sfcd_in_sfcd_set (rb_map.set_of_list cmps)
 
 meta def find_contrad_in_sfcd_set (cmps : rb_set sum_form_comp_data) : option contrad :=
 do sfcd ← find_contrad_sfcd_in_sfcd_set cmps,
    return $ contrad.sum_form sfcd.prf
 
 meta def find_contrad_in_sfcd_list (cmps : list sum_form_comp_data) : option contrad :=
-find_contrad_in_sfcd_set (rb_set.of_list cmps)
+find_contrad_in_sfcd_set (rb_map.set_of_list cmps)
 
 meta def is_inconsistent (cmps : rb_set sum_form_comp_data) : bool :=
 (find_contrad_sfcd_in_sfcd_set cmps).is_some
 
 meta def is_inconsistent_list (cmps : list sum_form_comp_data) : bool :=
-is_inconsistent $ rb_set.of_list cmps
+is_inconsistent $ rb_map.set_of_list cmps
 
 
 section bb_process
@@ -180,7 +178,7 @@ private meta def mk_sfcd_list : polya_state (list sum_form_comp_data) :=
    let el' := el.map (λ ⟨_, _, ed⟩, sum_form_comp_data.of_eq_data ed) in
    let sl' := sl.map (λ ⟨_, sd⟩, sum_form_comp_data.of_sign_data sd) in
    let dfs' := dfs.map mk_eqs_of_expr_sum_form_pair in
-   return $ (((il'.append el').append sl').append dfs').qsort (λ a b, if has_ordering.cmp a b = ordering.lt then tt else ff)
+   return $ (((il'.append el').append sl').append dfs').qsort (λ a b, a < b)
 
 private meta def mk_eq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, eq_data lhs rhs :=
 let il := cmps.map (λ sfcd, sfcd.to_eq_data) in

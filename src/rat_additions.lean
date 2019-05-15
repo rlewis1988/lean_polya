@@ -186,11 +186,6 @@ else
   to_fmt q.num ++ " / " ++ to_fmt q.denom-/
 rat.to_string q
 
-meta instance : has_to_format ℚ :=
-⟨rat.to_format⟩
-
-meta instance : has_repr ℚ :=
-⟨rat.to_string⟩
 /-meta instance : has_to_pexpr ℚ :=
 ⟨quot.lift num_denum_quote num_denum_quote_wf⟩
 -/
@@ -222,9 +217,7 @@ end
 
 lemma rat.pow_pow (a : ℚ) (z1 z2 : ℤ) : rat.pow (rat.pow a z1) z2 = rat.pow a (z1*z2) := sorry
 
-
 lemma rat.one_div_pow (q : ℚ) (z : ℤ) : rat.pow (1/q) z = rat.pow q (-z) := sorry
-
 
 namespace int
 open nat
@@ -244,10 +237,6 @@ match int.le.dest h with
 end
 
 end int
-
-@[simp] theorem nat.one_pow : Π n : ℕ, nat.pow 1 n = 1
-| 0 := rfl
-| (k+1) := begin unfold nat.pow, rw mul_one, apply nat.one_pow end
 
 theorem nat.one_lt_pow_of_one_lt {x n : ℕ} (h : 1 < x) (hn : n > 0) : 1 < nat.pow x n := 
 have h : nat.pow 1 n = 1, from nat.one_pow _,
@@ -271,7 +260,3 @@ def rat.order : ℚ → ℚ → ordering :=
 
 def int.order : ℤ → ℤ → ordering :=
 λ a b, if a < b then ordering.lt else if a = b then ordering.eq else ordering.gt
-
-instance : has_ordering ℚ := ⟨rat.order⟩
-
-instance : has_ordering ℤ := ⟨int.order⟩
