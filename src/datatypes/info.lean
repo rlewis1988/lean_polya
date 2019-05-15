@@ -215,6 +215,9 @@ meta def sign_info (e : expr) :=
 option (sign_data e)
 
 namespace sign_info
+meta instance (e) : has_to_format (sign_info e) :=
+by delta sign_info; apply_instance
+
 meta def is_strict {e : expr} : sign_info e → bool
 | (some sd) := sd.c.is_strict
 | none := ff
