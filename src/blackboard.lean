@@ -1,4 +1,4 @@
-import .datatypes .normalizer3
+import .datatypes .normalizer
 
 namespace polya
 open native
