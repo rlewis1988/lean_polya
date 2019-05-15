@@ -2,17 +2,6 @@ import datatypes -- blackboard
 namespace polya
 
 section aux
-#check expr.is_numeral
-
-meta def is_num : expr → bool
-| `(bit0 %%e) := is_num e
-| `(bit1 %%e) := is_num e
-| `(@has_zero.zero _ _) := tt
-| `(@has_one.one _ _) := tt
-| `(-%%a) := is_num a
-| `(%%a / %%b) := is_num a && is_num b
-| _ := ff
-
 meta def mk_neg : expr → expr
 | `((-%%lhs) * %%rhs) := `(%%lhs * %%rhs : ℚ)
 | `(%%lhs * %%rhs) := `((-%%lhs) * %%rhs : ℚ)
@@ -152,7 +141,7 @@ private meta def split_num_nonnum_prod_comps : list expr → list expr × list e
 | [] := ([], [])
 | (e::l) :=
    let (t1, t2) := split_num_nonnum_prod_comps l in
-   if is_num e then (e::t1, t2) else (t1, e::t2)
+   if expr.is_numeral e then (e::t1, t2) else (t1, e::t2)
 
 
 private meta def fold_op_app_aux (op : pexpr) : expr → list expr → tactic expr
@@ -164,7 +153,7 @@ private meta def fold_op_app (op : pexpr) (dflt : expr) : list expr → tactic e
 | (h::t) := fold_op_app_aux op h t
 
 meta def expr.to_sterm : expr → tactic sterm | e :=
-if is_num e then
+if expr.is_numeral e then
   do q ← eval_expr ℚ e,
      return ⟨q, (term.atom `(1 : ℚ))⟩
 else if is_prod e then
@@ -177,7 +166,7 @@ else sterm.mk 1 <$> expr.to_term_aux expr.to_sterm e
 
 /-match e with
 | `(%%c*%%t) := 
-  if is_num c then
+  if expr.is_numeral c then
     do q ← eval_expr ℚ c,
        sterm.scale q <$> expr.to_sterm t
   else sterm.mk 1 <$> expr.to_term_aux expr.to_sterm e

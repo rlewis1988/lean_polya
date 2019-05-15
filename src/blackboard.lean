@@ -594,13 +594,52 @@ do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
 meta def tac_add_sign {e} (bb : blackboard) (sd : sign_data e) : tactic blackboard :=
 do bb' ← process_expr_tac bb e,
    return ((add_sign sd).run bb').2
-/-
 
+/-
+TODO: rename?
+-/
+open tactic
+meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
+--infer_type e >>= trace >>
+do e ← canonize_hyp e, tp ← infer_type e, trace e, trace tp,
+(do (x, y, ie1) ← expr_to_ineq tp,
+--    trace x, trace y, trace ie1,
+    id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
+    --return (add_ineq id b).2)
+    tac_add_ineq b id)
+<|>
+(do (x, y, ie1) ← expr_to_eq tp,
+    id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
+    --return (add_eq id b).2)
+    tac_add_eq b id)
+<|>
+(do (x, c) ← expr_to_sign tp,
+    cf ← coeff_of_expr x,
+    match cf with
+    | (none, e') := do
+    sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
+--    trace "calling tac-add-sign",
+    bb ← tac_add_sign b sd,
+--    trace "tac_add_sign done",
+    return bb
+    | (some q, e') := 
+    do trace q, trace e', sd ← return $ trace_val $ sign_data.mk (if q > 0 then c else c.reverse) (sign_proof.scaled_hyp e' _ e q),
+       tac_add_sign b sd 
+    end)
+<|>
+(do (x, y, ie1) ← expr_to_diseq tp,
+    sd ← return $ diseq_data.mk ie1 (diseq_proof.hyp x y _ e),
+    tac_add_diseq b sd)
+<|>
+trace "failed" >> trace e >> fail "add_comp_to_blackboard failed"
+
+meta def add_proofs_to_blackboard (b : blackboard) (l : list expr) : tactic blackboard :=
+monad.foldl add_proof_to_blackboard b l
 
 /- assumes the second input is the type of prf
 meta def process_comp (prf : expr) : expr → polya_state unit
 | ```(%%lhs ≥ %%rhs) := process_expr lhs >> process_expr rhs >> 
-    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩-/
+    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩
 | _ := skip-/
 
 end tactics

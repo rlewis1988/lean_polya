@@ -464,3 +464,70 @@ end
 
 end ineq
 end polya
+
+/-
+TODO: move these to expr namespace?
+-/
+open polya tactic
+
+meta def expr_to_ineq : expr → tactic (expr × expr × ineq)
+| `(%%x ≤ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.le (slope.some c'))
+| `(%%x < (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.lt (slope.some c'))
+| `(%%x ≥ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.ge (slope.some c'))
+| `(%%x > (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.gt (slope.some c'))
+| _ := failed
+
+meta def expr_to_eq : expr → tactic (expr × expr × ℚ)
+| `(%%x = (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, c')
+| _ := failed
+
+meta def expr_to_diseq : expr → tactic (expr × expr × ℚ)
+| `(%%x ≠ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return (x, y, c')
+| _ := failed
+
+-- for efficiency???
+meta def expr_to_sign_aux : expr → tactic (expr × gen_comp)
+| `(@eq ℚ (has_zero.zero ℚ) %%x) := return (x, gen_comp.eq)
+| `((has_zero.zero ℚ) > %%x) := return (x, gen_comp.lt)
+| `((has_zero.zero ℚ) < %%x) := return (x, gen_comp.gt)
+| `((has_zero.zero ℚ) ≥ %%x) := return (x, gen_comp.le)
+| `((has_zero.zero ℚ) ≤ %%x) := return (x, gen_comp.ge)
+| `((has_zero.zero ℚ) ≠ %%x) := return (x, gen_comp.ne)
+| _ := failed
+
+
+meta def expr_to_sign : expr → tactic (expr × gen_comp)
+| `(@eq ℚ %%x (has_zero.zero ℚ)) := return (x, gen_comp.eq)
+| `(%%x > (has_zero.zero ℚ)) := return (x, gen_comp.gt)
+| `(%%x < (has_zero.zero ℚ)) := return (x, gen_comp.lt)
+| `(%%x ≥ (has_zero.zero ℚ)) := return (x, gen_comp.ge)
+| `(%%x ≤ (has_zero.zero ℚ)) := return (x, gen_comp.le)
+| `(%%x ≠ (has_zero.zero ℚ)) := return (x, gen_comp.ne)
+| a := expr_to_sign_aux a
+
+/-meta def add_comp_to_blackboard (e : expr) (b : blackboard) : tactic blackboard :=
+(do (x, y, ie1) ← expr_to_ineq e,
+    id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
+--    trace "tac_add_ineq",
+    tac_add_ineq b id)
+--    return (add_ineq id b).2)
+<|>
+(do (x, y, ie1) ← expr_to_eq e,
+    id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
+--    trace "tac_add_eq",
+    tac_add_eq b id)
+    --return (add_eq id b).2)
+<|>
+(do (x, c) ← expr_to_sign e,
+    sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
+--    trace "calling tac-add-sign",
+    bb ← tac_add_sign b sd,
+    trace "tac_add_sign done", return bb)
+<|>
+fail "add_comp_to_blackboard failed"-/
+
+meta def coeff_of_expr (ex : expr) : tactic (option ℚ × expr) :=
+match ex with
+| `(%%c * %%e) := if expr.is_numeral c then do q ← eval_expr ℚ c, return (some q, e) else return (none, ex) 
+| _ := return (none, ex)
+end
