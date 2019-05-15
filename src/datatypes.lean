@@ -4,4 +4,3 @@ import
     datatypes.expr_form
     datatypes.proof
     datatypes.info
-    datatypes.contrad
