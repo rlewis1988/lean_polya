@@ -1,4 +1,4 @@
-import control
+import interactive
 variables x y z : ℚ
 
 example (e1 : x < 1*y) (e2 : z < 1*y) (e3 : x + z > 3*y) (e4 : x + z >0) : false := 
