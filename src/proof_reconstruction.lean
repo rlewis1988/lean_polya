@@ -686,30 +686,6 @@ end contrad
 
 namespace prod_form_proof
 
-
-meta def expr_coeff_list_to_expr_aux : expr → list (expr × ℤ) → tactic expr
-| a [] := return a
-| a ((e, z)::t) := do h ← to_expr ``(rat.pow %%e %%(z.reflect : expr)), tmp ← to_expr ``(%%a * %%h), expr_coeff_list_to_expr_aux tmp t
-
-meta def expr_coeff_list_to_expr : list (expr × ℤ) → tactic expr 
-| [] := return `(1 : ℚ)
-| ((e, z)::t) := do h ← to_expr ``(rat.pow %%e %%(z.reflect : expr)), expr_coeff_list_to_expr_aux h t
-
-/-meta def expr_coeff_list_to_expr : list (expr × ℤ) → tactic expr
-| [] := return `(1 : ℚ)
-| [(e, z)] := to_expr ``(rat.pow %%e %%(z.reflect : expr))
-| ((e, z)::t) := do e' ← expr_coeff_list_to_expr t, h ← to_expr ``(rat.pow %%e %%(z.reflect : expr)), to_expr ``(%%h * %%e')-/
-
-end prod_form_proof 
-
-meta def prod_form.to_expr (sf : prod_form) : tactic expr := 
-do --trace "in prod_form.to_expr",
-    exp ← prod_form_proof.expr_coeff_list_to_expr sf.exps.to_list,
-   let cf : expr := sf.coeff.reflect,
-   to_expr ``(%%cf * %%exp : ℚ)
-
-namespace prod_form_proof
-
 /-private meta def mk_prod_ne_zero_prf_aux : expr → list (Σ e : expr, sign_proof e gen_comp.ne) → tactic expr
 | e [] := return e
 | e (⟨e', sp⟩::t) := do ene ← sp.reconstruct, pf ← mk_app ``mul_ne_zero [e, ene], mk_prod_ne_zero_prf_aux pf t

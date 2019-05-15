@@ -10,10 +10,10 @@ meta def expr_coeff_list_to_expr : list (expr × ℚ) → tactic expr
 | [(e, q)] := tactic.to_expr ``(%%(↑q.reflect : expr)*%%e)
 | ((e, q)::t) := do e' ← expr_coeff_list_to_expr t, h ← tactic.to_expr ``(%%(q.reflect : expr)*%%e), tactic.to_expr ``(%%h + %%e')
 
-meta def sum_form.to_expr (sf : sum_form) : tactic expr := 
-expr_coeff_list_to_expr sf.to_list
-
 namespace sum_form
+
+protected meta def to_expr (sf : sum_form) : tactic expr :=
+expr_coeff_list_to_expr sf.to_list
 
 private meta def lt_core (sf1 sf2 : sum_form) : bool := sf1.to_list < sf2.to_list
 meta def lt : sum_form → sum_form → Prop := λ sf1 sf2, ↑(lt_core sf1 sf2)
@@ -80,11 +80,11 @@ end sum_form
 meta structure sum_form_comp :=
 (sf : sum_form) (c : spec_comp) 
 
-meta def sum_form_comp.to_expr (sfc : sum_form_comp) : tactic expr :=
+namespace sum_form_comp
+
+protected meta def to_expr (sfc : sum_form_comp) : tactic expr :=
 do e ← sfc.sf.to_expr,
    sfc.c.to_comp.to_function e `(0 : ℚ)
-
-namespace sum_form_comp
 
 meta def order : sum_form_comp → sum_form_comp → ordering
 | ⟨_, spec_comp.lt⟩ ⟨_, spec_comp.le⟩ := ordering.lt
@@ -136,8 +136,27 @@ meta structure prod_form :=
 (exps : rb_map expr ℤ)
 
 namespace prod_form
-protected meta def one : prod_form := ⟨1, mk_rb_map⟩
 
+private meta def expr_coeff_list_to_expr_aux : expr → list (expr × ℤ) → tactic expr
+| a [] := return a
+| a ((e, z)::t) := do h ← tactic.to_expr ``(rat.pow %%e %%(z.reflect : expr)), tmp ← tactic.to_expr ``(%%a * %%h), expr_coeff_list_to_expr_aux tmp t
+
+meta def expr_coeff_list_to_expr : list (expr × ℤ) → tactic expr
+| [] := return `(1 : ℚ)
+| ((e, z)::t) := do h ← tactic.to_expr ``(rat.pow %%e %%(z.reflect : expr)), expr_coeff_list_to_expr_aux h t
+
+/-meta def expr_coeff_list_to_expr : list (expr × ℤ) → tactic expr
+| [] := return `(1 : ℚ)
+| [(e, z)] := to_expr ``(rat.pow %%e %%(z.reflect : expr))
+| ((e, z)::t) := do e' ← expr_coeff_list_to_expr t, h ← to_expr ``(rat.pow %%e %%(z.reflect : expr)), to_expr ``(%%h * %%e')-/
+
+protected meta def to_expr (sf : prod_form) : tactic expr :=
+do --trace "in prod_form.to_expr",
+   exp ← expr_coeff_list_to_expr sf.exps.to_list,
+   let cf : expr := sf.coeff.reflect,
+   tactic.to_expr ``(%%cf * %%exp : ℚ)
+
+protected meta def one : prod_form := ⟨1, mk_rb_map⟩
 meta instance : has_one prod_form := ⟨prod_form.one⟩
 
 meta def get_exp (pf : prod_form) (e : expr) : ℤ :=
