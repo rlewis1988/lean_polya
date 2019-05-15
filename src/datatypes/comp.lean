@@ -15,7 +15,6 @@ inductive spec_comp
 | lt | le | eq
 
 namespace comp
---instance : decidable_eq comp := by tactic.mk_dec_eq_instance
 
 def dir : comp → ℤ
 | le := -1
@@ -104,7 +103,7 @@ meta instance : has_to_format comp :=
 end comp
 
 namespace gen_comp
---instance : decidable_eq gen_comp := by tactic.mk_dec_eq_instance
+
 instance : inhabited gen_comp := ⟨eq⟩
 
 def dir : gen_comp → ℤ
@@ -227,16 +226,10 @@ def pow (c1 : gen_comp) (z : ℤ) : gen_comp :=
 if (bnot c1.is_less) || (z ≥ 0) || (z % 2 = 0) then c1 
 else c1.reverse
 
-meta def to_format : gen_comp → format
-| le := "≤"
-| lt := "<"
-| ge := "≥"
-| gt := ">"
-| eq := "="
-| ne := "≠"
 
 /--
  Be careful. In the ne or eq case, this returns ge.
+ TODO: should we instantiate has_coe gen_comp comp?
 -/
 meta def to_comp : gen_comp → comp
 | le := comp.le
@@ -263,12 +256,17 @@ meta def to_function (lhs rhs : expr) : gen_comp → tactic expr
 | eq := tactic.to_expr ``(%%lhs = %%rhs)
 | ne := tactic.to_expr ``(%%lhs ≠ %%rhs)
 
-meta instance : has_to_format gen_comp :=
-⟨to_format⟩
+meta def to_format : gen_comp → format
+| le := "≤"
+| lt := "<"
+| ge := "≥"
+| gt := ">"
+| eq := "="
+| ne := "≠"
 
+meta instance : has_to_format gen_comp := ⟨to_format⟩
 
 end gen_comp
-
 
 def spec_comp_and_flipped_of_comp : comp → spec_comp × bool
 | comp.lt := (spec_comp.lt, ff)
@@ -276,9 +274,20 @@ def spec_comp_and_flipped_of_comp : comp → spec_comp × bool
 | comp.gt := (spec_comp.lt, tt)
 | comp.ge := (spec_comp.le, tt)
 
-namespace spec_comp
+meta def point_of_coeff_and_comps (c : ℚ) : option gen_comp → option gen_comp → option (ℚ × ℚ)
+| (some gen_comp.eq) r := point_of_coeff_and_comps none r
+| (some gen_comp.ne) r := point_of_coeff_and_comps none r
+| l (some gen_comp.eq) := point_of_coeff_and_comps l none
+| l (some gen_comp.ne) := point_of_coeff_and_comps l none
+| (some l) none := if l.is_less then some (-1, -1/c) else some (1, 1/c)
+| none (some r) := if r.is_less then some (-c, -1) else some (c, 1)
+| none none := none
+| (some l) (some r) := 
+if (c ≥ 0) && (l.is_less = r.is_less) then point_of_coeff_and_comps (some l) none
+else if (c < 0) && bnot (l.is_less = r.is_less) then point_of_coeff_and_comps (some l) none
+else none
 
---instance : decidable_eq spec_comp := by tactic.mk_dec_eq_instance
+namespace spec_comp
 
 def strongest : spec_comp → spec_comp → spec_comp
 | spec_comp.lt _ := spec_comp.lt
@@ -305,8 +314,7 @@ meta def to_format : spec_comp → format
 | spec_comp.le := "≤"
 | spec_comp.eq := "="
 
-meta instance has_to_format : has_to_format spec_comp :=
-⟨spec_comp.to_format⟩
+meta instance has_to_format : has_to_format spec_comp := ⟨to_format⟩
 
 end spec_comp
 
@@ -318,14 +326,11 @@ inductive slope
 | horiz : slope
 | some : rat → slope
 
---instance slope.decidable_eq : decidable_eq slope := by tactic.mk_dec_eq_instance
-
 meta def slope.to_format : slope → format
 | slope.horiz := "horiz"
 | (slope.some m) := to_fmt m
 
-meta instance : has_to_format slope :=
-⟨slope.to_format⟩ 
+meta instance : has_to_format slope := ⟨slope.to_format⟩ 
 
 meta def slope.invert : slope → slope
 | slope.horiz := slope.some 0
@@ -343,9 +348,6 @@ structure ineq :=
 namespace ineq
 instance : inhabited ineq :=
 ⟨⟨ff, 1, 0⟩⟩
-
-/-meta instance rat.has_to_format : has_to_format ℚ :=
-⟨λ q, ↑"0"⟩-/
 
 def is_axis (i : ineq) : bool :=
 (i.x = 0) || (i.y = 0)
@@ -402,7 +404,6 @@ def of_comp_and_slope (c : comp) : slope → ineq
   else
     if is_less c then ⟨is_strict c, v, 1⟩ else ⟨is_strict c, -v, -1⟩
 
-
 /--
  Turns a < 3b into a > 3b
 -/
@@ -445,19 +446,4 @@ def two_imply (i1 i2 : ineq) (ninq : ineq) : bool :=
 (ninq.clockwise_of i1 && i2.clockwise_of ninq) || (i1.implies ninq) || (i2.implies ninq)
 
 end ineq
-
--- TODO: where to put this?
-meta def point_of_coeff_and_comps (c : ℚ) : option gen_comp → option gen_comp → option (ℚ × ℚ)
-| (some gen_comp.eq) r := point_of_coeff_and_comps none r
-| (some gen_comp.ne) r := point_of_coeff_and_comps none r
-| l (some gen_comp.eq) := point_of_coeff_and_comps l none
-| l (some gen_comp.ne) := point_of_coeff_and_comps l none
-| (some l) none := if l.is_less then some (-1, -1/c) else some (1, 1/c)
-| none (some r) := if r.is_less then some (-c, -1) else some (c, 1)
-| none none := none
-| (some l) (some r) := 
-if (c ≥ 0) && (l.is_less = r.is_less) then point_of_coeff_and_comps (some l) none
-else if (c < 0) && bnot (l.is_less = r.is_less) then point_of_coeff_and_comps (some l) none
-else none
-
 end polya
