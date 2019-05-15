@@ -1,7 +1,9 @@
 import datatypes -- blackboard
+
 namespace polya
 
 section aux
+
 meta def mk_neg : expr → expr
 | `((-%%lhs) * %%rhs) := `(%%lhs * %%rhs : ℚ)
 | `(%%lhs * %%rhs) := `((-%%lhs) * %%rhs : ℚ)
@@ -50,6 +52,9 @@ meta inductive term : Type
 | mul_term : rb_map term ℤ → term
 | atom : expr → term
 
+meta structure sterm :=
+(coeff : ℚ) (body : term)
+
 namespace term
 
 meta mutual def cmp, list_cmp
@@ -79,8 +84,6 @@ meta def mul_term_empty : term :=
 mul_term mk_rb_map
 end term
 
-meta structure sterm :=
-(coeff : ℚ) (body : term)
 
 private meta def add_term_coeff_pair (map : rb_map term ℚ) (st : term × ℚ) : rb_map term ℚ :=
 match map.find st.1 with
@@ -209,8 +212,6 @@ meta instance term.has_to_tactic_format : has_to_tactic_format term :=
 
 meta instance sterm.has_to_tactic_format : has_to_tactic_format sterm :=
 ⟨sterm.to_tactic_format⟩
-
-
 
 section canonize
 
@@ -346,7 +347,7 @@ do sterm.mk clhs tlhs ← expr.canonize lhs,
         tp ← ((if clhs < 0 then gen_comp.reverse else id) op).to_function elhs erhs, --to_expr ``(%%op %%elhs %%erhs),
         mk_app ``canonized_inequality [pf, tp]
 
-meta def canonize_hyp : expr → tactic expr | e :=
+meta def canonize_hyp (e : expr) : tactic expr :=
 do tp ← infer_type e, match tp with
 /-| `(0 > %%e) := do ce ← expr.canonize e,
   mk_app ``canonized_inequality [e, `(0 > %%ce)]
@@ -374,12 +375,4 @@ do tp ← infer_type e, match tp with
 end
 
 end canonize
-
-/-
-variables a b c u v w z y x: ℚ
-
-run_cmd (expr.to_term `(1*a + 3*(b + c) + 5*b)) >>= term.canonize >>= trace
-run_cmd expr.canonize `(rat.pow (1*u + (2*rat.pow (1*rat.pow v 2 + 23*1) 3) + 1*z) 3) >>= trace
--/
-
 end polya
