@@ -1,37 +1,6 @@
 import .datatypes .normalizer3
+
 namespace polya
-
-meta inductive expr_form
-| sum_f : sum_form → expr_form
-| prod_f : prod_form → expr_form
-| atom_f : expr → expr_form
-
-section
-open expr_form
-
-private meta def expr_form.lt_core : expr_form → expr_form → bool
-| (sum_f s1) (sum_f s2) := s1 < s2
-| (sum_f _) (prod_f _) := true
-| (prod_f _) (sum_f _) := false
-| (prod_f p1) (prod_f p2) := p1 < p2
-| (atom_f e1) (atom_f e2) := e1 < e2
-| (atom_f _) _ := true
-| _ (atom_f _) := false
-meta def expr_form.lt : expr_form → expr_form → Prop :=
-λ e1 e2, ↑(expr_form.lt_core e1 e2)
-
-meta instance expr_form.has_lt : has_lt expr_form := ⟨expr_form.lt⟩
-meta instance expr_form.decidable_lt : decidable_rel expr_form.lt := by delta expr_form.lt; apply_instance
-
-meta def expr_form.format : expr_form → format
-| (sum_f sf) := "sum:" ++ to_fmt sf
-| (prod_f pf) := "prod:" ++ to_fmt pf
-| (atom_f e) := "atom:" ++ to_fmt e
-
-meta instance expr_form.has_to_format : has_to_format expr_form := ⟨expr_form.format⟩
-
-end
-
 open native
 
 meta structure blackboard : Type :=

@@ -23,7 +23,6 @@ meta def cmp : sum_form → sum_form → ordering := cmp_using sum_form.lt
 
 meta instance : has_to_format sum_form := by delta sum_form; apply_instance
 
-
 meta def zero : sum_form := rb_map.mk _ _
 meta instance : has_zero sum_form := ⟨sum_form.zero⟩
 
@@ -102,7 +101,6 @@ meta instance sum_form_comp.has_to_format : has_to_format sum_form_comp :=
 meta def scale (m : ℚ) : sum_form_comp → sum_form_comp
 | ⟨sf, c⟩ := ⟨sf.scale m, c⟩
 
-
 meta def normalize : sum_form_comp → sum_form_comp
 | ⟨sf, c⟩ := ⟨sf.normalize, c⟩
 
@@ -111,7 +109,6 @@ meta def is_normalized : sum_form_comp → bool
 
 meta def is_contr : sum_form_comp → bool
 | ⟨sf, c⟩ := (c = spec_comp.lt) && (sf.keys.length = 0)
-
 
 meta def of_ineq (lhs rhs : expr) (id : ineq) : sum_form_comp :=
 match id.to_slope, spec_comp_and_flipped_of_comp id.to_comp with
@@ -132,9 +129,6 @@ meta def of_sign (e : expr) : gen_comp → sum_form_comp
 | gen_comp.ge := ⟨(sum_form.of_expr e).scale (-1), spec_comp.le⟩
 | gen_comp.gt := ⟨(sum_form.of_expr e).scale (-1), spec_comp.lt⟩
 
-
---(sum_form_comp.of_eq lhs rhs c
-
 end sum_form_comp
 
 meta structure prod_form := 
@@ -146,7 +140,7 @@ protected meta def one : prod_form := ⟨1, mk_rb_map⟩
 
 meta instance : has_one prod_form := ⟨prod_form.one⟩
 
-meta def get_exp (pf : prod_form) (e : expr) := 
+meta def get_exp (pf : prod_form) (e : expr) : ℤ :=
 match pf.exps.find e with
 | some z := z
 | none := 0
@@ -201,9 +195,6 @@ meta def is_contr : prod_form_comp → bool
 | ⟨sf, c⟩ := (sf.exps.keys.length = 0) &&
     (((c = spec_comp.lt) && (sf.coeff ≥ 0)) || ((c = spec_comp.le) && (sf.coeff > 0)))
 
-
-
-
 /-
 -- assumes that lhs is positive
 meta def of_ineq_pos_lhs (lhs rhs : expr) (id : ineq) : prod_form_comp :=
@@ -236,7 +227,6 @@ else if s_lhs.is_less then
 else 
    if is_pos_coeff then bnot cmp.is_less else ff 
 
-
 -- lhs cl 0 and rhs cr 0, and iq lhs rhs. cl and cr should be strict ineqs
 meta def of_ineq (lhs rhs : expr) (cl cr : gen_comp) (iq : ineq) : prod_form_comp :=
 match (/-trace_val-/ ("iq slope, lhs, rhs:", iq.to_slope, lhs, rhs)).2.1, (/-trace_val-/ ("iq comp:", iq.to_comp)).2 with
@@ -255,4 +245,34 @@ meta def pow (pfc : prod_form_comp) (z : ℤ) : prod_form_comp :=
 ⟨pfc.pf.pow z, pfc.c⟩
 
 end prod_form_comp
+
+meta inductive expr_form
+| sum_f : sum_form → expr_form
+| prod_f : prod_form → expr_form
+| atom_f : expr → expr_form
+
+namespace expr_form
+
+private meta def lt_core : expr_form → expr_form → bool
+| (sum_f s1) (sum_f s2) := s1 < s2
+| (sum_f _) (prod_f _) := true
+| (prod_f _) (sum_f _) := false
+| (prod_f p1) (prod_f p2) := p1 < p2
+| (atom_f e1) (atom_f e2) := e1 < e2
+| (atom_f _) _ := true
+| _ (atom_f _) := false
+meta def lt : expr_form → expr_form → Prop :=
+λ e1 e2, ↑(lt_core e1 e2)
+
+meta instance has_lt : has_lt expr_form := ⟨lt⟩
+meta instance decidable_lt : decidable_rel lt := by delta lt; apply_instance
+
+meta def format : expr_form → format
+| (sum_f sf) := "sum:" ++ to_fmt sf
+| (prod_f pf) := "prod:" ++ to_fmt pf
+| (atom_f e) := "atom:" ++ to_fmt e
+
+meta instance has_to_format : has_to_format expr_form := ⟨format⟩
+
+end expr_form
 end polya
