@@ -17,11 +17,6 @@ meta structure polya_bundle :=
 
 namespace polya_bundle
 
-meta def default : polya_bundle :=
-{ modules := let m' : hash_map ℕ (λ _, sigma module_op) := ((mk_hash_map id).insert 0 ⟨_, add_module⟩) in m'.insert 1 ⟨_, mul_module⟩, -- elab issues
-  num_modules := 2,
-  bb := blackboard.mk_empty
-}
 
 meta def set_changed (b : bool) : polya_bundle → polya_bundle
 | ⟨modules, n, bb⟩ := ⟨modules, n, bb.set_changed b⟩
@@ -66,7 +61,13 @@ meta def mul_module : module_op (rb_set prod_form_comp_data) :=
 { a := mk_rb_set,
   op := @prod_form.add_new_ineqs }
 
-private lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
+meta def polya_bundle.default : polya_bundle :=
+{ modules := let m' : hash_map ℕ (λ _, sigma module_op) := ((mk_hash_map id).insert 0 ⟨_, add_module⟩) in m'.insert 1 ⟨_, mul_module⟩, -- elab issues
+  num_modules := 2,
+  bb := blackboard.mk_empty
+}
+
+lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
 
 meta def polya_on_hyps (hys : list name) (rct : bool := tt) : tactic unit :=
 do exps ← hys.mmap get_local,
