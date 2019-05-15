@@ -1,4 +1,4 @@
-import .datatypes .sum_form .reconstruction_theorems tactic.norm_num
+import .datatypes .additive .reconstruction_theorems tactic.norm_num
 namespace polya
 
 open expr tactic diseq_proof
