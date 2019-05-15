@@ -2,22 +2,24 @@ import .expr_form
 
 namespace polya
 
-
-section proof_sketch
-
 meta inductive proof_sketch
 | mk (fact : string) (reason : string) (justifications : list proof_sketch) : proof_sketch
 
-meta def proof_sketch.justifications : proof_sketch → list proof_sketch
+namespace proof_sketch
+meta def justifications : proof_sketch → list proof_sketch
 | ⟨_, _, j⟩ := j
 
-meta def proof_sketch.reason : proof_sketch → string
+meta def reason : proof_sketch → string
 | ⟨_, r, _⟩ := r
-
 end proof_sketch
 
-section proof_objs
+/-
+PROOF OBJECTS
+-/
 
+/-
+TODO: rename as diseq.proof, eq.proof, sign.proof, ... ?
+-/
 meta inductive diseq_proof : expr → expr → ℚ → Type
 | hyp : Π lhs rhs c, expr → diseq_proof lhs rhs c
 | sym : Π {lhs rhs c}, Π (dp : diseq_proof lhs rhs c), diseq_proof rhs lhs (1/c)
@@ -92,11 +94,11 @@ meta inductive prod_form_proof : prod_form_comp → Type
 | adhoc : Π pfc, tactic proof_sketch → tactic expr → prod_form_proof pfc
 | fake : Π pd, prod_form_proof pd
 
-open ineq_proof
-meta def ineq_proof.to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
+namespace ineq_proof
+meta def to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
 | p := "proof"
 
-meta def ineq_proof.to_format2 :
+meta def to_format2 :
      Π {lhs rhs : expr} {iq : ineq}, ineq_proof lhs rhs iq → format
 | .(_) .(_) .(_) (hyp (lhs) (rhs) (iq) e) := "hyp"
 | .(_) .(_) .(_) (@sym lhs rhs c ip) := "sym"
@@ -108,12 +110,12 @@ meta def ineq_proof.to_format2 :
 | .(_) .(_) .(_) (@of_sum_form_proof lhs rhs i _ sp) := "of_sum_form"
 | .(_) .(_) .(_) (adhoc _ _ _ _ t) := "adhoc"
 
-meta instance ineq_proof.has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
-⟨ineq_proof.to_format2⟩
+meta instance has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
+⟨to_format2⟩
+end ineq_proof
 
-section
-open sign_proof
-meta def sign_proof.to_format : Π {e c}, sign_proof e c → format
+namespace sign_proof
+meta def to_format : Π {e c}, sign_proof e c → format
 | (_) (_) (hyp _ _ _) := "hyp"
 | (_) (_) (scaled_hyp _ _ _ _) := "scaled_hyp"
 | (_) (_) (ineq_lhs _ _) := "ineq_lhs"
@@ -130,10 +132,11 @@ meta def sign_proof.to_format : Π {e c}, sign_proof e c → format
 | (_) (_) (of_sum_form_proof _ _ _) := "of_sum_form_proof"
 | (_) (_) (adhoc _ _ _ _) := "adhoc"
 
-meta instance sign_proof.has_to_format {e c} : has_to_format (sign_proof e c) := ⟨sign_proof.to_format⟩
-end
+meta instance has_to_format {e c} : has_to_format (sign_proof e c) := ⟨sign_proof.to_format⟩
+end sign_proof
 
-meta def prod_form_proof.to_format {pfc} (pfp : prod_form_proof pfc) : format :=
+namespace prod_form_proof
+meta def to_format {pfc} (pfp : prod_form_proof pfc) : format :=
 begin
 cases pfp,
 exact "of_ineq_proof",
@@ -145,8 +148,13 @@ exact "adhoc",
 exact "fake"
 end
 
-meta instance prod_form_proof.has_to_format {pfc} : has_to_format (prod_form_proof pfc) :=
-⟨prod_form_proof.to_format⟩
+meta instance has_to_format {pfc} : has_to_format (prod_form_proof pfc) :=
+⟨to_format⟩
+end prod_form_proof
 
-end proof_objs
+namespace sum_form_comp -- is this needed?
+meta def of_ineq_proof {lhs rhs id} (ip : ineq_proof lhs rhs id) : sum_form_comp :=
+sum_form_comp.of_ineq lhs rhs id
+end sum_form_comp  
+
 end polya

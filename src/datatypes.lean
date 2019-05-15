@@ -3,7 +3,5 @@ import
     datatypes.comp
     datatypes.expr_form
     datatypes.proof
-    datatypes.data
     datatypes.info
-    datatypes.foo
     datatypes.contrad
