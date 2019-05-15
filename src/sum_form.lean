@@ -182,15 +182,15 @@ private meta def mk_sfcd_list : polya_state (list sum_form_comp_data) :=
 
 private meta def mk_eq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, eq_data lhs rhs :=
 let il := cmps.map (λ sfcd, sfcd.to_eq_data) in
-reduce_option_list il
+list.reduce_option il
 
 private meta def mk_ineq_list (cmps : list sum_form_comp_data) : list Σ lhs rhs, ineq_data lhs rhs :=
 let il := cmps.map (λ sfcd, sfcd.to_ineq_data) in
-reduce_option_list il
+list.reduce_option il
 
 private meta def mk_sign_list (cmps : list sum_form_comp_data) : list Σ e, sign_data e :=
 let il := cmps.map (λ sfcd, sfcd.to_sign_data) in
-reduce_option_list il
+list.reduce_option il
 
 meta def sum_form.add_new_ineqs (start : rb_set sum_form_comp_data := mk_rb_set) : polya_state (rb_set sum_form_comp_data) :=
 do is_contr ← contr_found,
@@ -205,7 +205,6 @@ do is_contr ← contr_found,
    eqs.mmap' (λ s, add_eq s.2.2),
    signs.mmap' (λ s, add_sign s.2),
    return elim_set
-
 
 end bb_process
 

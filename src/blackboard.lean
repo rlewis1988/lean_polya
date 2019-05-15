@@ -62,13 +62,13 @@ bb.changed
 
 meta def get_ineqs : ineq_info lhs rhs :=
 if h : lhs = rhs then by rw h; exact (ineq_info.equal $ eq_data.refl rhs)
-else if expr.lt rhs lhs then bb.ineqs.find' (lhs, rhs) else (bb.ineqs.find' (rhs, lhs)).reverse
+else if expr.lt rhs lhs then bb.ineqs.ifind (lhs, rhs) else (bb.ineqs.ifind (rhs, lhs)).reverse
 
 meta def get_diseqs : diseq_info lhs rhs :=
-if expr.lt rhs lhs then bb.diseqs.find' (lhs, rhs) else (bb.diseqs.find' (rhs, lhs)).reverse
+if expr.lt rhs lhs then bb.diseqs.ifind (lhs, rhs) else (bb.diseqs.ifind (rhs, lhs)).reverse
 
 meta def get_sign_info : sign_info lhs :=
-bb.signs.find' lhs
+bb.signs.ifind lhs
 
 meta def get_sign_comp : option gen_comp :=
 match get_sign_info lhs bb with
@@ -291,11 +291,11 @@ private meta def is_prod_form : expr × expr_form → option (expr × prod_form)
 
 meta def get_add_defs : polya_state (list (expr × sum_form)) :=
 do exprs ← get_expr_expr_form_list,
-   return $ reduce_option_list (exprs.map is_sum_form)
+   return $ list.reduce_option (exprs.map is_sum_form)
 
 meta def get_mul_defs : polya_state (list (expr × prod_form)) :=
 do exprs ← get_expr_expr_form_list,
-   return $ reduce_option_list (exprs.map is_prod_form)
+   return $ list.reduce_option (exprs.map is_prod_form)
 
 meta def rat_one : expr := `(1 : ℚ)
 
