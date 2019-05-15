@@ -1,4 +1,4 @@
-import .blackboard .proof_reconstruction .sum_form .prod_form data.hash_map .normalizer3
+import .blackboard .proof_reconstruction .additive .multiplicative data.hash_map .normalizer3
 
 open polya tactic
 

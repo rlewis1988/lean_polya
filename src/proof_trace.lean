@@ -150,7 +150,6 @@ private meta def sign_proof.sketch_aux
 /-  do s ← format_sign e c,
      return ⟨s, "justification unknown", []⟩-/
 
-
 meta def format_sfc (sfc : sum_form_comp) : tactic string :=
 to_string <$> (sfc.to_expr >>= pp)
 
