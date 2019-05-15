@@ -15,19 +15,27 @@ meta structure polya_bundle :=
 (num_modules : ℕ)
 (bb : blackboard)
 
-meta def polya_bundle.set_changed (b : bool) : polya_bundle → polya_bundle
+namespace polya_bundle
+
+meta def default : polya_bundle :=
+{ modules := let m' : hash_map ℕ (λ _, sigma module_op) := ((mk_hash_map id).insert 0 ⟨_, add_module⟩) in m'.insert 1 ⟨_, mul_module⟩, -- elab issues
+  num_modules := 2,
+  bb := blackboard.mk_empty
+}
+
+meta def set_changed (b : bool) : polya_bundle → polya_bundle
 | ⟨modules, n, bb⟩ := ⟨modules, n, bb.set_changed b⟩
 
-meta def polya_bundle.is_changed (pb : polya_bundle) : bool :=
+meta def is_changed (pb : polya_bundle) : bool :=
 pb.bb.is_changed
 
-meta def polya_bundle.contr_found (pb : polya_bundle) : bool :=
+meta def contr_found (pb : polya_bundle) : bool :=
 pb.bb.contr_found
 
-meta def polya_bundle.set_blackboard (pb : polya_bundle) (bb' : blackboard) : polya_bundle :=
+meta def set_blackboard (pb : polya_bundle) (bb' : blackboard) : polya_bundle :=
 {pb with bb := bb'}
 
-meta def polya_bundle.update_ith (i : ℕ) : polya_bundle → polya_bundle
+meta def update_ith (i : ℕ) : polya_bundle → polya_bundle
 | ⟨modules, n, bb⟩ := 
   match modules.find i with
   | some ⟨α, a, op⟩ := 
@@ -37,14 +45,16 @@ meta def polya_bundle.update_ith (i : ℕ) : polya_bundle → polya_bundle
   | none := ⟨modules, n, bb⟩
   end
 
-meta def polya_bundle.one_cycle (bundle : polya_bundle) : polya_bundle :=
+meta def one_cycle (bundle : polya_bundle) : polya_bundle :=
 (list.range bundle.num_modules).reverse.foldl (λ pb k, pb.update_ith k) bundle
 
-meta def polya_bundle.cycle : ℕ → polya_bundle → (ℕ × polya_bundle) | n pb :=
+meta def cycle : ℕ → polya_bundle → (ℕ × polya_bundle) | n pb :=
 let pb' := pb.set_changed ff,
     pb' := pb'.one_cycle,
     ch := pb'.is_changed, cont := pb'.contr_found in
-if ch && bnot cont then polya_bundle.cycle (trace_val (n+1)) pb' else ((n+1), pb')
+if ch && bnot cont then cycle (trace_val (n+1)) pb' else ((n+1), pb')
+
+end polya_bundle
 
 open native
 
@@ -56,13 +66,7 @@ meta def mul_module : module_op (rb_set prod_form_comp_data) :=
 { a := mk_rb_set,
   op := @prod_form.add_new_ineqs }
 
-meta def polya_bundle.default : polya_bundle :=
-{ modules := let m' : hash_map ℕ (λ _, sigma module_op) := ((mk_hash_map id).insert 0 ⟨_, add_module⟩) in m'.insert 1 ⟨_, mul_module⟩, -- elab issues
-  num_modules := 2,
-  bb := blackboard.mk_empty
-}
-
-lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
+private lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
 
 meta def polya_on_hyps (hys : list name) (rct : bool := tt) : tactic unit :=
 do exps ← hys.mmap get_local,
