@@ -9,10 +9,29 @@ inductive term : Type
 | mul : term → term → term
 | sca : term → ℚ → term
 | exp : term → ℤ → term
+
 namespace term
 
 private def blt : term → term → bool
-| _ _ := ff --TODO
+| zero       zero       := ff
+| _          zero       := ff
+| zero       _          := tt
+| one        one        := ff
+| _          one        := ff
+| one        _          := tt
+| (atm i)    (atm j)    := i < j
+| _          (atm _)    := ff
+| (atm _)    _          := tt
+| (add x x') (add y y') := blt x y ∨ (x = y ∧ blt x' y')
+| _          (add _ _)  := ff
+| (add _ _)  _          := tt
+| (mul x x') (mul y y') := blt x y ∨ (x = y ∧ blt x' y')
+| _          (mul _ _)  := ff
+| (mul _ _)  _          := tt
+| (sca x a)  (sca y b)  := blt x y ∨ (x = y ∧ a < b)
+| _          (sca _ _)  := ff
+| (sca _ _)  _          := tt
+| (exp x n)  (exp y m)  := blt x y ∨ (x = y ∧ n < m)
 
 def lt : term → term → Prop :=
 λ x y, blt x y
