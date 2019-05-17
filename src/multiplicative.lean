@@ -27,13 +27,13 @@ local attribute [instance] inh_sd
 open hash_map
 
 private meta def si (e : expr) : mul_state (sign_data e) :=
-(λ hm : σ, hm.1.find' e) <$> get
+(λ hm : σ, hm.1.ifind e) <$> get
 
 private meta def si' (e : expr) : mul_state (option (sign_data e)) :=
 (λ hm : σ, hm.1.find e) <$> get
 
 private meta def oi (e : expr) : mul_state (ineq_info e rat_one) :=
-(λ hm : σ, hm.2.find' e) <$> get
+(λ hm : σ, hm.2.ifind e) <$> get
 
 -- returns true if the mul_state implies coeff*e c 1
 private meta def implies_one_comp (coeff : ℚ) (e : expr) (c : comp) : mul_state bool :=
@@ -188,9 +188,9 @@ do --sds ← pf.exps.keys.mmap $ λ e, sigma.mk e <$> (si e),
 /--
  Assumes known_signs.length = pf.length
 -/
-meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : list (option gen_comp)) : mul_state (option Σ e', sign_data e') :=
+meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : list gen_comp) : mul_state (option Σ e', sign_data e') :=
   let prod_sign := 
-    (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod (known_signs.map option.iget) in
+    (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod known_signs in
   match prod_sign with
   | some ks :=
     do sis ← all_signs,
@@ -205,7 +205,7 @@ meta def infer_expr_sign_data_aux (e : expr) (pf : prod_form) (known_signs : lis
 -/
 meta def infer_expr_sign_data (e : expr) (pf : prod_form) : mul_state (option Σ e', sign_data e') :=
 do sds ← pf.exps.keys.mmap (sign_of_term pf),
-   let known_signs := (sds.bfilter option.is_some),
+   let known_signs := sds.reduce_option,
    if pf.exps.keys.length = known_signs.length then
     infer_expr_sign_data_aux e pf known_signs
    else return none
@@ -225,7 +225,7 @@ end
 meta def recheck_known_signs (e : expr) (sd : option (sign_data e)) (pf : prod_form) (ks : list gen_comp) (flip_coeff : bool) : mul_state (list Σ e', sign_data e') :=
 match sd with
 | none := return []
-| some ⟨es, p⟩ := reduce_option_list <$>
+| some ⟨es, p⟩ := list.reduce_option <$>
 ((list.range ks.length).mmap $ λ i,
   match recheck_known_signs_aux ks es flip_coeff i with
   | some c := 
@@ -242,11 +242,11 @@ end
 -/
 meta def get_unknown_sign_data (e : expr) (sd : option (sign_data e)) (pf : prod_form) : mul_state (list Σ e', sign_data e') :=
 do sds ← pf.exps.keys.mmap (sign_of_term pf),
-   let known_signs := (sds.bfilter option.is_some),
+   let known_signs := sds.reduce_option,
    let num_vars := pf.exps.keys.length,
    if (known_signs.length = num_vars - 1) && sd.is_some then
      let prod_sign := 
-      (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod (known_signs.map option.iget) in
+      (if pf.coeff < 0 then gen_comp.reverse else id) <$> sign_of_prod known_signs in
      match prod_sign with
      | some ks :=
        match get_remaining_sign ks sd.iget.c with
@@ -274,7 +274,7 @@ do sds ← pf.exps.keys.mmap (sign_of_term pf),
      | none := return none
      end-/
      do k1 ← infer_expr_sign_data_aux e pf known_signs,
-        k2 ← recheck_known_signs e sd pf (known_signs.map option.iget) (pf.coeff < 0),
+        k2 ← recheck_known_signs e sd pf known_signs (pf.coeff < 0),
         match k1 with
         | some k1' := return $ k1'::k2
         | none := return k2
@@ -807,8 +807,8 @@ end
 
 private meta def mk_pfcd_list : polya_state (list prod_form_comp_data) :=
 do il ← /-trace_val <$>-/ get_ineq_list, el ← /-trace_val <$>-/ get_eq_list, dfs ← /-trace_val <$> -/ get_mul_defs,
-   il' ← /-trace_val <$>-/ reduce_option_list <$> il.mmap (λ ⟨_, _, id⟩, pfcd_of_ineq_data id),
-   el' ← /-trace_val <$>-/ reduce_option_list <$> el.mmap (λ ⟨_, _, ed⟩, pfcd_of_eq_data ed),
+   il' ← /-trace_val <$>-/ list.reduce_option <$> il.mmap (λ ⟨_, _, id⟩, pfcd_of_ineq_data id),
+   el' ← /-trace_val <$>-/ list.reduce_option <$> el.mmap (λ ⟨_, _, ed⟩, pfcd_of_eq_data ed),
    let dfs' := /-trace_val $-/ dfs.map mk_eqs_of_expr_prod_form_pair in -- TODO: does this filter ones without sign info?
    return $ list.map remove_one_from_pfcd $ ((il'.append el').append dfs').qsort (λ a b, if cmp a b = ordering.lt then tt else ff)
 
@@ -1005,7 +1005,7 @@ end
 private meta def gather_new_sign_info_pass_two : polya_state (list Σ e, sign_data e) :=
 do exs ← get_mul_defs,
    let exs := (/-trace_val-/ ("of length one:", exs.filter (λ e, e.2.exps.size = 1))).2,
-   reduce_option_list <$> exs.mmap (λ p, gather_new_sign_info_pass_two_aux p.1 p.2)
+   list.reduce_option <$> exs.mmap (λ p, gather_new_sign_info_pass_two_aux p.1 p.2)
 
 private meta def gather_new_sign_info : polya_state (list Σ e, sign_data e) :=
 do l1 ← gather_new_sign_info_pass_one,
@@ -1018,7 +1018,7 @@ do il ← cmps.mmap (λ pfcd, pfcd.to_ineq_data),
 
 private meta def mk_eq_list (cmps : list prod_form_comp_data) : mul_state (list Σ lhs rhs, eq_data lhs rhs) :=
 do il ← cmps.mmap (λ pfcd, pfcd.to_eq_data),
-   return $ reduce_option_list il
+   return $ list.reduce_option il
 
 
 private meta def mk_ineq_list_of_unelimed (cmps : list prod_form_comp_data) (start : rb_set prod_form_comp_data := mk_rb_set) : mul_state (rb_set prod_form_comp_data × list Σ lhs rhs, ineq_data lhs rhs) :=

@@ -1,4 +1,4 @@
-import .control .proof_trace
+import control proof_trace
 
 open polya tactic expr
 

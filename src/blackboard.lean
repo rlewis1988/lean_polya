@@ -1,37 +1,6 @@
-import .datatypes .normalizer3
+import .datatypes .normalizer
+
 namespace polya
-
-meta inductive expr_form
-| sum_f : sum_form → expr_form
-| prod_f : prod_form → expr_form
-| atom_f : expr → expr_form
-
-section
-open expr_form
-
-private meta def expr_form.lt_core : expr_form → expr_form → bool
-| (sum_f s1) (sum_f s2) := s1 < s2
-| (sum_f _) (prod_f _) := true
-| (prod_f _) (sum_f _) := false
-| (prod_f p1) (prod_f p2) := p1 < p2
-| (atom_f e1) (atom_f e2) := e1 < e2
-| (atom_f _) _ := true
-| _ (atom_f _) := false
-meta def expr_form.lt : expr_form → expr_form → Prop :=
-λ e1 e2, ↑(expr_form.lt_core e1 e2)
-
-meta instance expr_form.has_lt : has_lt expr_form := ⟨expr_form.lt⟩
-meta instance expr_form.decidable_lt : decidable_rel expr_form.lt := by delta expr_form.lt; apply_instance
-
-meta def expr_form.format : expr_form → format
-| (sum_f sf) := "sum:" ++ to_fmt sf
-| (prod_f pf) := "prod:" ++ to_fmt pf
-| (atom_f e) := "atom:" ++ to_fmt e
-
-meta instance expr_form.has_to_format : has_to_format expr_form := ⟨expr_form.format⟩
-
-end
-
 open native
 
 meta structure blackboard : Type :=
@@ -62,13 +31,13 @@ bb.changed
 
 meta def get_ineqs : ineq_info lhs rhs :=
 if h : lhs = rhs then by rw h; exact (ineq_info.equal $ eq_data.refl rhs)
-else if expr.lt rhs lhs then bb.ineqs.find' (lhs, rhs) else (bb.ineqs.find' (rhs, lhs)).reverse
+else if expr.lt rhs lhs then bb.ineqs.ifind (lhs, rhs) else (bb.ineqs.ifind (rhs, lhs)).reverse
 
 meta def get_diseqs : diseq_info lhs rhs :=
-if expr.lt rhs lhs then bb.diseqs.find' (lhs, rhs) else (bb.diseqs.find' (rhs, lhs)).reverse
+if expr.lt rhs lhs then bb.diseqs.ifind (lhs, rhs) else (bb.diseqs.ifind (rhs, lhs)).reverse
 
 meta def get_sign_info : sign_info lhs :=
-bb.signs.find' lhs
+bb.signs.ifind lhs
 
 meta def get_sign_comp : option gen_comp :=
 match get_sign_info lhs bb with
@@ -291,11 +260,11 @@ private meta def is_prod_form : expr × expr_form → option (expr × prod_form)
 
 meta def get_add_defs : polya_state (list (expr × sum_form)) :=
 do exprs ← get_expr_expr_form_list,
-   return $ reduce_option_list (exprs.map is_sum_form)
+   return $ list.reduce_option (exprs.map is_sum_form)
 
 meta def get_mul_defs : polya_state (list (expr × prod_form)) :=
 do exprs ← get_expr_expr_form_list,
-   return $ reduce_option_list (exprs.map is_prod_form)
+   return $ list.reduce_option (exprs.map is_prod_form)
 
 meta def rat_one : expr := `(1 : ℚ)
 
@@ -625,13 +594,52 @@ do bb' ← monad.foldl process_expr_tac bb [lhs, rhs],
 meta def tac_add_sign {e} (bb : blackboard) (sd : sign_data e) : tactic blackboard :=
 do bb' ← process_expr_tac bb e,
    return ((add_sign sd).run bb').2
-/-
 
+/-
+TODO: rename?
+-/
+open tactic
+meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
+--infer_type e >>= trace >>
+do e ← canonize_hyp e, tp ← infer_type e, trace e, trace tp,
+(do (x, y, ie1) ← expr_to_ineq tp,
+--    trace x, trace y, trace ie1,
+    id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
+    --return (add_ineq id b).2)
+    tac_add_ineq b id)
+<|>
+(do (x, y, ie1) ← expr_to_eq tp,
+    id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
+    --return (add_eq id b).2)
+    tac_add_eq b id)
+<|>
+(do (x, c) ← expr_to_sign tp,
+    cf ← coeff_of_expr x,
+    match cf with
+    | (none, e') := do
+    sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
+--    trace "calling tac-add-sign",
+    bb ← tac_add_sign b sd,
+--    trace "tac_add_sign done",
+    return bb
+    | (some q, e') := 
+    do trace q, trace e', sd ← return $ trace_val $ sign_data.mk (if q > 0 then c else c.reverse) (sign_proof.scaled_hyp e' _ e q),
+       tac_add_sign b sd 
+    end)
+<|>
+(do (x, y, ie1) ← expr_to_diseq tp,
+    sd ← return $ diseq_data.mk ie1 (diseq_proof.hyp x y _ e),
+    tac_add_diseq b sd)
+<|>
+trace "failed" >> trace e >> fail "add_comp_to_blackboard failed"
+
+meta def add_proofs_to_blackboard (b : blackboard) (l : list expr) : tactic blackboard :=
+monad.foldl add_proof_to_blackboard b l
 
 /- assumes the second input is the type of prf
 meta def process_comp (prf : expr) : expr → polya_state unit
 | ```(%%lhs ≥ %%rhs) := process_expr lhs >> process_expr rhs >> 
-    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩-/
+    add_ineq ⟨ineq.of_comp_and_slope , ineq_proof.hyp lhs rhs _ prf⟩
 | _ := skip-/
 
 end tactics

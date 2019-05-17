@@ -1,17 +1,8 @@
 import datatypes -- blackboard
+
 namespace polya
 
 section aux
-#check expr.is_numeral
-
-meta def is_num : expr → bool
-| `(bit0 %%e) := is_num e
-| `(bit1 %%e) := is_num e
-| `(@has_zero.zero _ _) := tt
-| `(@has_one.one _ _) := tt
-| `(-%%a) := is_num a
-| `(%%a / %%b) := is_num a && is_num b
-| _ := ff
 
 meta def mk_neg : expr → expr
 | `((-%%lhs) * %%rhs) := `(%%lhs * %%rhs : ℚ)
@@ -61,6 +52,9 @@ meta inductive term : Type
 | mul_term : rb_map term ℤ → term
 | atom : expr → term
 
+meta structure sterm :=
+(coeff : ℚ) (body : term)
+
 namespace term
 
 meta mutual def cmp, list_cmp
@@ -90,8 +84,6 @@ meta def mul_term_empty : term :=
 mul_term mk_rb_map
 end term
 
-meta structure sterm :=
-(coeff : ℚ) (body : term)
 
 private meta def add_term_coeff_pair (map : rb_map term ℚ) (st : term × ℚ) : rb_map term ℚ :=
 match map.find st.1 with
@@ -152,7 +144,7 @@ private meta def split_num_nonnum_prod_comps : list expr → list expr × list e
 | [] := ([], [])
 | (e::l) :=
    let (t1, t2) := split_num_nonnum_prod_comps l in
-   if is_num e then (e::t1, t2) else (t1, e::t2)
+   if expr.is_numeral e then (e::t1, t2) else (t1, e::t2)
 
 
 private meta def fold_op_app_aux (op : pexpr) : expr → list expr → tactic expr
@@ -164,7 +156,7 @@ private meta def fold_op_app (op : pexpr) (dflt : expr) : list expr → tactic e
 | (h::t) := fold_op_app_aux op h t
 
 meta def expr.to_sterm : expr → tactic sterm | e :=
-if is_num e then
+if expr.is_numeral e then
   do q ← eval_expr ℚ e,
      return ⟨q, (term.atom `(1 : ℚ))⟩
 else if is_prod e then
@@ -177,7 +169,7 @@ else sterm.mk 1 <$> expr.to_term_aux expr.to_sterm e
 
 /-match e with
 | `(%%c*%%t) := 
-  if is_num c then
+  if expr.is_numeral c then
     do q ← eval_expr ℚ c,
        sterm.scale q <$> expr.to_sterm t
   else sterm.mk 1 <$> expr.to_term_aux expr.to_sterm e
@@ -220,8 +212,6 @@ meta instance term.has_to_tactic_format : has_to_tactic_format term :=
 
 meta instance sterm.has_to_tactic_format : has_to_tactic_format sterm :=
 ⟨sterm.to_tactic_format⟩
-
-
 
 section canonize
 
@@ -357,7 +347,7 @@ do sterm.mk clhs tlhs ← expr.canonize lhs,
         tp ← ((if clhs < 0 then gen_comp.reverse else id) op).to_function elhs erhs, --to_expr ``(%%op %%elhs %%erhs),
         mk_app ``canonized_inequality [pf, tp]
 
-meta def canonize_hyp : expr → tactic expr | e :=
+meta def canonize_hyp (e : expr) : tactic expr :=
 do tp ← infer_type e, match tp with
 /-| `(0 > %%e) := do ce ← expr.canonize e,
   mk_app ``canonized_inequality [e, `(0 > %%ce)]
@@ -385,12 +375,4 @@ do tp ← infer_type e, match tp with
 end
 
 end canonize
-
-/-
-variables a b c u v w z y x: ℚ
-
-run_cmd (expr.to_term `(1*a + 3*(b + c) + 5*b)) >>= term.canonize >>= trace
-run_cmd expr.canonize `(rat.pow (1*u + (2*rat.pow (1*rat.pow v 2 + 23*1) 3) + 1*z) 3) >>= trace
--/
-
 end polya

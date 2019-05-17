@@ -123,3 +123,17 @@ do lhs' ← tactic.i_to_expr lhs,
 
 end interactive
 end polya_tactic 
+
+open lean.parser interactive
+
+--meta def tactic.interactive.add_comp_to_blackboard' (e : parse texpr) (b : blackboard) : tactic blackboard :=
+--do e' ← i_to_expr e, add_comp_to_blackboard e' b
+
+meta def tactic.interactive.polya (ns : parse (many ident)) : tactic unit :=
+polya_on_hyps ns
+
+meta def tactic.interactive.polya_l (ns : parse (many ident)) : tactic unit :=
+polya_on_hyps ns ff
+
+meta def tactic.interactive.polya_all (rct : parse (optional (tk "!"))) : tactic unit :=
+polya_on_all_hyps rct.is_some
