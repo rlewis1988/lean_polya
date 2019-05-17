@@ -1,6 +1,12 @@
- import data.real.basic
+import data.real.basic --data.list.alist data.finmap
 
-@[derive decidable_eq]
+section
+local attribute [semireducible] reflected
+meta instance rat.reflect : has_reflect ℚ
+| ⟨n, d, _, _⟩ := `(rat.mk_nat %%(reflect n) %%(reflect d))
+end
+
+@[derive decidable_eq, derive has_reflect]
 inductive term : Type
 | zero : term
 | one : term
@@ -11,6 +17,19 @@ inductive term : Type
 | exp : term → ℤ → term
 
 namespace term
+
+private def str : term → string
+| zero := "zero"
+| one  := "one"
+| (atm i) := "(atm " ++ to_string i ++ ")"
+| (add x y) := "(add " ++ str x ++ " " ++ str y ++ ")"
+| (mul x y) := "(mul " ++ str x ++ " " ++ str y ++ ")"
+| (sca x c) := "(sca " ++ str x ++ " " ++ to_string c ++ ")"
+| (exp x n) := "(sca " ++ str x ++ " " ++ to_string n ++ ")"
+
+instance : has_to_string term := ⟨str⟩
+meta instance : has_to_format term := ⟨λ t, str t⟩
+meta instance : has_to_tactic_format term := ⟨λ t, return (str t)⟩
 
 private def blt : term → term → bool
 | zero       zero       := ff
@@ -39,21 +58,20 @@ def lt : term → term → Prop :=
 instance : has_lt term := ⟨lt⟩
 instance : decidable_rel lt := by delta lt; apply_instance
 
---def dict (α : Type) := ℕ → α
+-- dictionary for the atoms
 structure dict (α : Type*) := (map : ℕ → α)
 variables {α : Type*} [discrete_field α]
 
-def eval_term (map : ℕ → α) : term → α
+def eval_term (d : dict α) : term → α
 | zero := 0
 | one := 1
-| (atm i) := map i
+| (atm i) := d.map i
 | (add x y) := eval_term x + eval_term y
 | (mul x y) := eval_term x * eval_term y
 | (sca x c) := eval_term x * c
 | (exp x n) := eval_term x ^ n
 
---instance : has_coe_to_fun (dict α) := ⟨λ _, ℕ → α, dict.map⟩
-instance to_eval : has_coe_to_fun (dict α) := ⟨λ _, term → α, eval_term ∘ dict.map⟩
+instance : has_coe_to_fun (dict α) := ⟨λ _, term → α, eval_term⟩
 
 section
 variable {eval : dict α}
@@ -81,13 +99,13 @@ def foo (eval : dict α) (x y : term) : Type :=
 
 namespace foo
 
-variable (eval : dict α)
+variable {eval : dict α}
 variables {x y z : term}
 
 def of_eq (h : eval x = eval y) : foo eval x y :=
 ⟨[], λ _, h⟩
 
-def rfl : foo eval x x := of_eq _ (congr_arg _ rfl)
+def rfl : foo eval x x := of_eq (congr_arg _ rfl)
 
 def trans (u : foo eval x y) (v : foo eval y z) : foo eval x z :=
 ⟨list.union u.val v.val,
@@ -106,7 +124,7 @@ def comp {eval : dict α} (f g : step eval) : step eval :=
 assume x : term,
 let ⟨y, pr1⟩ := g x in
 let ⟨z, pr2⟩ := f y in
-⟨z, foo.trans _ pr1 pr2⟩
+⟨z, foo.trans pr1 pr2⟩
 
 infixr ` ∘ ` := comp
 
@@ -119,3 +137,75 @@ def g : step eval := sorry
 def canonize : step eval := f ∘ g
 
 end term
+
+namespace list
+
+def to_dict {α} [inhabited α] (l : list α) : term.dict α :=
+⟨λ i, list.func.get i l⟩
+
+open tactic
+
+meta def expr_reflect (type : expr) : list expr → tactic expr
+| [] := to_expr ``([] : list %%type)
+| (h::t) := do e ← expr_reflect t, to_expr ``(list.cons (%%h : %%type) %%e)
+
+end list
+
+meta def cache_ty := ℕ × list expr
+meta def state_dict : Type → Type := state cache_ty
+
+meta def cache_ty.mk : cache_ty := (0, [])
+
+namespace state_dict
+meta instance : monad state_dict := state_t.monad 
+meta instance : monad_state cache_ty state_dict := state_t.monad_state
+
+meta def add_atom (e : expr) : state_dict ℕ :=
+do
+    (i, acc) ← get,
+    let i : ℕ := list.length acc,
+    put (i+1, e::acc),
+    return i
+
+end state_dict
+
+namespace tactic
+open term native state_dict
+
+private meta def to_term_aux : expr → state_dict term
+| `(0) := return zero 
+| `(1) := return one
+| `(%%a + %%b) := do
+    x ← to_term_aux a,
+    y ← to_term_aux b,
+    return (add x y)
+| `(%%a * %%b) := do
+    x ← to_term_aux a,
+    y ← to_term_aux b,
+    return (mul x y)
+| e := do
+    i ← add_atom e,
+    return (atm i)
+
+meta def term_of_expr (e : expr) : tactic (term × expr) :=
+do
+    let (t, (i, acc)) := (to_term_aux e).run cache_ty.mk,
+    atoms ← acc.expr_reflect `(ℝ),
+    dict ← mk_app `list.to_dict [atoms],
+    p ← to_expr ``(%%e = (%%dict : term → ℝ) %%(reflect t)),
+    return (t, p)
+
+end tactic
+
+open tactic
+meta def test (e : expr) : tactic unit :=
+do
+    (t, hyp) ← term_of_expr e,
+    trace t,
+    ((), pr) ← solve_aux hyp `[simp],
+    infer_type pr >>= trace
+
+constants x y z : ℝ
+
+set_option profiler true
+run_cmd test `(x * y + 1 * z + 0)
