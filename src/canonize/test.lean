@@ -1,14 +1,16 @@
 import .term .tactic
 
-open tactic polya.term polya.tactic
+open tactic polya polya.term
+
+-- build term and proove equality
+meta def test (e : expr) : tactic unit :=
+do
+    let (t, s) := (term_of_expr e).run ∅,
+    dict ← s.get_dict,
+    pr ← eq_eval e dict t,
+    infer_type pr >>= trace
 
 constants x y z : ℝ
 
-meta def test (e : expr) : tactic unit :=
-do
-    (t, hyp) ← term_of_expr e,
-    ((), pr) ← solve_aux hyp `[refl; done],
-    infer_type pr >>= trace
-
-set_option trace.app_builder true
-run_cmd test `(x*y + z*1 + y*0)
+set_option profiler true
+run_cmd test `(x * y + 1 * x + 0 * (z + y))

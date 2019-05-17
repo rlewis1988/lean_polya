@@ -1,17 +1,10 @@
-import data.real.basic --data.list.alist data.finmap
+import data.real.basic
 
 section --TODO: move to data.rat?
 local attribute [semireducible] reflected
 meta instance rat.reflect : has_reflect ℚ
 | ⟨n, d, _, _⟩ := `(rat.mk_nat %%(reflect n) %%(reflect d))
 end
-
-namespace list
-open tactic
-meta def expr_reflect (type : expr) : list expr → tactic expr
-| [] := to_expr ``([] : list %%type)
-| (h::t) := do e ← expr_reflect t, to_expr ``(list.cons (%%h : %%type) %%e)
-end list
 
 namespace polya
 

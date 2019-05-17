@@ -1,68 +1,70 @@
-import .term
+import .term data.list.alist data.finmap
+
+namespace polya
+open term tactic
 
 def list.to_dict {α} [inhabited α] (l : list α) : dict α :=
 ⟨λ i, list.func.get i l.reverse⟩
---TODO: more efficient implementatio
+--TODO: more efficient implementation
 
-meta def cache_ty := ℕ × list expr
-meta def cache_ty.mk : cache_ty := (0, [])
+open native
+
+meta structure cache_ty :=
+(new_atom : ℕ)
+(atoms : rb_map expr ℕ)
+(val : tactic expr)
+
+private meta def empty_val : tactic expr :=
+to_expr ``(@has_emptyc.emptyc (finmap (λ _ : ℕ, ℝ)) _)
+meta instance : has_emptyc cache_ty := ⟨⟨0, rb_map.mk _ _, empty_val⟩⟩
 
 meta def state_dict : Type → Type := state cache_ty
 
-namespace state_dict
+meta instance state_dict_monad : monad state_dict := state_t.monad 
+meta instance state_dict_monad_state : monad_state cache_ty state_dict := state_t.monad_state
 
-meta instance : monad state_dict := state_t.monad 
-meta instance : monad_state cache_ty state_dict := state_t.monad_state
-
-meta def add_atom (e : expr) : state_dict ℕ :=
+meta def insert_val (k : ℕ) (e : expr) (m : expr) : tactic expr :=
 do
-    (i, acc) ← get,
-    let i : ℕ := list.length acc,
-    put (i+1, e::acc),
+mk_app `finmap.insert [reflect k, e, m]
+
+meta def get_atom (e : expr) : state_dict ℕ :=
+get >>= λ s,
+match s.atoms.find e with
+| (some i) := return i
+| none     := do
+    let i := s.new_atom,
+    put ⟨i + 1, s.atoms.insert e i, s.val >>= insert_val i e⟩,
     return i
+end
 
-end state_dict
+def finmap.to_dict (m : finmap (λ _ : ℕ, ℝ)) : dict ℝ :=
+⟨λ i, match finmap.lookup i m with (some x) := x | _ := 0 end⟩
 
-namespace tactic
-namespace term
-open tactic polya.state_dict
+meta def cache_ty.get_dict (s : cache_ty) : tactic expr :=
+do
+    m ← s.val,
+    mk_app ``finmap.to_dict [m]
 
-private meta def of_expr_aux : expr → state_dict term
+meta def term_of_expr : expr → state_dict term
 | `(0 : ℝ) := return zero 
 | `(1 : ℝ) := return one
 | `(%%a + %%b) := do
-    x ← of_expr_aux a,
-    y ← of_expr_aux b,
+    x ← term_of_expr a,
+    y ← term_of_expr b,
     return (add x y)
 | `(%%a * %%b) := do
-    x ← of_expr_aux a,
-    y ← of_expr_aux b,
+    x ← term_of_expr a,
+    y ← term_of_expr b,
     return (mul x y)
 | e := do
-    i ← add_atom e,
+    i ← get_atom e,
     return (atm i)
 --TODO: other patterns
 
-meta def of_expr (e : expr) : tactic (term × expr) :=
+meta def eq_eval (e : expr) (dict : expr) (t : term) : tactic expr :=
 do
-    let (t, (i, acc)) := (of_expr_aux e).run cache_ty.mk,
-    atoms ← acc.expr_reflect `(ℝ),
-    dict ← mk_app ``list.to_dict [atoms],
-    p ← to_expr ``(%%e = (%%dict).eval %%(reflect t)),
-    return (t, p)
-
-meta def test (e : expr) : tactic unit :=
-do
-    (t, hyp) ← term.of_expr e,
-    ((), pr) ← solve_aux hyp `[refl; done],
-    infer_type pr >>= trace
-
-end term
-end tactic
-
-constants x y z : ℝ
-
-set_option trace.app_builder true
-run_cmd tactic.term.test `(x*y + z*1 + y*0)
+    h ← to_expr ``(%%e = (%%dict).eval %%(reflect t)),
+    ((), pr) ← solve_aux h `[refl; done],
+    return pr
 
 end polya
