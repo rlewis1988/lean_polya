@@ -95,7 +95,7 @@ def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
         (v.property ρ $ λ c hc, H _ (finset.mem_union_right _ hc))
 ⟩
 
-theorem add_comm : (add x y) ~ (add y x) :=
+def add_comm : (add x y) ~ (add y x) :=
 ⟨∅, by {intros, resetI, apply add_comm}⟩
 
 end eq_val
