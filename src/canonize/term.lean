@@ -193,6 +193,9 @@ def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
 def add_comm : (x + y) ~ (y + x) :=
 ⟨∅, by {intros, resetI, apply add_comm}⟩
 
+def add_assoc : (x + y + z) ~ (x + (y + z)) :=
+⟨∅, by {intros, resetI, unfold_coes, apply add_assoc}⟩
+
 end eq_val
 
 def step : Type := Π (x : @nterm γ _ _), Σ (y : @nterm γ _ _), x ~ y
@@ -209,10 +212,14 @@ infixr ` ∘ ` := comp
 
 end step
 
-def f : @step γ _ _ := sorry
-def g : @step γ _ _ := sorry
+def id : @step γ _ _
+| x := ⟨x, eq_val.rfl⟩
 
-def canonize : @step γ _ _ := f ∘ g
+def f : @step γ _ _
+| (add (add x y) z) := ⟨add x (add y z), eq_val.add_assoc⟩
+| x := id x
+
+def canonize : @step γ _ _ := sorry
 
 end nterm
 
