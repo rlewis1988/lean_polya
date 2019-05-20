@@ -5,7 +5,10 @@ open tactic polya polya.term
 -- build term and proove equality
 meta def test (e : expr) : tactic unit :=
 do
-    (_, pr) ← nterm_of_expr e,
+    (t, pr) ← nterm_of_expr e,
+    let t' := t.pp,
+    trace (reflect t'),
+    trace "",
     infer_type pr >>= trace
 
 constants x y z : ℝ

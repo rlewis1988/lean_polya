@@ -191,6 +191,31 @@ begin
     { sorry }, --TODO
 end
 
+instance coe_atom : has_coe ℕ (@nterm γ _ _) := ⟨atom⟩
+instance coe_const: has_coe γ (@nterm γ _ _) := ⟨const⟩
+instance : has_zero (@nterm γ _ _) := ⟨const 0⟩
+instance : has_one (@nterm γ _ _) := ⟨const 1⟩
+instance : has_add (@nterm γ _ _) := ⟨add⟩
+instance : has_mul (@nterm γ _ _) := ⟨mul⟩
+instance : has_pow (@nterm γ _ _) ℤ := ⟨pow⟩
+
+def pp : (@nterm γ _ _) → (@nterm γ _ _)
+| (atom i)  := i
+| (const n) := n
+| (add x y) := pp x + pp y
+| (mul x y) := pp x * pp y
+| (pow x n) := pp x ^ n
+
+example (x : @nterm γ _ _) : pp x = x :=
+begin
+  induction x; unfold pp,
+  { unfold_coes },
+  { unfold_coes },
+  { apply congr, apply congr_arg, assumption, assumption },
+  { apply congr, apply congr_arg, assumption, assumption },
+  { apply congr, apply congr_arg, assumption, refl }
+end
+
 end nterm
 
 end polya
