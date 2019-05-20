@@ -5,9 +5,7 @@ open tactic polya polya.term
 -- build term and proove equality
 meta def test (e : expr) : tactic unit :=
 do
-    let (t, s) := (term_of_expr e).run ∅,
-    dict ← s.get_dict,
-    pr ← eq_eval e dict t,
+    (_, pr) ← nterm_of_expr e,
     infer_type pr >>= trace
 
 constants x y z : ℝ

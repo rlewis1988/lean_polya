@@ -88,11 +88,18 @@ meta def term_of_expr : expr → state_dict (@term ℤ _ _) | e :=
     | _ := atom <$> get_atom e
     end
 
-meta def eq_eval (e : expr) (dict : expr) (t : @term ℤ _ _) : tactic expr :=
+meta def nterm_of_expr (e : expr) : tactic (@nterm ℤ _ _ × expr) :=
 do
-    h ← to_expr ``(%%e = term.eval (%%dict) %%(reflect t)),
-    ((), pr) ← solve_aux h `[refl; done],
-    type_check pr,
-    return pr
+    let (t, s) := (term_of_expr e).run ∅,
+    let nt := nterm.of_term t,
+    ρ ← s.get_dict,
+    
+    h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
+    h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ %%(reflect nt)),
+    ((), pr1) ← solve_aux h1 `[refl; done],
+    ((), pr2) ← solve_aux h2 `[apply nterm.keep_eval; done],
+
+    pr ← mk_eq_trans pr1 pr2,
+    return (nt, pr)
 
 end polya

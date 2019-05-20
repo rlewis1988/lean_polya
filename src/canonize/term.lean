@@ -20,6 +20,7 @@ structure dict (α : Type) :=
 (val : ℕ → α)
 
 variables {α : Type} [discrete_field α]
+variable {ρ : dict α}
 
 instance default_morph : morph ℤ α :=
 { morph := int.cast,
@@ -133,12 +134,44 @@ namespace nterm
 
 def eval (ρ : dict α) : @nterm γ _ _ → α
 | (atom i) := ρ.val i
-| (const c) := ↑c
+| (const c) := morph.morph _ c
 | (add x y) := eval x + eval y
 | (mul x y) := eval x * eval y
 | (pow x n) := eval x ^ n
 
 instance : has_coe_to_fun (dict α) := ⟨λ _, @nterm γ _ _ → α, eval⟩
+
+def of_term : @term γ _ _ → @nterm γ _ _
+| term.zero      := const 0
+| term.one       := const 1
+| (term.atom i)  := atom i
+| (term.add x y) := add (of_term x) (of_term y)
+| (term.sub x y) := add (of_term x) (mul (const (-1)) (of_term y))
+| (term.mul x y) := mul (of_term x) (of_term y)
+| (term.div x y) := mul (of_term x) (pow (of_term y) (-1))
+| (term.neg x)   := mul (const (-1)) (of_term x)
+| (term.inv x)   := pow (of_term x) (-1)
+| (term.pow x n) := pow (of_term x) n
+| (term.num n)   := const n
+
+theorem keep_eval : Π (x : @term γ _ _), term.eval ρ x = eval ρ (of_term x) :=
+begin
+    intro x,
+    induction x;
+    unfold of_term; unfold term.eval; unfold eval,
+    { apply eq.symm, apply morph.morph0 },
+    { apply eq.symm, apply morph.morph1 },
+    { apply congr, apply congr_arg, repeat {assumption} },
+    { rw [morph.morph_neg, morph.morph1, neg_one_mul],
+      rw ← sub_eq_add_neg,
+      apply congr, apply congr_arg, repeat {assumption} },
+    { apply congr, apply congr_arg, repeat {assumption} },
+    { sorry }, --TODO
+    { rw [morph.morph_neg, morph.morph1, neg_one_mul],
+      apply congr_arg, assumption },
+    { sorry }, --TODO
+    { sorry }, --TODO
+end
 
 end nterm
 
