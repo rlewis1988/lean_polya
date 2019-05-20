@@ -145,7 +145,7 @@ inductive nterm : Type
 namespace nterm
 
 def eval (ρ : dict α) : @nterm γ _ _ → α
-| (atom i) := ρ.val i
+| (atom i)  := ρ.val i
 | (const c) := morph.morph _ c
 | (add x y) := eval x + eval y
 | (mul x y) := eval x * eval y

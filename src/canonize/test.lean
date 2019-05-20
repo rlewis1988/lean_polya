@@ -15,4 +15,4 @@ set_option profiler true
 
 run_cmd test `(x * y + 1 * x + 0 * (z + y))
 run_cmd test `(x * 2)
-run_cmd test `(x * ↑2) --doesn't work with γ = znum
+run_cmd test `(x * (2 : γ))

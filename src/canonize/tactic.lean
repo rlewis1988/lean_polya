@@ -48,8 +48,8 @@ do
     --mk_app ``finmap.to_dict [m]
 
 @[reducible]
-def γ := ℤ
---def γ := znum
+def γ := znum
+--def γ := ℤ
 
 meta def aux_numeral : expr → option γ
 | `(@has_zero.zero %%α %%s)  := some 0
@@ -57,6 +57,7 @@ meta def aux_numeral : expr → option γ
 | `(@bit0 %%α %%s %%v)       := bit0 <$> aux_numeral v
 | `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_numeral v
 | _                          := none
+
 
 meta def term_of_expr : expr → state_dict (@term γ _ _) | e :=
     match e with
