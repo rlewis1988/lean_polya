@@ -24,23 +24,29 @@ variables {α : Type} [discrete_field α]
 variable {ρ : dict α}
 
 instance int_morph : morph ℤ α :=
-{ morph := int.cast,
-  morph0 := int.cast_zero,
-  morph1 := int.cast_one,
+{ morph     := int.cast,
+  morph0    := int.cast_zero,
+  morph1    := int.cast_one,
   morph_add := int.cast_add,
   morph_sub := int.cast_sub,
   morph_neg := int.cast_neg, }
 
 instance znum_morph : morph znum α :=
-{
-    morph := coe,
-    morph0 := znum.cast_zero,
-    morph1 := znum.cast_one,
-    morph_add := znum.cast_add,
-    morph_sub := by simp,
-    morph_neg := by simp,
-}
+{ morph     := coe,
+  morph0    := znum.cast_zero,
+  morph1    := znum.cast_one,
+  morph_add := znum.cast_add,
+  morph_sub := by simp,
+  morph_neg := by simp, }
 
+instance rat_morph [char_zero α] : morph ℚ α :=
+{ morph     := rat.cast,
+  morph0    := rat.cast_zero,
+  morph1    := rat.cast_one,
+  morph_add := rat.cast_add,
+  morph_sub := rat.cast_sub,
+  morph_neg := rat.cast_neg,
+}
 
 variables {γ : Type} [ring γ] [decidable_eq γ] [morph γ α]
 instance : has_coe γ α := ⟨morph.morph _⟩
