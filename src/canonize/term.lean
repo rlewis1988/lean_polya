@@ -1,4 +1,5 @@
 import data.real.basic data.complex.basic
+import data.num.lemmas
 
 section
 local attribute [semireducible] reflected
@@ -22,13 +23,24 @@ structure dict (α : Type) :=
 variables {α : Type} [discrete_field α]
 variable {ρ : dict α}
 
-instance default_morph : morph ℤ α :=
+instance int_morph : morph ℤ α :=
 { morph := int.cast,
   morph0 := int.cast_zero,
   morph1 := int.cast_one,
   morph_add := int.cast_add,
   morph_sub := int.cast_sub,
   morph_neg := int.cast_neg, }
+
+instance znum_morph : morph znum α :=
+{
+    morph := coe,
+    morph0 := znum.cast_zero,
+    morph1 := znum.cast_one,
+    morph_add := znum.cast_add,
+    morph_sub := by simp,
+    morph_neg := by simp,
+}
+
 
 variables {γ : Type} [ring γ] [decidable_eq γ] [morph γ α]
 instance : has_coe γ α := ⟨morph.morph _⟩
