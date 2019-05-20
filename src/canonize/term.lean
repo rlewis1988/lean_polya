@@ -1,6 +1,6 @@
-import data.real.basic
+import data.real.basic data.complex.basic
 
-section --TODO: move to data.rat?
+section
 local attribute [semireducible] reflected
 meta instance rat.reflect : has_reflect ℚ
 | ⟨n, d, _, _⟩ := `(rat.mk_nat %%(reflect n) %%(reflect d))
@@ -12,48 +12,20 @@ namespace polya
 inductive term : Type
 | zero : term
 | one : term
-| atm : ℕ → term
+| atom : ℕ → term
 | add : term → term → term
+| sub : term → term → term
 | mul : term → term → term
-| sca : term → ℚ → term
-| exp : term → ℤ → term
+| div : term → term → term
+| neg : term → term
+| inv : term → term
+| pow : term → ℤ → term
+| sca : ℚ → term
 
 namespace term
 
-private def str : term → string
-| zero := "zero"
-| one  := "one"
-| (atm i) := "(atm " ++ to_string i ++ ")"
-| (add x y) := "(add " ++ str x ++ " " ++ str y ++ ")"
-| (mul x y) := "(mul " ++ str x ++ " " ++ str y ++ ")"
-| (sca x c) := "(sca " ++ str x ++ " " ++ to_string c ++ ")"
-| (exp x n) := "(sca " ++ str x ++ " " ++ to_string n ++ ")"
-
-instance : has_to_string term := ⟨str⟩
-meta instance : has_to_format term := ⟨λ t, str t⟩
-meta instance : has_to_tactic_format term := ⟨λ t, return (str t)⟩
-
-private def blt : term → term → bool
-| zero       zero       := ff
-| _          zero       := ff
-| zero       _          := tt
-| one        one        := ff
-| _          one        := ff
-| one        _          := tt
-| (atm i)    (atm j)    := i < j
-| _          (atm _)    := ff
-| (atm _)    _          := tt
-| (add x x') (add y y') := blt x y ∨ (x = y ∧ blt x' y')
-| _          (add _ _)  := ff
-| (add _ _)  _          := tt
-| (mul x x') (mul y y') := blt x y ∨ (x = y ∧ blt x' y')
-| _          (mul _ _)  := ff
-| (mul _ _)  _          := tt
-| (sca x a)  (sca y b)  := blt x y ∨ (x = y ∧ a < b)
-| _          (sca _ _)  := ff
-| (sca _ _)  _          := tt
-| (exp x n)  (exp y m)  := blt x y ∨ (x = y ∧ n < m)
-
+def blt : term → term → bool :=
+sorry
 def lt : term → term → Prop :=
 λ x y, blt x y
 
@@ -63,67 +35,71 @@ instance : decidable_rel lt := by delta lt; apply_instance
 structure dict (α : Type*) :=
 (val : ℕ → α)
 
+namespace dict
 variables {α : Type*} [discrete_field α]
+def eval (ρ : dict α) : term → α
+| zero      := 0
+| one       := 1
+| (atom i)  := ρ.val i
+| (add x y) := eval x + eval y
+| (sub x y) := eval x - eval y
+| (mul x y) := eval x * eval y
+| (div x y) := (eval x) / (eval y)
+| (neg x)   := - eval x
+| (inv x)   := (eval x)⁻¹
+| (pow x n) := eval x ^ n
+| (sca r)   := ↑r
+end dict
 
-def dict.eval (ρ : dict α) : term → α
-| zero := 0
-| one := 1
-| (atm i) := ρ.val i
-| (add x y) := dict.eval x + dict.eval y
-| (mul x y) := dict.eval x * dict.eval y
-| (sca x c) := dict.eval x * c
-| (exp x n) := dict.eval x ^ n
+def eq_val (x y : term) : Type :=
+{cs : finset term // ∀ {α : Type*} [discrete_field α] (ρ : dict α),
+    by resetI; exact (∀ c ∈ cs, ρ.eval c ≠ 0) → ρ.eval x = ρ.eval y}
 
-section
-variable {ρ : dict α}
-variables (x y z : term) (i : ℕ) (c : ℚ) (n : ℤ)
-theorem mul_zero : ρ.eval (sca x 0) = 0 := by {unfold dict.eval, apply_mod_cast mul_zero}
-theorem add_comm : ρ.eval (add x y) = ρ.eval (add y x) := add_comm _ _
-/- TODO: a lot of lemmas -/
-end
+infixr ` ~ ` := eq_val
 
---TODO: find a better name
-def foo (ρ : dict α) (x y : term) : Type :=
-{cs : list term // (∀ c ∈ cs, ρ.eval c ≠ 0) → ρ.eval x = ρ.eval y}
+namespace eq_val
 
-namespace foo
+variables {x y z : term} {n m : ℤ}
 
-variable {ρ : dict α}
-variables {x y z : term}
+def rfl : x ~ x :=
+⟨∅, assume _ _ _ _, rfl⟩
 
-def of_eq (h : ρ.eval x = ρ.eval y) : foo ρ x y :=
-⟨[], assume _, h⟩
+def symm (u : x ~ y) : y ~ x :=
+⟨u.val, by {intros, apply eq.symm, apply u.property, assumption}⟩
 
-def rfl : foo ρ x x := of_eq (congr_arg _ rfl)
-
-def trans (u : foo ρ x y) (v : foo ρ y z) : foo ρ x z :=
-⟨list.union u.val v.val,
-    assume H, eq.trans
-    (u.property $ assume c hc, H _ (list.mem_union_left hc _))
-    (v.property $ assume c hc, H _ (list.mem_union_right _ hc))
+def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
+⟨u.val ∪ v.val, by intros _ _ ρ H; resetI; exact
+    eq.trans
+        (u.property ρ $ λ c hc, H _ (finset.mem_union_left _ hc))
+        (v.property ρ $ λ c hc, H _ (finset.mem_union_right _ hc))
 ⟩
 
-end foo
+theorem add_comm : (add x y) ~ (add y x) :=
+⟨∅, by {intros, resetI, apply add_comm}⟩
 
-def step (ρ : dict α) : Type := Π (x : term), Σ (y : term), foo ρ x y
+theorem pow_neg : pow x (-n) ~ inv (pow x n) :=
+⟨∅, by {intros, unfold dict.eval, sorry}⟩
+
+end eq_val
+
+def step : Type := Π (x : term), Σ (y : term), x ~ y
 
 namespace step
 
-def comp {ρ : dict α} (f g : step ρ) : step ρ :=
+def comp (f g : step) : step :=
 assume x : term,
 let ⟨y, pr1⟩ := g x in
 let ⟨z, pr2⟩ := f y in
-⟨z, foo.trans pr1 pr2⟩
+⟨z, eq_val.trans pr1 pr2⟩
 
 infixr ` ∘ ` := comp
 
 end step
 
-variable {eval : dict α}
-def f : step eval := sorry
-def g : step eval := sorry
+def f : step := sorry
+def g : step := sorry
 
-def canonize : step eval := f ∘ g
+def canonize : step := f ∘ g
 
 end term
 

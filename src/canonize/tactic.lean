@@ -47,21 +47,56 @@ do
     mk_app ``list.to_dict [m]
     --mk_app ``finmap.to_dict [m]
 
-meta def term_of_expr : expr → state_dict term
-| `(0 : ℝ) := return zero 
-| `(1 : ℝ) := return one
-| `(%%a + %%b) := do
-    x ← term_of_expr a,
-    y ← term_of_expr b,
-    return (add x y)
-| `(%%a * %%b) := do
-    x ← term_of_expr a,
-    y ← term_of_expr b,
-    return (mul x y)
-| e := do
-    i ← get_atom e,
-    return (atm i)
---TODO: other patterns
+meta def aux_numeral : expr → option ℤ
+| `(@has_zero.zero %%α %%s)  := some 0
+| `(@has_one.one %%α %%s)    := some 1
+| `(@bit0 %%α %%s %%v)       := bit0 <$> aux_numeral v
+| `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_numeral v
+| `(-%%v)                    := has_neg.neg <$> aux_numeral v
+| _                          := none
+
+meta def term_of_expr : expr → state_dict term | e :=
+    match e with
+    | `(0 : ℝ) := return zero 
+    | `(1 : ℝ) := return one
+    | `(%%a + %%b) := do
+        x ← term_of_expr a,
+        y ← term_of_expr b,
+        return (add x y)
+    | `(%%a - %%b) := do
+        x ← term_of_expr a,
+        y ← term_of_expr b,
+        return (sub x y)
+    | `(%%a * %%b) := do
+        x ← term_of_expr a,
+        y ← term_of_expr b,
+        return (mul x y)
+    | `(%%a / %%b) := do
+        x ← term_of_expr a,
+        y ← term_of_expr b,
+        return (div x y)
+    | `(-%%a) := do
+        x ← term_of_expr a,
+        return (neg x)
+    | `((%%a)⁻¹) := do
+        x ← term_of_expr a,
+        return (inv x)
+    | `(↑(rat.mk %%a %%b)) :=
+        match aux_numeral a, aux_numeral b with
+        | (some n), (some m) := return (sca (rat.mk n m))
+        | _, _ := do atom <$> get_atom e 
+        end
+    | `(↑%%e) :=
+        match aux_numeral e with
+        | (some n) := return (sca n)
+        | _ := atom <$> get_atom e
+        end
+    | _ :=
+        match aux_numeral e with
+        | (some n) := return (sca n)
+        | _ := atom <$> get_atom e
+        end
+    end
 
 meta def eq_eval (e : expr) (dict : expr) (t : term) : tactic expr :=
 do

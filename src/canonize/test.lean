@@ -14,3 +14,4 @@ constants x y z : ℝ
 
 set_option profiler true
 run_cmd test `(x * y + 1 * x + 0 * (z + y))
+run_cmd test `(x * 2)
