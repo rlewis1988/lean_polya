@@ -80,64 +80,6 @@ def eval (ρ : dict α) : @term γ _ _ → α
 | (pow x n) := eval x ^ n
 | (num r)   := morph.morph _ r
 
-instance : has_coe_to_fun (dict α) := ⟨λ _, @term γ _ _ → α, eval⟩
-
-def blt : @term γ _ _ → @term γ _ _ → bool :=
-sorry
-def lt : @term γ _ _ → @term γ _ _ → Prop :=
-λ x y, blt x y
-
-instance : has_lt (@term γ _ _) := ⟨lt⟩
-instance : decidable_rel (@lt γ _ _) := by delta lt; apply_instance
-
-def eq_val (x y : @term γ _ _) : Type :=
-{cs : finset (@term γ _ _) //
-    ∀ {α : Type} [df : discrete_field α] [@morph γ _ α df] (ρ : dict α),
-    by resetI; exact (∀ c ∈ cs, ρ c ≠ 0) → ρ x = ρ y}
-
-infixr ` ~ ` := eq_val
-
-namespace eq_val
-
-variables {x y z : @term γ _ _} {n m : ℤ}
-
-def rfl : x ~ x :=
-⟨∅, assume _ _ _ _ _, rfl⟩
-
-def symm (u : x ~ y) : y ~ x :=
-⟨u.val, by {intros, apply eq.symm, apply u.property, assumption}⟩
-
-def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
-⟨u.val ∪ v.val, by intros _ _ _ ρ H; resetI; exact
-    eq.trans
-        (u.property ρ $ λ c hc, H _ (finset.mem_union_left _ hc))
-        (v.property ρ $ λ c hc, H _ (finset.mem_union_right _ hc))
-⟩
-
-def add_comm : (add x y) ~ (add y x) :=
-⟨∅, by {intros, resetI, apply add_comm}⟩
-
-end eq_val
-
-def step : Type := Π (x : @term γ _ _), Σ (y : term), x ~ y
-
-namespace step
-
-def comp (f g : @step γ _ _) : step :=
-assume x : term,
-let ⟨y, pr1⟩ := g x in
-let ⟨z, pr2⟩ := f y in
-⟨z, eq_val.trans pr1 pr2⟩
-
-infixr ` ∘ ` := comp
-
-end step
-
-def f : @step γ _ _ := sorry
-def g : @step γ _ _ := sorry
-
-def canonize : @step γ _ _ := f ∘ g
-
 end term
 
 @[derive decidable_eq, derive has_reflect]
@@ -215,6 +157,62 @@ begin
   { apply congr, apply congr_arg, assumption, assumption },
   { apply congr, apply congr_arg, assumption, refl }
 end
+
+def blt : @nterm γ _ _ → @nterm γ _ _ → bool :=
+sorry
+def lt : @nterm γ _ _ → @nterm γ _ _ → Prop :=
+λ x y, blt x y
+
+instance : has_lt (@nterm γ _ _) := ⟨lt⟩
+instance : decidable_rel (@lt γ _ _) := by delta lt; apply_instance
+
+def eq_val (x y : @nterm γ _ _) : Type :=
+{cs : finset (@nterm γ _ _) //
+    ∀ {α : Type} [df : discrete_field α] [@morph γ _ α df] (ρ : dict α),
+    by resetI; exact (∀ c ∈ cs, ρ c ≠ 0) → ρ x = ρ y}
+
+infixr ` ~ ` := eq_val
+
+namespace eq_val
+
+variables {x y z : @nterm γ _ _} {n m : ℤ}
+
+def rfl : x ~ x :=
+⟨∅, assume _ _ _ _ _, rfl⟩
+
+def symm (u : x ~ y) : y ~ x :=
+⟨u.val, by {intros, apply eq.symm, apply u.property, assumption}⟩
+
+def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
+⟨u.val ∪ v.val, by intros _ _ _ ρ H; resetI; exact
+    eq.trans
+        (u.property ρ $ λ c hc, H _ (finset.mem_union_left _ hc))
+        (v.property ρ $ λ c hc, H _ (finset.mem_union_right _ hc))
+⟩
+
+def add_comm : (x + y) ~ (y + x) :=
+⟨∅, by {intros, resetI, apply add_comm}⟩
+
+end eq_val
+
+def step : Type := Π (x : @nterm γ _ _), Σ (y : @nterm γ _ _), x ~ y
+
+namespace step
+
+def comp (f g : @step γ _ _) : @step γ _ _ :=
+assume x,
+let ⟨y, pr1⟩ := g x in
+let ⟨z, pr2⟩ := f y in
+⟨z, eq_val.trans pr1 pr2⟩
+
+infixr ` ∘ ` := comp
+
+end step
+
+def f : @step γ _ _ := sorry
+def g : @step γ _ _ := sorry
+
+def canonize : @step γ _ _ := f ∘ g
 
 end nterm
 
