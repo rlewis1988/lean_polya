@@ -52,10 +52,9 @@ meta def aux_numeral : expr → option ℤ
 | `(@has_one.one %%α %%s)    := some 1
 | `(@bit0 %%α %%s %%v)       := bit0 <$> aux_numeral v
 | `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_numeral v
-| `(-%%v)                    := has_neg.neg <$> aux_numeral v
 | _                          := none
 
-meta def term_of_expr : expr → state_dict term | e :=
+meta def term_of_expr : expr → state_dict (@term ℤ _ _) | e :=
     match e with
     | `(0 : ℝ) := return zero 
     | `(1 : ℝ) := return one
@@ -81,27 +80,19 @@ meta def term_of_expr : expr → state_dict term | e :=
     | `((%%a)⁻¹) := do
         x ← term_of_expr a,
         return (inv x)
-    | `(↑(rat.mk %%a %%b)) :=
-        match aux_numeral a, aux_numeral b with
-        | (some n), (some m) := return (sca (rat.mk n m))
-        | _, _ := do atom <$> get_atom e 
-        end
     | `(↑%%e) :=
         match aux_numeral e with
-        | (some n) := return (sca n)
+        | (some n) := return (num n)
         | _ := atom <$> get_atom e
         end
-    | _ :=
-        match aux_numeral e with
-        | (some n) := return (sca n)
-        | _ := atom <$> get_atom e
-        end
+    | _ := atom <$> get_atom e
     end
 
-meta def eq_eval (e : expr) (dict : expr) (t : term) : tactic expr :=
+meta def eq_eval (e : expr) (dict : expr) (t : @term ℤ _ _) : tactic expr :=
 do
-    h ← to_expr ``(%%e = (%%dict).eval %%(reflect t)),
+    h ← to_expr ``(%%e = term.eval (%%dict) %%(reflect t)),
     ((), pr) ← solve_aux h `[refl; done],
+    type_check pr,
     return pr
 
 end polya
