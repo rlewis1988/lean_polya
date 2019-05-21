@@ -67,6 +67,17 @@ inductive term : Type
 
 namespace term
 
+instance coe_atom : has_coe ℕ (@term γ _ _) := ⟨atom⟩
+instance coe_const: has_coe γ (@term γ _ _) := ⟨num⟩
+instance : has_zero (@term γ _ _) := ⟨zero⟩
+instance : has_one (@term γ _ _) := ⟨one⟩
+instance : has_add (@term γ _ _) := ⟨add⟩
+instance : has_mul (@term γ _ _) := ⟨mul⟩
+instance : has_sub (@term γ _ _) := ⟨sub⟩
+instance : has_div (@term γ _ _) := ⟨div⟩
+instance : has_inv (@term γ _ _) := ⟨inv⟩
+instance : has_pow (@term γ _ _) ℕ := ⟨pow⟩
+
 def eval (ρ : dict α) : @term γ _ _ → α
 | zero      := 0
 | one       := 1
@@ -91,6 +102,14 @@ inductive nterm : Type
 | pow : nterm → ℤ → nterm
 
 namespace nterm
+
+instance coe_atom : has_coe ℕ (@nterm γ _ _) := ⟨atom⟩
+instance coe_const: has_coe γ (@nterm γ _ _) := ⟨const⟩
+instance : has_zero (@nterm γ _ _) := ⟨const 0⟩
+instance : has_one (@nterm γ _ _) := ⟨const 1⟩
+instance : has_add (@nterm γ _ _) := ⟨add⟩
+instance : has_mul (@nterm γ _ _) := ⟨mul⟩
+instance : has_pow (@nterm γ _ _) ℤ := ⟨pow⟩
 
 def eval (ρ : dict α) : @nterm γ _ _ → α
 | (atom i)  := ρ.val i
@@ -121,25 +140,20 @@ begin
     unfold of_term; unfold term.eval; unfold eval,
     { apply eq.symm, apply morph.morph0 },
     { apply eq.symm, apply morph.morph1 },
-    { apply congr, apply congr_arg, repeat {assumption} },
+    { congr; assumption },
     { rw [morph.morph_neg, morph.morph1, neg_one_mul],
       rw ← sub_eq_add_neg,
-      apply congr, apply congr_arg, repeat {assumption} },
-    { apply congr, apply congr_arg, repeat {assumption} },
-    { sorry }, --TODO
+      congr; assumption },
+    { congr; assumption },
+    { rw division_def, rw fpow_inv,
+      congr; assumption },
     { rw [morph.morph_neg, morph.morph1, neg_one_mul],
-      apply congr_arg, assumption },
-    { sorry }, --TODO
-    { sorry }, --TODO
+      congr; assumption },
+    { rw fpow_inv,
+      congr; assumption },
+    { rw fpow_of_nat,
+      congr; assumption },
 end
-
-instance coe_atom : has_coe ℕ (@nterm γ _ _) := ⟨atom⟩
-instance coe_const: has_coe γ (@nterm γ _ _) := ⟨const⟩
-instance : has_zero (@nterm γ _ _) := ⟨const 0⟩
-instance : has_one (@nterm γ _ _) := ⟨const 1⟩
-instance : has_add (@nterm γ _ _) := ⟨add⟩
-instance : has_mul (@nterm γ _ _) := ⟨mul⟩
-instance : has_pow (@nterm γ _ _) ℤ := ⟨pow⟩
 
 def pp : (@nterm γ _ _) → (@nterm γ _ _)
 | (atom i)  := i
@@ -175,26 +189,84 @@ infixr ` ~ ` := eq_val
 
 namespace eq_val
 
-variables {x y z : @nterm γ _ _} {n m : ℤ}
+variables {a b c : @nterm γ _ _} {x y z : @nterm γ _ _} {n m : ℤ}
 
-def rfl : x ~ x :=
+protected def rfl : x ~ x :=
 ⟨∅, assume _ _ _ _ _, rfl⟩
 
-def symm (u : x ~ y) : y ~ x :=
+protected def symm (u : x ~ y) : y ~ x :=
 ⟨u.val, by {intros, apply eq.symm, apply u.property, assumption}⟩
 
-def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
+protected def trans (u : x ~ y) (v : y ~ z) : x ~ z :=
 ⟨u.val ∪ v.val, by intros _ _ _ ρ H; resetI; exact
     eq.trans
         (u.property ρ $ λ c hc, H _ (finset.mem_union_left _ hc))
-        (v.property ρ $ λ c hc, H _ (finset.mem_union_right _ hc))
-⟩
+        (v.property ρ $ λ c hc, H _ (finset.mem_union_right _ hc))⟩
 
-def add_comm : (x + y) ~ (y + x) :=
+protected def add_comm : (x + y) ~ (y + x) :=
 ⟨∅, by {intros, resetI, apply add_comm}⟩
 
-def add_assoc : (x + y + z) ~ (x + (y + z)) :=
+protected def add_assoc : (x + y + z) ~ (x + (y + z)) :=
 ⟨∅, by {intros, resetI, unfold_coes, apply add_assoc}⟩
+
+protected def mul_comm : (x * y) ~ (y * x) :=
+⟨∅, by {intros, resetI, apply mul_comm}⟩
+
+protected def mul_assoc : (x * y * z) ~ (x * (y * z)) :=
+⟨∅, by {intros, resetI, unfold_coes, apply mul_assoc}⟩
+
+protected def pow_add : (x ^ (n + m)) ~ x ^ n * x ^ m :=
+begin
+  unfold has_pow.pow, unfold has_mul.mul,
+  refine ⟨_, _⟩,
+  { exact if n ≠ 0 ∧ m ≠ 0 ∧ (n + m) = 0 then {x} else ∅ },
+  { intros _ _ _ ρ H,
+    unfold_coes, unfold eval, resetI,
+    by_cases h1 : n = 0,
+    { rw [h1, zero_add, fpow_zero, one_mul] },
+    by_cases h2 : m = 0,
+    { rw [h2, add_zero, fpow_zero, mul_one] },
+    by_cases h3 : n + m = 0,
+    { apply fpow_add,
+      have : n ≠ 0 ∧ m ≠ 0 ∧ n + m = 0, from ⟨h1, h2, h3⟩,
+      apply H, simp [this]
+    },
+    by_cases h4 : eval ρ x = 0,
+    { rw [h4, zero_fpow n h1, zero_fpow (n + m) h3],
+      simp },
+    { apply fpow_add h4 }}
+end
+
+protected def congr_add (u : a ~ x) (v : b ~ y) : add a b ~ add x y :=
+⟨u.val ∪ v.val, begin
+  intros _ _ _ ρ H, resetI,
+  unfold_coes, unfold eval,
+  apply congr, apply congr_arg,
+  apply u.property, intros, apply H,
+  apply finset.mem_union_left, assumption,
+  apply v.property, intros, apply H,
+  apply finset.mem_union_right, assumption,
+end⟩
+
+protected def congr_mul (u : a ~ x) (v : b ~ y) : mul a b ~ mul x y :=
+⟨u.val ∪ v.val, begin
+  intros _ _ _ ρ H, resetI,
+  unfold_coes, unfold eval,
+  apply congr, apply congr_arg,
+  apply u.property, intros, apply H,
+  apply finset.mem_union_left, assumption,
+  apply v.property, intros, apply H,
+  apply finset.mem_union_right, assumption,
+end⟩
+
+protected def congr_pow {n} (u : x ~ y) : pow x n ~ pow y n :=
+⟨u.val, begin
+  intros _ _ _ ρ H, resetI,
+  unfold_coes, unfold eval,
+  apply congr, apply congr_arg,
+  apply u.property, intros, apply H, assumption,
+  refl
+end⟩
 
 end eq_val
 
@@ -214,10 +286,6 @@ end step
 
 def id : @step γ _ _
 | x := ⟨x, eq_val.rfl⟩
-
-def f : @step γ _ _
-| (add (add x y) z) := ⟨add x (add y z), eq_val.add_assoc⟩
-| x := id x
 
 def canonize : @step γ _ _ := sorry
 
