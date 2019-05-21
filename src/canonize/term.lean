@@ -155,37 +155,44 @@ def of_term : @term γ _ → @nterm γ _
 | term.zero      := const 0
 | term.one       := const 1
 | (term.atom i)  := atom i
-| (term.add x y) := add (of_term x) (of_term y)
-| (term.sub x y) := add (of_term x) (mul (const (-1)) (of_term y))
-| (term.mul x y) := mul (of_term x) (of_term y)
-| (term.div x y) := mul (of_term x) (pow (of_term y) (-1))
-| (term.neg x)   := mul (const (-1)) (of_term x)
-| (term.inv x)   := pow (of_term x) (-1)
-| (term.pow x n) := pow (of_term x) n
+| (term.add x y) := of_term x + of_term y
+| (term.sub x y) := of_term x + const (-1) * of_term y
+| (term.mul x y) := of_term x * of_term y
+| (term.div x y) := of_term x * of_term y ^ (-1 : znum)
+| (term.neg x)   := const (-1) * of_term x
+| (term.inv x)   := of_term x ^ (-1 : znum)
+| (term.pow x n) := of_term x ^ (n : znum)
 | (term.const n)   := const n
 
 theorem correctness : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
 begin
     intro x,
     induction x;
-    unfold of_term; unfold term.eval; unfold eval,
+    unfold of_term; unfold term.eval,
     { apply eq.symm, apply morph.morph0 },
     { apply eq.symm, apply morph.morph1 },
-    { congr; assumption },
-    { rw [morph.morph_neg, morph.morph1, neg_one_mul],
+    { refl },
+    { unfold has_add.add, congr; assumption },
+    { unfold has_add.add, unfold has_mul.mul, unfold eval,
+      rw [morph.morph_neg, morph.morph1, neg_one_mul],
       rw ← sub_eq_add_neg,
       congr; assumption },
     { congr; assumption },
-    { simp only [znum.cast_zneg, znum.cast_one],
+    { unfold has_mul.mul, unfold has_pow.pow, unfold eval,
+      simp only [znum.cast_zneg, znum.cast_one],
       rw [division_def, fpow_inv],
       congr; assumption },
-    { rw [morph.morph_neg, morph.morph1, neg_one_mul],
+    { unfold has_mul.mul, unfold eval,
+      rw [morph.morph_neg, morph.morph1, neg_one_mul],
       congr; assumption },
-    { simp only [znum.cast_zneg, znum.cast_one],
+    { unfold has_pow.pow, unfold eval,
+      simp only [znum.cast_zneg, znum.cast_one],
       rw fpow_inv,
       congr; assumption },
-    { simp only [znum.of_int_cast], norm_cast,
-      congr; assumption }
+    { unfold has_pow.pow, unfold eval,
+      simp only [znum.of_int_cast], norm_cast,
+      congr; assumption },
+    { refl }
 end
 
 def pp : (@nterm γ _) → (@nterm γ _) 
