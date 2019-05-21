@@ -14,11 +14,10 @@ class morph (γ : Type) [discrete_field γ] (α : Type) [discrete_field α] :=
 (morph0 : morph 0 = 0)
 (morph1 : morph 1 = 1)
 (morph_add : ∀ a b : γ, morph (a + b) = morph a + morph b)
---(morph_sub : ∀ a b : γ, morph (a - b) = morph a - morph b)
 (morph_neg : ∀ a : γ, morph (-a) = - morph a)
 (morph_mul : ∀ a b : γ, morph (a * b) = morph a * morph b)
---(morph_div : ∀ a b : γ, morph (a / b) = morph a / morph b)
 (morph_inv : ∀ a : γ, morph (a⁻¹) = (morph a)⁻¹)
+(morph_inj : ∀ a : γ, morph a = 0 → a = 0)
 
 structure dict (α : Type) :=
 (val : ℕ → α)
@@ -35,10 +34,50 @@ instance rat_morph [char_zero α] : morph ℚ α :=
   morph_neg := rat.cast_neg,
   morph_mul := rat.cast_mul,
   morph_inv := rat.cast_inv,
+  morph_inj := begin
+      intros a ha,
+      apply rat.cast_inj.mp,
+      { rw rat.cast_zero, apply ha },
+      { resetI, apply_instance }
+    end,
 }
 
 variables {γ : Type} [discrete_field γ] [morph γ α]
 instance : has_coe γ α := ⟨morph.morph _⟩
+
+namespace morph
+variables (a b : γ)
+
+theorem morph_sub : morph α (a - b) = morph _ a - morph _ b :=
+by rw [sub_eq_add_neg, morph.morph_add, morph.morph_neg, ← sub_eq_add_neg]
+
+theorem morph_div : morph α (a / b) = morph _ a / morph _ b :=
+by rw [division_def, morph.morph_mul, morph.morph_inv, ← division_def]
+
+theorem morph_pow_nat (n : ℕ) : morph α (a ^ n) = (morph _ a) ^ n :=
+begin
+  induction n with _ ih,
+  { rw [pow_zero, pow_zero, morph.morph1] },
+  { by_cases ha : a = 0,
+    { rw [ha, morph.morph0, zero_pow, zero_pow],
+      { apply morph.morph0 },
+      { apply nat.succ_pos },
+      { apply nat.succ_pos }},
+    { rw [pow_succ, morph.morph_mul, ih, ← pow_succ] }}
+end
+
+theorem morph_pow (n : ℤ) : morph α (a ^ n) = (morph _ a) ^ n :=
+begin
+  cases n,
+  { rw [int.of_nat_eq_coe, fpow_of_nat, fpow_of_nat],
+    apply morph_pow_nat },
+  { rw [int.neg_succ_of_nat_coe, fpow_neg, fpow_neg],
+    rw [morph_div, morph.morph1],
+    rw [fpow_of_nat, fpow_of_nat],
+    rw morph_pow_nat }
+end
+
+end morph
 
 @[derive decidable_eq, derive has_reflect]
 inductive term : Type
@@ -99,6 +138,7 @@ instance : has_one (@nterm γ _) := ⟨const 1⟩
 instance : has_add (@nterm γ _) := ⟨add⟩
 instance : has_mul (@nterm γ _) := ⟨mul⟩
 instance : has_pow (@nterm γ _) ℤ := ⟨pow⟩
+instance : has_inv (@nterm γ _) := ⟨λ x, pow x (-1)⟩
 
 def eval (ρ : dict α) : @nterm γ _ → α
 | (atom i)  := ρ.val i
@@ -178,7 +218,7 @@ infixr ` ~ ` := eq_val
 
 namespace eq_val
 
-variables {a b c : @nterm γ _} {x y z : @nterm γ _} {n m : ℤ}
+variables {x y z x' y' z' : @nterm γ _} {a b c : γ} {n m : ℤ}
 
 protected def rfl : x ~ x :=
 ⟨∅, assume _ _ _ _ _, rfl⟩
@@ -196,15 +236,27 @@ protected def add_comm : (x + y) ~ (y + x) :=
 ⟨∅, by {intros, resetI, apply add_comm}⟩
 
 protected def add_assoc : (x + y + z) ~ (x + (y + z)) :=
-⟨∅, by {intros, resetI, unfold_coes, apply add_assoc}⟩
+⟨∅, by {intros, resetI, apply add_assoc}⟩
 
 protected def mul_comm : (x * y) ~ (y * x) :=
 ⟨∅, by {intros, resetI, apply mul_comm}⟩
 
 protected def mul_assoc : (x * y * z) ~ (x * (y * z)) :=
-⟨∅, by {intros, resetI, unfold_coes, apply mul_assoc}⟩
+⟨∅, by {intros, resetI, apply mul_assoc}⟩
 
-protected def pow_add : (x ^ (n + m)) ~ x ^ n * x ^ m :=
+protected def distrib : x * (y + z) ~ x * y + x * z :=
+⟨∅, by {intros, resetI, apply mul_add}⟩
+
+protected def const_add : const (a + b) ~ const a + const b :=
+⟨∅, by {intros, apply morph.morph_add}⟩
+
+protected def const_mul : const (a * b) ~ const a * const b :=
+⟨∅, by {intros, apply morph.morph_mul}⟩
+
+protected def const_inv : const (a ^ n) ~ (const a) ^ n :=
+⟨∅, by {intros, apply morph.morph_pow}⟩
+
+protected def pow_add : x ^ (n + m) ~ x ^ n * x ^ m :=
 begin
   unfold has_pow.pow, unfold has_mul.mul,
   refine ⟨_, _⟩,
@@ -225,7 +277,7 @@ begin
     { apply fpow_add h4 }}
 end
 
-protected def congr_add (u : a ~ x) (v : b ~ y) : add a b ~ add x y :=
+protected def congr_add (u : x ~ x') (v : y ~ y') : add x y ~ add x' y' :=
 ⟨u.val ∪ v.val, begin
   intros _ _ _ ρ H, resetI,
   unfold_coes, unfold eval,
@@ -236,7 +288,7 @@ protected def congr_add (u : a ~ x) (v : b ~ y) : add a b ~ add x y :=
   apply finset.mem_union_right, assumption,
 end⟩
 
-protected def congr_mul (u : a ~ x) (v : b ~ y) : mul a b ~ mul x y :=
+protected def congr_mul (u : x ~ x') (v : y ~ y') : mul x y ~ mul x' y' :=
 ⟨u.val ∪ v.val, begin
   intros _ _ _ ρ H, resetI,
   unfold_coes, unfold eval,
@@ -247,14 +299,19 @@ protected def congr_mul (u : a ~ x) (v : b ~ y) : mul a b ~ mul x y :=
   apply finset.mem_union_right, assumption,
 end⟩
 
-protected def congr_pow {n} (u : x ~ y) : pow x n ~ pow y n :=
+protected def congr_pow (u : x ~ y) (v : n = m) : pow x n ~ pow y m :=
 ⟨u.val, begin
   intros _ _ _ ρ H, resetI,
   unfold_coes, unfold eval,
   apply congr, apply congr_arg,
-  apply u.property, intros, apply H, assumption,
-  refl
+  apply u.property, intros, apply H,
+  assumption, assumption
 end⟩
+
+protected def pow_sub : x ^ (n - m) ~ x ^ n * x ^ (-m) :=
+eq_val.trans
+  (eq_val.congr_pow eq_val.rfl (sub_eq_add_neg n m))
+  eq_val.pow_add
 
 end eq_val
 
