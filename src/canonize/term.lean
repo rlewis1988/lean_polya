@@ -9,13 +9,16 @@ end
 
 namespace polya
 
-class morph (γ : Type) [ring γ] (α : Type) [discrete_field α] :=
+class morph (γ : Type) [discrete_field γ] (α : Type) [discrete_field α] :=
 (morph : γ → α)
 (morph0 : morph 0 = 0)
 (morph1 : morph 1 = 1)
 (morph_add : ∀ a b : γ, morph (a + b) = morph a + morph b)
-(morph_sub : ∀ a b : γ, morph (a - b) = morph a - morph b)
+--(morph_sub : ∀ a b : γ, morph (a - b) = morph a - morph b)
 (morph_neg : ∀ a : γ, morph (-a) = - morph a)
+(morph_mul : ∀ a b : γ, morph (a * b) = morph a * morph b)
+--(morph_div : ∀ a b : γ, morph (a / b) = morph a / morph b)
+(morph_inv : ∀ a : γ, morph (a⁻¹) = (morph a)⁻¹)
 
 structure dict (α : Type) :=
 (val : ℕ → α)
@@ -23,32 +26,18 @@ structure dict (α : Type) :=
 variables {α : Type} [discrete_field α]
 variable {ρ : dict α}
 
-instance int_morph : morph ℤ α :=
-{ morph     := int.cast,
-  morph0    := int.cast_zero,
-  morph1    := int.cast_one,
-  morph_add := int.cast_add,
-  morph_sub := int.cast_sub,
-  morph_neg := int.cast_neg, }
-
-instance znum_morph : morph znum α :=
-{ morph     := coe,
-  morph0    := znum.cast_zero,
-  morph1    := znum.cast_one,
-  morph_add := znum.cast_add,
-  morph_sub := by simp,
-  morph_neg := by simp, }
-
+--TODO: replace rat with znum × znum
 instance rat_morph [char_zero α] : morph ℚ α :=
 { morph     := rat.cast,
   morph0    := rat.cast_zero,
   morph1    := rat.cast_one,
   morph_add := rat.cast_add,
-  morph_sub := rat.cast_sub,
   morph_neg := rat.cast_neg,
+  morph_mul := rat.cast_mul,
+  morph_inv := rat.cast_inv,
 }
 
-variables {γ : Type} [ring γ] [decidable_eq γ] [morph γ α]
+variables {γ : Type} [discrete_field γ] [morph γ α]
 instance : has_coe γ α := ⟨morph.morph _⟩
 
 @[derive decidable_eq, derive has_reflect]
@@ -67,18 +56,18 @@ inductive term : Type
 
 namespace term
 
-instance coe_atom : has_coe ℕ (@term γ _ _) := ⟨atom⟩
-instance coe_const: has_coe γ (@term γ _ _) := ⟨num⟩
-instance : has_zero (@term γ _ _) := ⟨zero⟩
-instance : has_one (@term γ _ _) := ⟨one⟩
-instance : has_add (@term γ _ _) := ⟨add⟩
-instance : has_mul (@term γ _ _) := ⟨mul⟩
-instance : has_sub (@term γ _ _) := ⟨sub⟩
-instance : has_div (@term γ _ _) := ⟨div⟩
-instance : has_inv (@term γ _ _) := ⟨inv⟩
-instance : has_pow (@term γ _ _) ℕ := ⟨pow⟩
+instance coe_atom : has_coe ℕ (@term γ _) := ⟨atom⟩
+instance coe_const: has_coe γ (@term γ _) := ⟨num⟩
+instance : has_zero (@term γ _) := ⟨zero⟩
+instance : has_one (@term γ _) := ⟨one⟩
+instance : has_add (@term γ _) := ⟨add⟩
+instance : has_mul (@term γ _) := ⟨mul⟩
+instance : has_sub (@term γ _) := ⟨sub⟩
+instance : has_div (@term γ _) := ⟨div⟩
+instance : has_inv (@term γ _) := ⟨inv⟩
+instance : has_pow (@term γ _) ℕ := ⟨pow⟩
 
-def eval (ρ : dict α) : @term γ _ _ → α
+def eval (ρ : dict α) : @term γ _ → α
 | zero      := 0
 | one       := 1
 | (atom i)  := ρ.val i
@@ -103,24 +92,24 @@ inductive nterm : Type
 
 namespace nterm
 
-instance coe_atom : has_coe ℕ (@nterm γ _ _) := ⟨atom⟩
-instance coe_const: has_coe γ (@nterm γ _ _) := ⟨const⟩
-instance : has_zero (@nterm γ _ _) := ⟨const 0⟩
-instance : has_one (@nterm γ _ _) := ⟨const 1⟩
-instance : has_add (@nterm γ _ _) := ⟨add⟩
-instance : has_mul (@nterm γ _ _) := ⟨mul⟩
-instance : has_pow (@nterm γ _ _) ℤ := ⟨pow⟩
+instance coe_atom : has_coe ℕ (@nterm γ _) := ⟨atom⟩
+instance coe_const: has_coe γ (@nterm γ _) := ⟨const⟩
+instance : has_zero (@nterm γ _) := ⟨const 0⟩
+instance : has_one (@nterm γ _) := ⟨const 1⟩
+instance : has_add (@nterm γ _) := ⟨add⟩
+instance : has_mul (@nterm γ _) := ⟨mul⟩
+instance : has_pow (@nterm γ _) ℤ := ⟨pow⟩
 
-def eval (ρ : dict α) : @nterm γ _ _ → α
+def eval (ρ : dict α) : @nterm γ _ → α
 | (atom i)  := ρ.val i
 | (const c) := morph.morph _ c
 | (add x y) := eval x + eval y
 | (mul x y) := eval x * eval y
 | (pow x n) := eval x ^ n
 
-instance : has_coe_to_fun (dict α) := ⟨λ _, @nterm γ _ _ → α, eval⟩
+instance : has_coe_to_fun (dict α) := ⟨λ _, @nterm γ _ → α, eval⟩
 
-def of_term : @term γ _ _ → @nterm γ _ _
+def of_term : @term γ _ → @nterm γ _
 | term.zero      := const 0
 | term.one       := const 1
 | (term.atom i)  := atom i
@@ -133,7 +122,7 @@ def of_term : @term γ _ _ → @nterm γ _ _
 | (term.pow x n) := pow (of_term x) n
 | (term.num n)   := const n
 
-theorem keep_eval : Π (x : @term γ _ _), term.eval ρ x = eval ρ (of_term x) :=
+theorem keep_eval : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
 begin
     intro x,
     induction x;
@@ -155,14 +144,14 @@ begin
       congr; assumption },
 end
 
-def pp : (@nterm γ _ _) → (@nterm γ _ _)
+def pp : (@nterm γ _) → (@nterm γ _) 
 | (atom i)  := i
 | (const n) := n
 | (add x y) := pp x + pp y
 | (mul x y) := pp x * pp y
 | (pow x n) := pp x ^ n
 
-example (x : @nterm γ _ _) : pp x = x :=
+example (x : @nterm γ _) : pp x = x :=
 begin
   induction x; unfold pp,
   { unfold_coes },
@@ -172,16 +161,16 @@ begin
   { apply congr, apply congr_arg, assumption, refl }
 end
 
-def blt : @nterm γ _ _ → @nterm γ _ _ → bool :=
+def blt : @nterm γ _ → @nterm γ _ → bool :=
 sorry
-def lt : @nterm γ _ _ → @nterm γ _ _ → Prop :=
+def lt : @nterm γ _ → @nterm γ _ → Prop :=
 λ x y, blt x y
 
-instance : has_lt (@nterm γ _ _) := ⟨lt⟩
-instance : decidable_rel (@lt γ _ _) := by delta lt; apply_instance
+instance : has_lt (@nterm γ _) := ⟨lt⟩
+instance : decidable_rel (@lt γ _) := by delta lt; apply_instance
 
-def eq_val (x y : @nterm γ _ _) : Type :=
-{cs : finset (@nterm γ _ _) //
+def eq_val (x y : @nterm γ _) : Type :=
+{cs : finset (@nterm γ _) //
     ∀ {α : Type} [df : discrete_field α] [@morph γ _ α df] (ρ : dict α),
     by resetI; exact (∀ c ∈ cs, ρ c ≠ 0) → ρ x = ρ y}
 
@@ -189,7 +178,7 @@ infixr ` ~ ` := eq_val
 
 namespace eq_val
 
-variables {a b c : @nterm γ _ _} {x y z : @nterm γ _ _} {n m : ℤ}
+variables {a b c : @nterm γ _} {x y z : @nterm γ _} {n m : ℤ}
 
 protected def rfl : x ~ x :=
 ⟨∅, assume _ _ _ _ _, rfl⟩
@@ -229,8 +218,7 @@ begin
     by_cases h3 : n + m = 0,
     { apply fpow_add,
       have : n ≠ 0 ∧ m ≠ 0 ∧ n + m = 0, from ⟨h1, h2, h3⟩,
-      apply H, simp [this]
-    },
+      apply H, simp [this] },
     by_cases h4 : eval ρ x = 0,
     { rw [h4, zero_fpow n h1, zero_fpow (n + m) h3],
       simp },
@@ -270,11 +258,11 @@ end⟩
 
 end eq_val
 
-def step : Type := Π (x : @nterm γ _ _), Σ (y : @nterm γ _ _), x ~ y
+def step : Type := Π (x : @nterm γ _), Σ (y : @nterm γ _), x ~ y
 
 namespace step
 
-def comp (f g : @step γ _ _) : @step γ _ _ :=
+def comp (f g : @step γ _)  : @step γ _ :=
 assume x,
 let ⟨y, pr1⟩ := g x in
 let ⟨z, pr2⟩ := f y in
@@ -284,10 +272,10 @@ infixr ` ∘ ` := comp
 
 end step
 
-def id : @step γ _ _
+def id : @step γ _
 | x := ⟨x, eq_val.rfl⟩
 
-def canonize : @step γ _ _ := sorry
+def canonize : @step γ _ := sorry
 
 end nterm
 
