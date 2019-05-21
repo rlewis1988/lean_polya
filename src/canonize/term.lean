@@ -220,23 +220,25 @@ begin
     { refl }
 end
 
-def pp : (@nterm γ _) → (@nterm γ _) 
+/-
+def aux : (@nterm γ _) → (@nterm γ _) 
 | (atom i)  := i
 | (const n) := n
-| (add x y) := pp x + pp y
-| (mul x y) := pp x * pp y
-| (pow x n) := pp x ^ n
+| (add x y) := aux x + aux y
+| (mul x y) := aux x * aux y
+| (pow x n) := aux x ^ n
 
-example : ∀ (x : @nterm γ _), pp x = x :=
+example : ∀ (x : @nterm γ _), aux x = x :=
 begin
   intro x,
-  induction x; unfold pp,
+  induction x; unfold aux,
   { unfold_coes },
   { unfold_coes },
   { apply congr, apply congr_arg, assumption, assumption },
   { apply congr, apply congr_arg, assumption, assumption },
   { apply congr, apply congr_arg, assumption, refl }
 end
+-/
 
 def blt : @nterm γ _ → @nterm γ _ → bool :=
 sorry
@@ -245,6 +247,16 @@ def lt : @nterm γ _ → @nterm γ _ → Prop :=
 
 instance : has_lt (@nterm γ _) := ⟨lt⟩
 instance : decidable_rel (@lt γ _) := by delta lt; apply_instance
+
+meta def to_str [has_to_string γ] : (@nterm γ _) → string
+| (atom i)  := "#" ++ to_string (i : ℕ)
+| (const c) := to_string c
+| (add x y) := "(" ++ to_str x ++ " + " ++ to_str y ++ ")"
+| (mul x y) := "(" ++ to_str x ++ " * " ++ to_str y ++ ")"
+| (pow x n) := to_str x ++ " ^ " ++ to_string (n : ℤ)
+
+meta instance [has_to_string γ] : has_to_string (@nterm γ _) := ⟨to_str⟩
+meta instance [has_to_string γ] : has_to_tactic_format (@nterm γ _) := ⟨λ x, return (to_str x : format)⟩
 
 def eq_val (x y : @nterm γ _) : Type :=
 {cs : finset (@nterm γ _) //
