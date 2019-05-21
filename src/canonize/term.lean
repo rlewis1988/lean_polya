@@ -45,7 +45,25 @@ instance rat_morph [char_zero α] : morph ℚ α :=
 }
 
 variables {γ : Type} [discrete_field γ] [morph γ α]
-instance : has_coe γ α := ⟨morph.morph _⟩
+instance morph_to_coe : has_coe γ α := ⟨morph.morph _⟩
+
+/-
+section
+variables {δ : Type} [discrete_field δ] [morph δ γ]
+instance morph_comp : morph δ α :=
+{ morph     := λ x : δ, ((x : γ) : α),
+  morph0    := by {unfold_coes, rw [morph.morph0, morph.morph0]},
+  morph1    := by {unfold_coes, rw [morph.morph1, morph.morph1]},
+  morph_add := by {intros, unfold_coes, rw [morph.morph_add, morph.morph_add]},
+  morph_neg := by {intros, unfold_coes, rw [morph.morph_neg, morph.morph_neg]},
+  morph_mul := by {intros, unfold_coes, rw [morph.morph_mul, morph.morph_mul]},
+  morph_inv := by {intros, unfold_coes, rw [morph.morph_inv, morph.morph_inv]},
+  morph_inj := by {intros _ h, unfold_coes at h,
+    have : morph.morph γ a = 0, by apply morph.morph_inj _ h,
+    apply morph.morph_inj _ this},
+}
+end
+-/
 
 namespace morph
 variables (a b : γ)
@@ -119,7 +137,7 @@ def eval (ρ : dict α) : @term γ _ → α
 | (neg x)   := - eval x
 | (inv x)   := (eval x)⁻¹
 | (pow x n) := eval x ^ n
-| (const r)   := morph.morph _ r
+| (const r) := morph.morph _ r
 
 end term
 
@@ -169,9 +187,9 @@ def of_term : @term γ _ → @nterm γ _
 | (term.neg x)   := const (-1) * of_term x
 | (term.inv x)   := of_term x ^ (-1 : znum)
 | (term.pow x n) := of_term x ^ (n : znum)
-| (term.const n)   := const n
+| (term.const n) := const n
 
-theorem correctness1 : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
+theorem correctness1 : Π (x : @term γ _), term.eval ρ x = nterm.eval ρ (of_term x) :=
 begin
     intro x,
     induction x;
@@ -209,8 +227,9 @@ def pp : (@nterm γ _) → (@nterm γ _)
 | (mul x y) := pp x * pp y
 | (pow x n) := pp x ^ n
 
-example (x : @nterm γ _) : pp x = x :=
+example : ∀ (x : @nterm γ _), pp x = x :=
 begin
+  intro x,
   induction x; unfold pp,
   { unfold_coes },
   { unfold_coes },
