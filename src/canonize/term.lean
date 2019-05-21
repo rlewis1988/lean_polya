@@ -256,6 +256,38 @@ protected def const_mul : const (a * b) ~ const a * const b :=
 protected def const_inv : const (a ^ n) ~ (const a) ^ n :=
 ⟨∅, by {intros, apply morph.morph_pow}⟩
 
+
+protected def congr_add (u : x ~ x') (v : y ~ y') : x + y ~ x' + y' :=
+⟨u.val ∪ v.val, begin
+  intros _ _ _ ρ H, resetI,
+  unfold_coes, unfold has_add.add, unfold eval,
+  apply congr, apply congr_arg,
+  apply u.property, intros, apply H,
+  apply finset.mem_union_left, assumption,
+  apply v.property, intros, apply H,
+  apply finset.mem_union_right, assumption,
+end⟩
+
+protected def congr_mul (u : x ~ x') (v : y ~ y') : x * y ~ x' * y' :=
+⟨u.val ∪ v.val, begin
+  intros _ _ _ ρ H, resetI,
+  unfold_coes, unfold has_mul.mul, unfold eval,
+  apply congr, apply congr_arg,
+  apply u.property, intros, apply H,
+  apply finset.mem_union_left, assumption,
+  apply v.property, intros, apply H,
+  apply finset.mem_union_right, assumption,
+end⟩
+
+protected def congr_pow (u : x ~ y) (v : n = m) : x ^ n ~ y ^ m :=
+⟨u.val, begin
+  intros _ _ _ ρ H, resetI,
+  unfold_coes, unfold has_pow.pow, unfold eval,
+  apply congr, apply congr_arg,
+  apply u.property, intros, apply H,
+  assumption, assumption
+end⟩
+
 protected def pow_add : x ^ (n + m) ~ x ^ n * x ^ m :=
 begin
   unfold has_pow.pow, unfold has_mul.mul,
@@ -277,41 +309,16 @@ begin
     { apply fpow_add h4 }}
 end
 
-protected def congr_add (u : x ~ x') (v : y ~ y') : add x y ~ add x' y' :=
-⟨u.val ∪ v.val, begin
-  intros _ _ _ ρ H, resetI,
-  unfold_coes, unfold eval,
-  apply congr, apply congr_arg,
-  apply u.property, intros, apply H,
-  apply finset.mem_union_left, assumption,
-  apply v.property, intros, apply H,
-  apply finset.mem_union_right, assumption,
-end⟩
-
-protected def congr_mul (u : x ~ x') (v : y ~ y') : mul x y ~ mul x' y' :=
-⟨u.val ∪ v.val, begin
-  intros _ _ _ ρ H, resetI,
-  unfold_coes, unfold eval,
-  apply congr, apply congr_arg,
-  apply u.property, intros, apply H,
-  apply finset.mem_union_left, assumption,
-  apply v.property, intros, apply H,
-  apply finset.mem_union_right, assumption,
-end⟩
-
-protected def congr_pow (u : x ~ y) (v : n = m) : pow x n ~ pow y m :=
-⟨u.val, begin
-  intros _ _ _ ρ H, resetI,
-  unfold_coes, unfold eval,
-  apply congr, apply congr_arg,
-  apply u.property, intros, apply H,
-  assumption, assumption
-end⟩
-
 protected def pow_sub : x ^ (n - m) ~ x ^ n * x ^ (-m) :=
 eq_val.trans
   (eq_val.congr_pow eq_val.rfl (sub_eq_add_neg n m))
   eq_val.pow_add
+
+protected def pow_mul : x ^ (n * m) ~ (x ^ n) ^ m :=
+⟨∅, by {intros, apply fpow_mul}⟩
+
+protected def mul_pow : (x * y) ^ n ~ x ^ n * y ^ n :=
+⟨∅, by {intros, apply mul_fpow}⟩
 
 end eq_val
 
