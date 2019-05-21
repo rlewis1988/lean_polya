@@ -50,11 +50,20 @@ do
 @[reducible]
 def γ := ℚ
 
-meta def aux_numeral : expr → option γ
+meta def aux_const : expr → option γ
 | `(@has_zero.zero %%α %%s)  := some 0
 | `(@has_one.one %%α %%s)    := some 1
-| `(@bit0 %%α %%s %%v)       := bit0 <$> aux_numeral v
-| `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_numeral v
+| `(@bit0 %%α %%s %%v)       := bit0 <$> aux_const v
+| `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_const v
+| _                          := none
+--TODO: add fractions
+
+meta def aux_num : expr → option ℤ
+| `(@has_zero.zero %%α %%s)  := some 0
+| `(@has_one.one %%α %%s)    := some 1
+| `(@bit0 %%α %%s %%v)       := bit0 <$> aux_num v
+| `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_num v
+| `(- %%a)                   := has_neg.neg <$> aux_num a
 | _                          := none
 
 meta def term_of_expr : expr → state_dict (@term γ _) | e :=
@@ -83,10 +92,15 @@ meta def term_of_expr : expr → state_dict (@term γ _) | e :=
     | `((%%a)⁻¹) := do
         x ← term_of_expr a,
         return (inv x)
+    | `(%%a ^ %%n) :=
+        match aux_num n with
+        | (some n) := (λ x, term.pow x n) <$> term_of_expr a 
+        | none := atom <$> get_atom e
+        end
     | `(↑%%e) :=
-        match aux_numeral e with
+        match aux_const e with
         | (some n) := return (const n)
-        | _ := atom <$> get_atom e
+        | none := atom <$> get_atom e
         end
     | _ := atom <$> get_atom e
     end
@@ -100,7 +114,7 @@ do
     h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
     h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ %%(reflect nt)),
     ((), pr1) ← solve_aux h1 `[refl; done],
-    ((), pr2) ← solve_aux h2 `[apply nterm.keep_eval; done],
+    ((), pr2) ← solve_aux h2 `[apply nterm.correctness; done],
 
     pr ← mk_eq_trans pr1 pr2,
     return (nt, pr)

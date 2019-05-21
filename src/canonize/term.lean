@@ -7,6 +7,8 @@ meta instance rat.reflect : has_reflect ℚ
 | ⟨n, d, _, _⟩ := `(rat.mk_nat %%(reflect n) %%(reflect d))
 end
 
+local attribute [elim_cast] znum.cast_inj
+
 namespace polya
 
 class morph (γ : Type) [discrete_field γ] (α : Type) [discrete_field α] :=
@@ -90,7 +92,7 @@ inductive term : Type
 | div : term → term → term
 | neg : term → term
 | inv : term → term
-| pow : term → ℕ → term
+| pow : term → ℤ → term
 | const : γ → term
 
 namespace term
@@ -104,7 +106,7 @@ instance : has_mul (@term γ _) := ⟨mul⟩
 instance : has_sub (@term γ _) := ⟨sub⟩
 instance : has_div (@term γ _) := ⟨div⟩
 instance : has_inv (@term γ _) := ⟨inv⟩
-instance : has_pow (@term γ _) ℕ := ⟨pow⟩
+instance : has_pow (@term γ _) ℤ := ⟨pow⟩
 
 def eval (ρ : dict α) : @term γ _ → α
 | zero      := 0
@@ -127,7 +129,7 @@ inductive nterm : Type
 | const : γ → nterm
 | add : nterm → nterm → nterm
 | mul : nterm → nterm → nterm
-| pow : nterm → ℤ → nterm
+| pow : nterm → znum → nterm
 
 namespace nterm
 
@@ -137,7 +139,7 @@ instance : has_zero (@nterm γ _) := ⟨const 0⟩
 instance : has_one (@nterm γ _) := ⟨const 1⟩
 instance : has_add (@nterm γ _) := ⟨add⟩
 instance : has_mul (@nterm γ _) := ⟨mul⟩
-instance : has_pow (@nterm γ _) ℤ := ⟨pow⟩
+instance : has_pow (@nterm γ _) znum := ⟨pow⟩
 instance : has_inv (@nterm γ _) := ⟨λ x, pow x (-1)⟩
 
 def eval (ρ : dict α) : @nterm γ _ → α
@@ -145,7 +147,7 @@ def eval (ρ : dict α) : @nterm γ _ → α
 | (const c) := morph.morph _ c
 | (add x y) := eval x + eval y
 | (mul x y) := eval x * eval y
-| (pow x n) := eval x ^ n
+| (pow x n) := eval x ^ (n : ℤ)
 
 instance : has_coe_to_fun (dict α) := ⟨λ _, @nterm γ _ → α, eval⟩
 
@@ -162,7 +164,7 @@ def of_term : @term γ _ → @nterm γ _
 | (term.pow x n) := pow (of_term x) n
 | (term.const n)   := const n
 
-theorem keep_eval : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
+theorem correctness : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
 begin
     intro x,
     induction x;
@@ -174,14 +176,16 @@ begin
       rw ← sub_eq_add_neg,
       congr; assumption },
     { congr; assumption },
-    { rw division_def, rw fpow_inv,
+    { simp only [znum.cast_zneg, znum.cast_one],
+      rw [division_def, fpow_inv],
       congr; assumption },
     { rw [morph.morph_neg, morph.morph1, neg_one_mul],
       congr; assumption },
-    { rw fpow_inv,
+    { simp only [znum.cast_zneg, znum.cast_one],
+      rw fpow_inv,
       congr; assumption },
-    { rw fpow_of_nat,
-      congr; assumption },
+    { simp only [znum.of_int_cast], norm_cast,
+      congr; assumption }
 end
 
 def pp : (@nterm γ _) → (@nterm γ _) 
@@ -218,7 +222,7 @@ infixr ` ~ ` := eq_val
 
 namespace eq_val
 
-variables {x y z x' y' z' : @nterm γ _} {a b c : γ} {n m : ℤ}
+variables {x y z x' y' z' : @nterm γ _} {a b c : γ} {n m : znum}
 
 protected def rfl : x ~ x :=
 ⟨∅, assume _ _ _ _ _, rfl⟩
@@ -253,7 +257,7 @@ protected def const_add : const (a + b) ~ const a + const b :=
 protected def const_mul : const (a * b) ~ const a * const b :=
 ⟨∅, by {intros, apply morph.morph_mul}⟩
 
-protected def const_inv : const (a ^ n) ~ (const a) ^ n :=
+protected def const_inv : const (a ^ ↑n) ~ (const a) ^ n :=
 ⟨∅, by {intros, apply morph.morph_pow}⟩
 
 
@@ -285,7 +289,7 @@ protected def congr_pow (u : x ~ y) (v : n = m) : x ^ n ~ y ^ m :=
   unfold_coes, unfold has_pow.pow, unfold eval,
   apply congr, apply congr_arg,
   apply u.property, intros, apply H,
-  assumption, assumption
+  assumption, rw znum.cast_inj, assumption
 end⟩
 
 protected def pow_add : x ^ (n + m) ~ x ^ n * x ^ m :=
@@ -296,17 +300,19 @@ begin
   { intros _ _ _ ρ H,
     unfold_coes, unfold eval, resetI,
     by_cases h1 : n = 0,
-    { rw [h1, zero_add, fpow_zero, one_mul] },
+    { rw [h1, znum.cast_zero, zero_add, fpow_zero, one_mul] },
     by_cases h2 : m = 0,
-    { rw [h2, add_zero, fpow_zero, mul_one] },
+    { rw [h2, znum.cast_zero, add_zero, fpow_zero, mul_one] },
     by_cases h3 : n + m = 0,
-    { apply fpow_add,
+    { rw znum.cast_add, apply fpow_add,
       have : n ≠ 0 ∧ m ≠ 0 ∧ n + m = 0, from ⟨h1, h2, h3⟩,
       apply H, simp [this] },
     by_cases h4 : eval ρ x = 0,
-    { rw [h4, zero_fpow n h1, zero_fpow (n + m) h3],
-      simp },
-    { apply fpow_add h4 }}
+    { rw [h4, zero_fpow, zero_fpow],
+      { rw zero_mul },
+      { rw ← znum.cast_zero, norm_cast, exact h1 },
+      { rw ← znum.cast_zero, norm_cast, exact h3 }},
+    { rw znum.cast_add, apply fpow_add h4 }}
 end
 
 protected def pow_sub : x ^ (n - m) ~ x ^ n * x ^ (-m) :=
@@ -315,7 +321,11 @@ eq_val.trans
   eq_val.pow_add
 
 protected def pow_mul : x ^ (n * m) ~ (x ^ n) ^ m :=
-⟨∅, by {intros, apply fpow_mul}⟩
+⟨∅, begin
+  intros, unfold_coes,
+  unfold has_pow.pow, unfold eval,
+  rw znum.cast_mul, apply fpow_mul
+end⟩
 
 protected def mul_pow : (x * y) ^ n ~ x ^ n * y ^ n :=
 ⟨∅, by {intros, apply mul_fpow}⟩
