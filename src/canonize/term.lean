@@ -22,7 +22,7 @@ class morph (γ : Type) [discrete_field γ] (α : Type) [discrete_field α] :=
 (morph_inj : ∀ a : γ, morph a = 0 → a = 0)
 
 structure dict (α : Type) :=
-(val : ℕ → α)
+(val : num → α)
 
 variables {α : Type} [discrete_field α]
 variable {ρ : dict α}

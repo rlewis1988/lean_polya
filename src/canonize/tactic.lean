@@ -38,7 +38,7 @@ def list.to_dict {α} [inhabited α] (l : list α) : dict α :=
 ⟨λ i, list.func.get i l.reverse⟩
 --TODO: more efficient implementation
 
-def finmap.to_dict (m : finmap (λ _ : ℕ, ℝ)) : dict ℝ :=
+def finmap.to_dict (m : finmap (λ _ : num, ℝ)) : dict ℝ :=
 ⟨λ i, match finmap.lookup i m with (some x) := x | _ := 0 end⟩
 
 meta def cache_ty.get_dict (s : cache_ty) : tactic expr :=
