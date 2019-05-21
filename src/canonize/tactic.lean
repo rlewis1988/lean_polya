@@ -114,7 +114,7 @@ do
     h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
     h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ %%(reflect nt)),
     ((), pr1) ← solve_aux h1 `[refl; done],
-    ((), pr2) ← solve_aux h2 `[apply nterm.correctness; done],
+    ((), pr2) ← solve_aux h2 `[apply nterm.correctness1; done],
 
     pr ← mk_eq_trans pr1 pr2,
     return (nt, pr)

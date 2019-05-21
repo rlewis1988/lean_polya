@@ -149,6 +149,13 @@ def eval (ρ : dict α) : @nterm γ _ → α
 | (mul x y) := eval x * eval y
 | (pow x n) := eval x ^ (n : ℤ)
 
+def size : @nterm γ _ → ℕ
+| (atom _)  := 1
+| (const _) := 1
+| (add x y) := 1 + size x + size y
+| (mul x y) := 1 + size x + size y
+| (pow x n) := 1 + size x
+
 instance : has_coe_to_fun (dict α) := ⟨λ _, @nterm γ _ → α, eval⟩
 
 def of_term : @term γ _ → @nterm γ _
@@ -164,7 +171,7 @@ def of_term : @term γ _ → @nterm γ _
 | (term.pow x n) := of_term x ^ (n : znum)
 | (term.const n)   := const n
 
-theorem correctness : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
+theorem correctness1 : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
 begin
     intro x,
     induction x;
@@ -339,24 +346,14 @@ protected def mul_pow : (x * y) ^ n ~ x ^ n * y ^ n :=
 
 end eq_val
 
-def step : Type := Π (x : @nterm γ _), Σ (y : @nterm γ _), x ~ y
+def r : @nterm γ _ → @nterm γ _ → Prop := measure size
+theorem wf_r : @well_founded (@nterm γ _) r := measure_wf _
 
-namespace step
 
-def comp (f g : @step γ _)  : @step γ _ :=
-assume x,
-let ⟨y, pr1⟩ := g x in
-let ⟨z, pr2⟩ := f y in
-⟨z, eq_val.trans pr1 pr2⟩
+def norm : @nterm γ _ → @nterm γ _ := sorry
 
-infixr ` ∘ ` := comp
-
-end step
-
-def id : @step γ _
-| x := ⟨x, eq_val.rfl⟩
-
-def canonize : @step γ _ := sorry
+theorem correctness2 (x : @nterm γ _) : x ~ norm x :=
+by sorry
 
 end nterm
 
