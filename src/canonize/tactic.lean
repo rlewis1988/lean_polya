@@ -5,8 +5,8 @@ open term tactic
 open native
 
 meta structure cache_ty :=
-(new_atom : ℕ)
-(atoms : rb_map expr ℕ)
+(new_atom : num)
+(atoms : rb_map expr num)
 (val : tactic expr)
 
 private meta def empty_val : tactic expr :=
@@ -24,7 +24,7 @@ do
 mk_app `list.cons [e, m]
 --mk_app `finmap.insert [reflect k, e, m]
 
-meta def get_atom (e : expr) : state_dict ℕ :=
+meta def get_atom (e : expr) : state_dict num :=
 get >>= λ s,
 match s.atoms.find e with
 | (some i) := return i
@@ -85,7 +85,7 @@ meta def term_of_expr : expr → state_dict (@term γ _) | e :=
         return (inv x)
     | `(↑%%e) :=
         match aux_numeral e with
-        | (some n) := return (num n)
+        | (some n) := return (const n)
         | _ := atom <$> get_atom e
         end
     | _ := atom <$> get_atom e

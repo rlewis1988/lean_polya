@@ -83,7 +83,7 @@ end morph
 inductive term : Type
 | zero : term
 | one : term
-| atom : ℕ → term
+| atom : num → term
 | add : term → term → term
 | sub : term → term → term
 | mul : term → term → term
@@ -91,12 +91,12 @@ inductive term : Type
 | neg : term → term
 | inv : term → term
 | pow : term → ℕ → term
-| num : γ → term
+| const : γ → term
 
 namespace term
 
-instance coe_atom : has_coe ℕ (@term γ _) := ⟨atom⟩
-instance coe_const: has_coe γ (@term γ _) := ⟨num⟩
+instance coe_atom : has_coe num (@term γ _) := ⟨atom⟩
+instance coe_const: has_coe γ (@term γ _) := ⟨const⟩
 instance : has_zero (@term γ _) := ⟨zero⟩
 instance : has_one (@term γ _) := ⟨one⟩
 instance : has_add (@term γ _) := ⟨add⟩
@@ -117,13 +117,13 @@ def eval (ρ : dict α) : @term γ _ → α
 | (neg x)   := - eval x
 | (inv x)   := (eval x)⁻¹
 | (pow x n) := eval x ^ n
-| (num r)   := morph.morph _ r
+| (const r)   := morph.morph _ r
 
 end term
 
 @[derive decidable_eq, derive has_reflect]
 inductive nterm : Type
-| atom : ℕ → nterm
+| atom : num → nterm
 | const : γ → nterm
 | add : nterm → nterm → nterm
 | mul : nterm → nterm → nterm
@@ -131,7 +131,7 @@ inductive nterm : Type
 
 namespace nterm
 
-instance coe_atom : has_coe ℕ (@nterm γ _) := ⟨atom⟩
+instance coe_atom : has_coe num (@nterm γ _) := ⟨atom⟩
 instance coe_const: has_coe γ (@nterm γ _) := ⟨const⟩
 instance : has_zero (@nterm γ _) := ⟨const 0⟩
 instance : has_one (@nterm γ _) := ⟨const 1⟩
@@ -160,7 +160,7 @@ def of_term : @term γ _ → @nterm γ _
 | (term.neg x)   := mul (const (-1)) (of_term x)
 | (term.inv x)   := pow (of_term x) (-1)
 | (term.pow x n) := pow (of_term x) n
-| (term.num n)   := const n
+| (term.const n)   := const n
 
 theorem keep_eval : Π (x : @term γ _), term.eval ρ x = eval ρ (of_term x) :=
 begin
