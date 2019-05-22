@@ -305,7 +305,6 @@ protected def const_mul : const (a * b) ~ const a * const b :=
 protected def const_inv : const (a ^ ↑n) ~ (const a) ^ n :=
 ⟨∅, by {intros, apply morph.morph_pow}⟩
 
-
 protected def congr_add (u : x ~ x') (v : y ~ y') : x + y ~ x' + y' :=
 ⟨u.val ∪ v.val, begin
   intros _ _ _ ρ H, resetI,

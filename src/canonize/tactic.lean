@@ -55,8 +55,11 @@ meta def aux_const : expr → option γ
 | `(@has_one.one %%α %%s)    := some 1
 | `(@bit0 %%α %%s %%v)       := bit0 <$> aux_const v
 | `(@bit1 %%α %%s₁ %%s₂ %%v) := bit1 <$> aux_const v
+| `(%%a / %%b)               := do
+    x ← aux_const a,
+    y ← aux_const b,
+    return (x / y)
 | _                          := none
---TODO: add fractions
 
 meta def aux_num : expr → option ℤ
 | `(@has_zero.zero %%α %%s)  := some 0
@@ -105,7 +108,8 @@ meta def term_of_expr : expr → state_dict (@term γ _) | e :=
     | _ := atom <$> get_atom e
     end
 
-meta def nterm_of_expr (e : expr) : tactic (@nterm γ _ × expr) :=
+-- build nterm and prove equality
+meta def nterm_of_expr (e : expr) : tactic (@nterm γ _ × expr × expr) :=
 do
     let (t, s) := (term_of_expr e).run ∅,
     let nt := nterm.of_term t,
@@ -117,6 +121,6 @@ do
     ((), pr2) ← solve_aux h2 `[apply nterm.correctness1; done],
 
     pr ← mk_eq_trans pr1 pr2,
-    return (nt, pr)
+    return (nt, ρ, pr)
 
 end polya
