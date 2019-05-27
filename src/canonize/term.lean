@@ -100,64 +100,6 @@ instance : decidable_rel (@has_le.le γ _) := coeff.dec_le γ
 variables [morph γ α] {ρ : dict α}
 
 @[derive decidable_eq, derive has_reflect]
-inductive term : Type
-| zero : term
-| one : term
-| atom : num → term
-| add : term → term → term
-| sub : term → term → term
-| mul : term → term → term
-| div : term → term → term
-| neg : term → term
-| inv : term → term
-| pow : term → ℤ → term
-| const : γ → term
-
-namespace term
-
-instance coe_atom : has_coe num (@term γ _) := ⟨atom⟩
-instance coe_const: has_coe γ (@term γ _) := ⟨const⟩
-instance : has_zero (@term γ _) := ⟨zero⟩
-instance : has_one (@term γ _) := ⟨one⟩
-instance : has_add (@term γ _) := ⟨add⟩
-instance : has_mul (@term γ _) := ⟨mul⟩
-instance : has_sub (@term γ _) := ⟨sub⟩
-instance : has_div (@term γ _) := ⟨div⟩
-instance : has_neg (@term γ _) := ⟨neg⟩
-instance : has_inv (@term γ _) := ⟨inv⟩
-instance : has_pow (@term γ _) ℤ := ⟨pow⟩
-
-def eval (ρ : dict α) : @term γ _ → α
-| zero      := 0
-| one       := 1
-| (atom i)  := ρ.val i
-| (add x y) := eval x + eval y
-| (sub x y) := eval x - eval y
-| (mul x y) := eval x * eval y
-| (div x y) := (eval x) / (eval y)
-| (neg x)   := - eval x
-| (inv x)   := (eval x)⁻¹
-| (pow x n) := eval x ^ n
-| (const r) := morph.f _ r
-
-section
-variables {x y : @term γ _} {i : num} {n : ℤ} {c : γ}
-@[simp] theorem eval_zero : (0 : @term γ _).eval ρ = 0 := rfl
-@[simp] theorem eval_one : (1 : @term γ _).eval ρ = 1 := rfl
-@[simp] theorem eval_atom : (i : @term γ _).eval ρ = ρ.val i := rfl
-@[simp] theorem eval_add : (x + y).eval ρ = x.eval ρ + y.eval ρ := rfl
-@[simp] theorem eval_sub : (x - y).eval ρ = x.eval ρ - y.eval ρ := rfl
-@[simp] theorem eval_mul : (x * y).eval ρ = x.eval ρ * y.eval ρ := rfl
-@[simp] theorem eval_div : (x / y).eval ρ = x.eval ρ / y.eval ρ := rfl
-@[simp] theorem eval_neg : (-x).eval ρ = - x.eval ρ := rfl
-@[simp] theorem eval_inv : (x⁻¹).eval ρ = (x.eval ρ)⁻¹ := rfl
-@[simp] theorem eval_pow : (x ^ n).eval ρ = x.eval ρ ^ n := rfl
-@[simp] theorem eval_const : (c : @term γ _).eval ρ = morph.f _ c := rfl
-end
-
-end term
-
-@[derive decidable_eq, derive has_reflect]
 inductive nterm : Type
 | atom  : num → nterm
 | const : γ → nterm
@@ -252,41 +194,6 @@ eval ρ (x / y)
 
 end
 
-def of_term : @term γ _ → @nterm γ _
-| term.zero      := 0
-| term.one       := 1
-| (term.atom i)  := i
-| (term.add x y) := of_term x + of_term y
-| (term.sub x y) := of_term x - of_term y
-| (term.mul x y) := of_term x * of_term y
-| (term.div x y) := of_term x / of_term y
-| (term.neg x)   := - of_term x
-| (term.inv x)   := of_term x ^ (-1 : znum)
-| (term.pow x n) := of_term x ^ (n : znum)
-| (term.const c) := const c
-
-theorem correctness1 {x : @term γ _} :
-  x.eval ρ = (of_term x).eval ρ :=
-begin
-    induction x with
-      i           --atom
-      x y ihx ihy --add
-      x y ihx ihy --sub
-      x y ihx ihy --mul
-      x y ihx ihy --div
-      x ihx       --neg
-      x ihx       --inv
-      x n ihx     --pow
-      c;          --const
-    unfold of_term; unfold term.eval,
-    repeat { simp },
-    repeat { simp [ihx] },
-    repeat { simp [ihx, ihy] },
-    { by_cases h : eval ρ (of_term x) = 0;
-      simp [h, fpow_inv] },
-    { simp [eval] }
-end
-
 meta def to_str [has_to_string γ] : (@nterm γ _) → string
 | (atom i)  := "#" ++ to_string (i : ℕ)
 | (const c) := to_string c
@@ -300,8 +207,6 @@ meta instance [has_to_string γ] : has_to_tactic_format (@nterm γ _) := ⟨λ x
 def sum : list (@nterm γ _) → @nterm γ _
 | []      := (0 : @nterm γ _)
 | (x::xs) := list.foldl add x xs
-
---theorem eval_sum_aux (x0 x1 : @nterm γ _) (xs : @nterm γ _) :
 
 theorem eval_sum (xs : list (@nterm γ _)) :
   (sum xs).eval ρ = list.sum (xs.map (nterm.eval ρ)) :=
@@ -347,7 +252,6 @@ theorem eval_def {x : @nterm γ _} {a : γ} :
   eval ρ ⟨x, a⟩ = x.eval ρ * morph.f _ a :=
 rfl
 
-@[simp]
 theorem eval_to_nterm (x : @cterm γ _) :
   x.to_nterm.eval ρ = x.eval ρ :=
 begin
@@ -366,7 +270,6 @@ begin
   simp [eval_to_nterm]
 end
 
-@[simp]
 theorem eval_mul (x : @cterm γ _) (a : γ) :
   (x.mul a).eval ρ = x.eval ρ * (morph.f _ a) :=
 begin
@@ -411,7 +314,7 @@ begin
     simp [h0, h1, mul, eval], 
     induction terms with x xs ih,
     { simp },
-    { simp [ih, add_mul] }
+    { simp [ih, add_mul, cterm.eval_mul] }
   }
 end
 
@@ -550,7 +453,7 @@ end
 def norm (x : @nterm γ _) : @nterm γ _ :=
 x.to_sterm.sort.reduce.to_nterm
 
-theorem correctness2 {x : @nterm γ _} :
+theorem correctness {x : @nterm γ _} :
   x.eval ρ = x.norm.eval ρ :=
 calc
   x.eval ρ = sterm.eval ρ x.to_sterm             : eval_to_sterm
@@ -559,14 +462,78 @@ calc
        ... = nterm.eval ρ x.norm                 : sterm.eval_to_nterm
 end nterm
 
+@[derive decidable_eq, derive has_reflect]
+inductive term : Type
+| zero : term
+| one : term
+| atom : num → term
+| add : term → term → term
+| sub : term → term → term
+| mul : term → term → term
+| div : term → term → term
+| neg : term → term
+| inv : term → term
+| pow : term → ℤ → term
+| const : γ → term
+
+namespace term
+
+def eval (ρ : dict α) : @term γ _ → α
+| zero      := 0
+| one       := 1
+| (atom i)  := ρ.val i
+| (add x y) := eval x + eval y
+| (sub x y) := eval x - eval y
+| (mul x y) := eval x * eval y
+| (div x y) := (eval x) / (eval y)
+| (neg x)   := - eval x
+| (inv x)   := (eval x)⁻¹
+| (pow x n) := eval x ^ n
+| (const r) := morph.f _ r
+
+def to_nterm : @term γ _ → @nterm γ _
+| zero      := 0
+| one       := 1
+| (atom i)  := i
+| (add x y) := to_nterm x + to_nterm y
+| (sub x y) := to_nterm x - to_nterm y
+| (mul x y) := to_nterm x * to_nterm y
+| (div x y) := to_nterm x / to_nterm y
+| (neg x)   := - to_nterm x
+| (inv x)   := to_nterm x ^ (-1 : znum)
+| (pow x n) := to_nterm x ^ (n : znum)
+| (const c) := c
+
+theorem correctness {x : @term γ _} :
+  x.eval ρ = (to_nterm x).eval ρ :=
+begin
+    induction x with
+      i           --atom
+      x y ihx ihy --add
+      x y ihx ihy --sub
+      x y ihx ihy --mul
+      x y ihx ihy --div
+      x ihx       --neg
+      x ihx       --inv
+      x n ihx     --pow
+      c;          --const
+    unfold to_nterm; unfold term.eval,
+    repeat { simp },
+    repeat { simp [ihx] },
+    repeat { simp [ihx, ihy] },
+    { simp [fpow_inv] }
+end
+
+end term
+
 def norm (x : @term γ _) : @nterm γ _ :=
-(nterm.of_term x).norm
+(term.to_nterm x).norm
 
 theorem correctness (x : @term γ _) :
   term.eval ρ x = nterm.eval ρ (norm x) :=
 calc
-  term.eval ρ x = nterm.eval ρ (nterm.of_term x)      : nterm.correctness1
-            ... = nterm.eval ρ (nterm.of_term x).norm : nterm.correctness2
+  term.eval ρ x = nterm.eval ρ (term.to_nterm x)      : term.correctness
+            ... = nterm.eval ρ (term.to_nterm x).norm : nterm.correctness
             ... = nterm.eval ρ (norm x)               : rfl
 
 end polya

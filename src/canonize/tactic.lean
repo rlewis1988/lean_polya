@@ -124,7 +124,7 @@ do
     h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
     h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ (norm %%(reflect t))),
     ((), pr1) ← solve_aux h1 `[refl; done],
-    ((), pr2) ← solve_aux h2 `[apply correctness; done],
+    ((), pr2) ← solve_aux h2 `[apply polya.correctness; done],
     pr ← mk_eq_trans pr1 pr2,
     return (nt, ρ, pr)
 
