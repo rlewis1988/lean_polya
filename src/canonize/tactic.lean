@@ -55,7 +55,6 @@ instance : coeff γ :=
   dec_le := by apply_instance,
 }
 
-
 meta def aux_const : expr → option γ
 | `(@has_zero.zero %%α %%s)  := some 0
 | `(@has_one.one %%α %%s)    := some 1
@@ -76,43 +75,43 @@ meta def aux_num : expr → option ℤ
 | _                          := none
 
 meta def term_of_expr : expr → state_dict (@term γ _) | e :=
-    match e with
-    | `(0 : ℝ) := return zero 
-    | `(1 : ℝ) := return one
-    | `(%%a + %%b) := do
-        x ← term_of_expr a,
-        y ← term_of_expr b,
-        return (add x y)
-    | `(%%a - %%b) := do
-        x ← term_of_expr a,
-        y ← term_of_expr b,
-        return (sub x y)
-    | `(%%a * %%b) := do
-        x ← term_of_expr a,
-        y ← term_of_expr b,
-        return (mul x y)
-    | `(%%a / %%b) := do
-        x ← term_of_expr a,
-        y ← term_of_expr b,
-        return (div x y)
-    | `(-%%a) := do
-        x ← term_of_expr a,
-        return (neg x)
-    | `((%%a)⁻¹) := do
-        x ← term_of_expr a,
-        return (inv x)
-    | `(%%a ^ %%n) :=
-        match aux_num n with
-        | (some n) := (λ x, term.pow x n) <$> term_of_expr a 
-        | none := atom <$> get_atom e
-        end
-    | `(↑%%e) :=
-        match aux_const e with
-        | (some n) := return (const n)
-        | none := atom <$> get_atom e
-        end
-    | _ := atom <$> get_atom e
+match e with
+| `(0 : ℝ) := return zero
+| `(1 : ℝ) := return one
+| `(%%a + %%b) := do
+    x ← term_of_expr a,
+    y ← term_of_expr b,
+    return (add x y)
+| `(%%a - %%b) := do
+    x ← term_of_expr a,
+    y ← term_of_expr b,
+    return (sub x y)
+| `(%%a * %%b) := do
+    x ← term_of_expr a,
+    y ← term_of_expr b,
+    return (mul x y)
+| `(%%a / %%b) := do
+    x ← term_of_expr a,
+    y ← term_of_expr b,
+    return (div x y)
+| `(-%%a) := do
+    x ← term_of_expr a,
+    return (neg x)
+| `((%%a)⁻¹) := do
+    x ← term_of_expr a,
+    return (inv x)
+| `(%%a ^ %%n) :=
+    match aux_num n with
+    | (some n) := (λ x, term.pow x n) <$> term_of_expr a
+    | none     := atom <$> get_atom e
     end
+| `(↑%%e) :=
+    match aux_const e with
+    | (some n) := return (const n)
+    | none     := atom <$> get_atom e
+    end
+| _ := atom <$> get_atom e
+end
 
 -- build nterm and prove equality
 meta def nterm_of_expr (e : expr) : tactic (@nterm γ _ × expr × expr) :=
@@ -123,6 +122,7 @@ do
     
     h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
     h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ (norm %%(reflect t))),
+    --TODO: h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ %%(reflect nt) ),
     ((), pr1) ← solve_aux h1 `[refl; done],
     ((), pr2) ← solve_aux h2 `[apply polya.correctness; done],
     pr ← mk_eq_trans pr1 pr2,
