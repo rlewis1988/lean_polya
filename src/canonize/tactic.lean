@@ -1,8 +1,7 @@
 import .term data.list.alist data.finmap
 
 namespace polya
-open term tactic
-open native
+open term native tactic
 
 meta structure cache_ty :=
 (new_atom : num)
@@ -49,6 +48,13 @@ do
 
 @[reducible]
 def γ := ℚ
+
+instance : coeff γ :=
+{ df := by apply_instance,
+  le := by apply_instance, 
+  dec_le := by apply_instance,
+}
+
 
 meta def aux_const : expr → option γ
 | `(@has_zero.zero %%α %%s)  := some 0
@@ -112,14 +118,13 @@ meta def term_of_expr : expr → state_dict (@term γ _) | e :=
 meta def nterm_of_expr (e : expr) : tactic (@nterm γ _ × expr × expr) :=
 do
     let (t, s) := (term_of_expr e).run ∅,
-    let nt := nterm.of_term t,
+    let nt := norm t,
     ρ ← s.get_dict,
     
     h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
-    h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ %%(reflect nt)),
+    h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ (norm %%(reflect t))),
     ((), pr1) ← solve_aux h1 `[refl; done],
-    ((), pr2) ← solve_aux h2 `[apply nterm.correctness1; done],
-
+    ((), pr2) ← solve_aux h2 `[apply correctness; done],
     pr ← mk_eq_trans pr1 pr2,
     return (nt, ρ, pr)
 
