@@ -1,4 +1,4 @@
-import .term .tactic
+import .tactic
 
 open tactic polya
 

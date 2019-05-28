@@ -1,6 +1,7 @@
-import .term data.list.alist data.finmap
+import .eterm data.list.alist data.finmap
 
 namespace polya
+
 open eterm native tactic
 
 meta structure cache_ty :=
