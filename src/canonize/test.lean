@@ -1,6 +1,6 @@
 import .term .tactic
 
-open tactic polya polya.term
+open tactic polya
 
 meta def test (e : expr) : tactic unit :=
 do

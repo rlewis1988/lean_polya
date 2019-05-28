@@ -463,22 +463,22 @@ calc
 end nterm
 
 @[derive decidable_eq, derive has_reflect]
-inductive term : Type
-| zero : term
-| one : term
-| atom : num → term
-| add : term → term → term
-| sub : term → term → term
-| mul : term → term → term
-| div : term → term → term
-| neg : term → term
-| inv : term → term
-| pow : term → ℤ → term
-| const : γ → term
+inductive eterm : Type
+| zero : eterm
+| one : eterm
+| atom : num → eterm
+| add : eterm → eterm → eterm
+| sub : eterm → eterm → eterm
+| mul : eterm → eterm → eterm
+| div : eterm → eterm → eterm
+| neg : eterm → eterm
+| inv : eterm → eterm
+| pow : eterm → ℤ → eterm
+| const : γ → eterm
 
-namespace term
+namespace eterm
 
-def eval (ρ : dict α) : @term γ _ → α
+def eval (ρ : dict α) : @eterm γ _ → α
 | zero      := 0
 | one       := 1
 | (atom i)  := ρ.val i
@@ -491,7 +491,7 @@ def eval (ρ : dict α) : @term γ _ → α
 | (pow x n) := eval x ^ n
 | (const r) := morph.f _ r
 
-def to_nterm : @term γ _ → @nterm γ _
+def to_nterm : @eterm γ _ → @nterm γ _
 | zero      := 0
 | one       := 1
 | (atom i)  := i
@@ -504,7 +504,7 @@ def to_nterm : @term γ _ → @nterm γ _
 | (pow x n) := to_nterm x ^ (n : znum)
 | (const c) := c
 
-theorem correctness {x : @term γ _} :
+theorem correctness {x : @eterm γ _} :
   x.eval ρ = (to_nterm x).eval ρ :=
 begin
     induction x with
@@ -517,23 +517,23 @@ begin
       x ihx       --inv
       x n ihx     --pow
       c;          --const
-    unfold to_nterm; unfold term.eval,
+    unfold to_nterm; unfold eterm.eval,
     repeat { simp },
     repeat { simp [ihx] },
     repeat { simp [ihx, ihy] },
     { simp [fpow_inv] }
 end
 
-end term
+end eterm
 
-def norm (x : @term γ _) : @nterm γ _ :=
-(term.to_nterm x).norm
+def norm (x : @eterm γ _) : @nterm γ _ :=
+(eterm.to_nterm x).norm
 
-theorem correctness {x : @term γ _} :
-  term.eval ρ x = nterm.eval ρ (norm x) :=
+theorem correctness {x : @eterm γ _} :
+  eterm.eval ρ x = nterm.eval ρ (norm x) :=
 calc
-  term.eval ρ x = nterm.eval ρ (term.to_nterm x)      : term.correctness
-            ... = nterm.eval ρ (term.to_nterm x).norm : nterm.correctness
+  eterm.eval ρ x = nterm.eval ρ (eterm.to_nterm x)      : eterm.correctness
+            ... = nterm.eval ρ (eterm.to_nterm x).norm : nterm.correctness
             ... = nterm.eval ρ (norm x)               : rfl
 
 end polya

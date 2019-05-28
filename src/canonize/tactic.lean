@@ -1,7 +1,7 @@
 import .term data.list.alist data.finmap
 
 namespace polya
-open term native tactic
+open eterm native tactic
 
 meta structure cache_ty :=
 (new_atom : num)
@@ -73,7 +73,7 @@ meta def aux_num : expr → option ℤ
 | `(- %%a)                   := has_neg.neg <$> aux_num a
 | _                          := none
 
-meta def term_of_expr : expr → state_dict (@term γ _) | e :=
+meta def term_of_expr : expr → state_dict (@eterm γ _) | e :=
 match e with
 | `(0 : ℝ) := return zero
 | `(1 : ℝ) := return one
@@ -101,7 +101,7 @@ match e with
     return (inv x)
 | `(%%a ^ %%n) :=
     match aux_num n with
-    | (some n) := (λ x, term.pow x n) <$> term_of_expr a
+    | (some n) := (λ x, pow x n) <$> term_of_expr a
     | none     := atom <$> get_atom e
     end
 | `(↑%%e) :=
@@ -119,9 +119,9 @@ do
     nt ← to_expr ``(norm %%t),
     ρ ← s.get_dict_expr,
     
-    h1 ← to_expr ``(%%e = term.eval %%ρ %%t),
+    h1 ← to_expr ``(%%e = eterm.eval %%ρ %%t),
     ((), pr1) ← solve_aux h1 `[refl; done],
-    h2 ← to_expr ``(term.eval %%ρ %%t = nterm.eval %%ρ %%nt),
+    h2 ← to_expr ``(eterm.eval %%ρ %%t = nterm.eval %%ρ %%nt),
     ((), pr2) ← solve_aux h2 `[apply polya.correctness; done],
     pr ← mk_eq_trans pr1 pr2,
     return (nt, ρ, pr)
