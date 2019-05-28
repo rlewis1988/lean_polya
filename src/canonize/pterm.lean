@@ -234,15 +234,7 @@ begin
 end
 
 def reduce (P : @pterm γ _) : list (@nterm γ _) × @pterm γ _ :=
-match P.terms with
-| []      := ([], ⟨[]⟩)
-| (x::xs) :=
-  let pi := list.foldl reduce_aux ⟨x, [], []⟩ xs in
-  if pi.t.exp = 0 then
-    (pi.t.term::pi.hyps, ⟨xs⟩)
-  else
-    (pi.hyps, ⟨x::xs⟩)
-end
+sorry
 
 theorem eval_reduce {P : @pterm γ _} :
   (∀ t ∈ P.reduce.fst, nterm.eval ρ t ≠ 0) → P.eval ρ = P.reduce.snd.eval ρ :=
