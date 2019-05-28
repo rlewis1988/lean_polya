@@ -42,9 +42,9 @@ theorem eval_to_nterm (x : @cterm γ _) :
 begin
   unfold to_nterm, unfold eval,
   by_cases h1 : x.coeff = 0,
-  { simp [h1, morph.morph0] },
+  { simp [h1] },
   { by_cases h2 : x.coeff = 1,
-    { simp [h2, morph.morph1] },
+    { simp [h2] },
     { simp [h1, h2] }}
 end
 
@@ -58,10 +58,9 @@ end
 theorem eval_mul (x : @cterm γ _) (a : γ) :
   (x.mul a).eval ρ = x.eval ρ * (morph.f _ a) :=
 begin
-  simp [mul, eval, morph.morph_mul], 
+  simp [mul, eval], 
   rw mul_assoc
 end
--- TODO: morph lemmas as simp lemmas?
 
 end cterm
 
@@ -91,8 +90,8 @@ theorem eval_mul (S : @sterm γ _) (a : γ) :
 begin
   by_cases h : a = 0 ∨ a = 1,
   { cases h with h h,
-    { simp [h, morph.morph0, mul, eval] },
-    { simp [h, morph.morph1, mul, eval] }},
+    { simp [h, mul, eval] },
+    { simp [h, mul, eval] }},
   { have h0 : ¬ a = 0, by { intro h0, apply h, left, exact h0 },
     have h1 : ¬ a = 1, by { intro h1, apply h, right, exact h1 },
     cases S with terms,
@@ -125,7 +124,7 @@ begin
 end
 
 def reduce_aux : @cterm γ _ → list (@cterm γ _) → list (@cterm γ _)
-| x []      := [x]
+| x []      := [x] --TODO
 | x (y::ys) :=
   if x.term = y.term then
     reduce_aux ⟨x.term, x.coeff + y.coeff⟩ ys
@@ -200,7 +199,7 @@ end sterm
 namespace nterm
 
 def to_sterm : @nterm γ _ → @sterm γ _
-| (add x y) := to_sterm x ++ to_sterm y
+| (add x y) := x.to_sterm ++ y.to_sterm
 | (mul x y) :=
   match x with
   | (const a) := y.to_sterm.mul a
@@ -216,8 +215,8 @@ theorem eval_to_sterm {x : @nterm γ _} :
   nterm.eval ρ x = sterm.eval ρ x.to_sterm :=
 begin
   induction x with i c x y ihx ihy x y ihx ihy x n ihx,
-  { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval, morph.morph1] },
-  { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval, morph.morph1] },
+  { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval] },
+  { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval] },
   { unfold to_sterm, unfold eval,
     rw [sterm.eval_add, ihx, ihy] },
   { cases x,
@@ -230,10 +229,10 @@ begin
       case const : b {
         simp only [to_sterm, sterm.eval_mul, eval, ihx]
       },
-      repeat { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval, morph.morph1] },
+      repeat { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval] },
     }
   },
-  { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval, morph.morph1] }
+  { simp [to_sterm, nterm.eval, sterm.eval, cterm.eval] }
 
 end
 

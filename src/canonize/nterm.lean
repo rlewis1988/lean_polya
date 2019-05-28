@@ -11,8 +11,10 @@ end
 meta def tactic.interactive.intros' : tactic unit :=
 `[repeat {intro}, resetI]
 
-local attribute [elim_cast] znum.cast_inj
-local attribute [squash_cast] znum.to_of_int
+attribute [elim_cast] znum.cast_inj
+attribute [squash_cast] znum.to_of_int
+attribute [squash_cast] znum.cast_zero
+attribute [move_cast] znum.cast_add
 
 namespace polya
 
@@ -47,6 +49,11 @@ instance rat_morph {α} [discrete_field α] [char_zero α] : morph ℚ α :=
       { resetI, apply_instance }
     end,
 }
+
+attribute [simp] morph.morph0
+attribute [simp] morph.morph1
+attribute [simp] morph.morph_mul
+--TODO
 
 section
 variables {α : Type} [discrete_field α]

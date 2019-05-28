@@ -1,4 +1,4 @@
-import .sterm
+import .pterm
 
 namespace polya
 
