@@ -40,12 +40,11 @@ def list.to_dict {α} [inhabited α] (l : list α) : dict α :=
 def finmap.to_dict (m : finmap (λ _ : num, ℝ)) : dict ℝ :=
 ⟨λ i, match finmap.lookup i m with (some x) := x | _ := 0 end⟩
 
-meta def cache_ty.get_dict (s : cache_ty) : tactic expr :=
+meta def cache_ty.get_dict_expr (s : cache_ty) : tactic expr :=
 do
     m ← s.val,
     mk_app ``list.to_dict [m]
     --mk_app ``finmap.to_dict [m]
-
 @[reducible]
 def γ := ℚ
 
@@ -113,17 +112,16 @@ match e with
 | _ := atom <$> get_atom e
 end
 
--- build nterm and prove equality
-meta def nterm_of_expr (e : expr) : tactic (@nterm γ _ × expr × expr) :=
+meta def nterm_of_expr (e : expr) : tactic (expr × expr × expr) :=
 do
     let (t, s) := (term_of_expr e).run ∅,
-    let nt := norm t,
-    ρ ← s.get_dict,
+    let t : expr := `(t),
+    nt ← to_expr ``(norm %%t),
+    ρ ← s.get_dict_expr,
     
-    h1 ← to_expr ``(%%e = term.eval %%ρ %%(reflect t)),
-    h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ (norm %%(reflect t))),
-    --TODO: h2 ← to_expr ``(term.eval %%ρ %%(reflect t) = nterm.eval %%ρ %%(reflect nt) ),
+    h1 ← to_expr ``(%%e = term.eval %%ρ %%t),
     ((), pr1) ← solve_aux h1 `[refl; done],
+    h2 ← to_expr ``(term.eval %%ρ %%t = nterm.eval %%ρ %%nt),
     ((), pr2) ← solve_aux h2 `[apply polya.correctness; done],
     pr ← mk_eq_trans pr1 pr2,
     return (nt, ρ, pr)

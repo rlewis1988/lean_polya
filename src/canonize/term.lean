@@ -529,7 +529,7 @@ end term
 def norm (x : @term γ _) : @nterm γ _ :=
 (term.to_nterm x).norm
 
-theorem correctness (x : @term γ _) :
+theorem correctness {x : @term γ _} :
   term.eval ρ x = nterm.eval ρ (norm x) :=
 calc
   term.eval ρ x = nterm.eval ρ (term.to_nterm x)      : term.correctness

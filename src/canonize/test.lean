@@ -5,6 +5,7 @@ open tactic polya polya.term
 meta def test (e : expr) : tactic unit :=
 do
     (nt, ρ, pr) ← nterm_of_expr e,
+    nt ← eval_expr (@nterm γ _) nt,
     type_check pr,
     trace nt,
     skip
