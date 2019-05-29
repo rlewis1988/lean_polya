@@ -16,6 +16,7 @@ do
     (nt, ρ, pr) ← nterm_of_expr e,
     nt ← eval_expr (@nterm γ _) nt,
     type_check pr,
+
     let pt := pterm.of_nterm nt,
     trace nt,
     trace pt.to_nterm,
@@ -42,4 +43,5 @@ run_cmd ptest `( x * (x ^ (-1 : ℤ)) )
 run_cmd ptest `( x / x )
 run_cmd ptest `( x ^ 2 / x ^ 2 )
 run_cmd ptest `( (x * y) ^ 3 / x ^ 2 )
-
+run_cmd ptest `( x * x * x * y * x * x / y)
+run_cmd ptest `( (x + y) ^ 2 / (x + y) ^ 2 * x )

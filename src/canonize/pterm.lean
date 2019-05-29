@@ -143,6 +143,27 @@ begin
   
 end
 
+theorem eval_pow {x : @xterm γ _} {n : znum} :
+  n ≠ 0 → xterm.eval ρ ⟨x.term, x.exp * n⟩ = xterm.eval ρ x ^ (n : ℤ) :=
+begin
+  intro h0,
+  have h1 : (n : ℤ) ≠ 0, by {rw ← znum.cast_zero, exact_mod_cast h0},
+  by_cases hx : nterm.eval ρ x.term = 0,
+  { simp [hx, xterm.eval, zero_fpow, h1] },
+  { simp [hx, xterm.eval, fpow_mul] }
+end
+
+theorem eval_pow' {xs : list (@xterm γ _)} {n : znum} :
+  n ≠ 0 → list.prod (list.map (xterm.eval ρ) xs) ^ (n : ℤ)
+    = list.prod (list.map (λ x : xterm, xterm.eval ρ ⟨x.term, x.exp * n⟩) xs) :=
+begin
+  intro hn,
+  induction xs with x xs ih,
+  { simp },
+  { repeat {rw [list.map_cons, list.prod_cons]},
+    rw [eval_pow hn, mul_fpow, ih] }
+end
+
 end xterm
 
 structure pterm : Type :=
@@ -181,12 +202,12 @@ else
     coeff := P1.coeff * P2.coeff,
   }
 
-def pow (P : @pterm γ _) (m : znum) : @pterm γ _ :=
-if m = 0 then
+def pow (P : @pterm γ _) (n : znum) : @pterm γ _ :=
+if n = 0 then
   of_const 1
 else
-  { terms := P.terms.map (λ ⟨x, n⟩, ⟨x, n * m⟩),
-    coeff := P.coeff ^ (m : ℤ),
+  { terms := P.terms.map (λ x, ⟨x.term, x.exp * n⟩),
+    coeff := P.coeff ^ (n : ℤ),
   }
 
 instance : has_mul (@pterm γ _) := ⟨mul⟩
@@ -230,10 +251,28 @@ begin
     ring }
 end
 
+theorem pow_def {P : @pterm γ _} {n : znum} :
+  n ≠ 0 → pterm.eval ρ (P.pow n) =
+    list.prod (list.map (λ x : xterm, xterm.eval ρ ⟨x.term, x.exp * n⟩) P.terms) * morph.f _ P.coeff ^ (n : ℤ) :=
+begin
+  intro hn,
+  rw [← morph.morph_pow],
+  simp [has_pow.pow, pow, hn, pterm.eval]
+end
+
 theorem eval_pow {P : @pterm γ _} {n : znum} :
   pterm.eval ρ (P ^ n) = pterm.eval ρ P ^ (n : ℤ) :=
 begin
-  sorry --TODO
+  by_cases hn : n = 0,
+  { rw [hn, znum.cast_zero, fpow_zero],
+    simp [has_pow.pow, pow, of_const, pterm.eval] },
+  { cases P with xs c,
+    simp only [pterm.eval],
+    rw [mul_fpow, ← morph.morph_pow],
+    congr, 
+    { rw xterm.eval_pow' hn,
+      simp [has_pow.pow, pow, hn] },
+    { simp [has_pow.pow, pow, hn] }}
 end
 
 def to_nterm (P : @pterm γ _) : @nterm γ _ :=
