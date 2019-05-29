@@ -26,7 +26,7 @@ do
     trace pt.filter_hyps,
     skip
 
-constants x y z : ℝ
+constants u v w x y z : ℝ
 
 /- benchmak -/
 set_option profiler true
@@ -41,12 +41,9 @@ run_cmd test `( x * (3 : ℚ) + y * (1 : ℚ) - x * y * (2 : ℚ) - y * (2 : ℚ
 run_cmd test `( x * y * (3 : ℚ) - x * y * (4 : ℚ) )
 
 --pterm tests
-run_cmd ptest `( x * x)
-run_cmd ptest `( x / x )
-run_cmd ptest `( x ^ 2 / x ^ 2 )
+run_cmd ptest `( x * (y * (z * u * v) * w) )
 run_cmd ptest `( (x * (2 : ℚ)) * ((3 : ℚ) / x) )
 run_cmd ptest `( (x * y) ^ 3 / x ^ 2 )
-run_cmd ptest `( x * x * x * y * x * x / y)
-run_cmd ptest `( x * (x / x) )
 run_cmd ptest `( (x / x) ^ 0 )
 run_cmd ptest `( (x + y) ^ 2 / (x + y) ^ 2 * x * y / x )
+run_cmd ptest `( x * (1 : ℚ) )
