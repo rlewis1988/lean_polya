@@ -16,9 +16,10 @@ do
     (nt, ρ, pr) ← nterm_of_expr e,
     nt ← eval_expr (@nterm γ _) nt,
     type_check pr,
-    let pt := (pterm.of_nterm nt).to_nterm,
+    let pt := pterm.of_nterm nt,
     trace nt,
-    trace pt,
+    trace pt.to_nterm,
+    trace pt.filter_hyps,
     skip
 
 constants x y z : ℝ
