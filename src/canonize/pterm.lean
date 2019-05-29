@@ -96,11 +96,19 @@ def merge : list (@xterm γ _) → list (@xterm γ _) → list (@xterm γ _)
 
 lemma merge_nil_left {ys : list (@xterm γ _)} :
   merge [] ys = ys :=
-by sorry --TODO
+begin
+  induction ys with y ys ih,
+  { unfold merge },
+  { unfold merge }
+end
 
 lemma merge_nil_right {xs : list (@xterm γ _)} :
   merge xs [] = xs :=
-by sorry --TODO
+begin
+  induction xs with x xs ih,
+  { unfold merge },
+  { unfold merge }
+end
 
 lemma merge_def1 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
   x.term = y.term →
