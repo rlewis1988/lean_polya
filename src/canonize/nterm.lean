@@ -94,22 +94,24 @@ end
 
 end morph
 
-class coeff (γ : Type) : Type :=
+class const_space (γ : Type) : Type :=
 (df : discrete_field γ)
 (le : has_le γ)
 (dec_le : decidable_rel le.le)
 
+namespace const_space
 variables {α : Type} [discrete_field α]
-variables {γ : Type} [coeff γ]
+variables {γ : Type} [const_space γ]
 
-instance : discrete_field γ := coeff.df γ
-instance : has_le γ := coeff.le γ
-instance : decidable_rel (@has_le.le γ _) := coeff.dec_le γ
+instance : discrete_field γ := const_space.df γ
+instance : has_le γ := const_space.le γ
+instance : decidable_rel (@has_le.le γ _) := const_space.dec_le γ
 
-variables [morph γ α] {ρ : dict α}
+end const_space
+
 
 @[derive decidable_eq, derive has_reflect]
-inductive nterm : Type
+inductive nterm {γ : Type} [const_space γ] : Type
 | atom  : num → nterm
 | const : γ → nterm
 | add   : nterm → nterm → nterm
@@ -117,8 +119,11 @@ inductive nterm : Type
 | pow   : nterm → znum → nterm
 
 namespace nterm
+variables {α : Type} [discrete_field α]
+variables {γ : Type} [const_space γ]
+variables [morph γ α] {ρ : dict α}
 
-def ble  :
+def ble :
   @nterm γ _ → @nterm γ _ → bool
 | (atom i)  (atom j)  := i ≤ j
 | (atom _)  _         := tt

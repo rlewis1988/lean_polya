@@ -1,9 +1,9 @@
-import .pterm
+import .sterm
 
 namespace polya
 
 variables {α : Type} [discrete_field α]
-variables {γ : Type} [coeff γ]
+variables {γ : Type} [const_space γ]
 variables [morph γ α] {ρ : dict α}
 
 @[derive decidable_eq, derive has_reflect]

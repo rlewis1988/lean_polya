@@ -5,7 +5,7 @@ namespace polya
 open nterm
 
 variables {α : Type} [discrete_field α]
-variables {γ : Type} [coeff γ]
+variables {γ : Type} [const_space γ]
 variables [morph γ α] {ρ : dict α}
 
 structure cterm : Type :=

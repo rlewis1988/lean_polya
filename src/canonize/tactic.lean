@@ -49,7 +49,7 @@ do
 @[reducible]
 def γ := ℚ
 
-instance : coeff γ :=
+instance : const_space γ :=
 { df := by apply_instance,
   le := by apply_instance, 
   dec_le := by apply_instance,
