@@ -285,25 +285,28 @@ end
 
 def to_nterm (P : @pterm γ _) : @nterm γ _ :=
 if P.terms.empty then P.coeff
+else if P.coeff = 1 then prod (P.terms.map (xterm.to_nterm))
 else prod (P.terms.map (xterm.to_nterm)) * P.coeff
 
 theorem eval_to_nterm {P : @pterm γ _} :
   pterm.eval ρ P = nterm.eval ρ P.to_nterm :=
 begin
   cases P with xs c,
-  by_cases h : xs.empty = ff,
-  { suffices : list.prod (list.map (xterm.eval ρ) xs) * morph.f α c =
-      nterm.eval ρ (prod (list.map xterm.to_nterm xs)) * morph.f α c,
-    by { simp [to_nterm, pterm.eval, this, h] },
-    rw [eval_prod, list.map_map],
-    rw xterm.eval_to_nterm' },
+  by_cases h1 : xs.empty = ff,
+  { by_cases h2 : c = 1,
+    { rw h2, simp [pterm.eval, to_nterm, h1, eval_prod, xterm.eval_to_nterm'] },
+    { suffices : list.prod (list.map (xterm.eval ρ) xs) * morph.f α c =
+        nterm.eval ρ (prod (list.map xterm.to_nterm xs)) * morph.f α c,
+      by { simp [to_nterm, pterm.eval, this, h1, h2] },
+      rw [eval_prod, list.map_map],
+      rw xterm.eval_to_nterm' }},
   --this is silly TODO
-  { have h' : xs.empty = tt, by { cases xs,
+  { have h1' : xs.empty = tt, by { cases xs,
       { unfold list.empty },
-      { by_contradiction, apply h, unfold list.empty }},
+      { by_contradiction, apply h1, unfold list.empty }},
     cases xs,
-    { simp [pterm.eval, nterm.eval, to_nterm, h'] },
-    { by_contradiction, apply h, unfold list.empty }
+    { simp [pterm.eval, nterm.eval, to_nterm, h1'] },
+    { by_contradiction, apply h1, unfold list.empty }
   }
 end
 
