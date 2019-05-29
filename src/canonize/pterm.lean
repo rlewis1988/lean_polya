@@ -284,17 +284,27 @@ begin
 end
 
 def to_nterm (P : @pterm γ _) : @nterm γ _ :=
-prod (P.terms.map (xterm.to_nterm)) * P.coeff
+if P.terms.empty then P.coeff
+else prod (P.terms.map (xterm.to_nterm)) * P.coeff
 
 theorem eval_to_nterm {P : @pterm γ _} :
   pterm.eval ρ P = nterm.eval ρ P.to_nterm :=
 begin
-  cases P with terms coeff ts,
-  suffices : list.prod (list.map (xterm.eval ρ) terms) * morph.f α coeff =
-    nterm.eval ρ (prod (list.map xterm.to_nterm terms)) * morph.f α coeff,
-  by simp [to_nterm, pterm.eval, this],
-  rw [eval_prod, list.map_map],
-  rw xterm.eval_to_nterm'
+  cases P with xs c,
+  by_cases h : xs.empty = ff,
+  { suffices : list.prod (list.map (xterm.eval ρ) xs) * morph.f α c =
+      nterm.eval ρ (prod (list.map xterm.to_nterm xs)) * morph.f α c,
+    by { simp [to_nterm, pterm.eval, this, h] },
+    rw [eval_prod, list.map_map],
+    rw xterm.eval_to_nterm' },
+  --this is silly TODO
+  { have h' : xs.empty = tt, by { cases xs,
+      { unfold list.empty },
+      { by_contradiction, apply h, unfold list.empty }},
+    cases xs,
+    { simp [pterm.eval, nterm.eval, to_nterm, h'] },
+    { by_contradiction, apply h, unfold list.empty }
+  }
 end
 
 def filter (P : @pterm γ _) : @pterm γ _ :=

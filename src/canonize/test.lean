@@ -18,8 +18,11 @@ do
     type_check pr,
 
     let pt := pterm.of_nterm nt,
+    trace "term from the expression:",
     trace nt,
-    trace pt.to_nterm,
+    trace "semi-normalized form:",
+    trace pt.filter.to_nterm,
+    trace "under the condition that these are non zero:",
     trace pt.filter_hyps,
     skip
 
@@ -39,9 +42,9 @@ run_cmd test `( x * y * (3 : ℚ) - x * y * (4 : ℚ) )
 
 --pterm tests
 run_cmd ptest `( x * x)
-run_cmd ptest `( x * (x ^ (-1 : ℤ)) )
 run_cmd ptest `( x / x )
 run_cmd ptest `( x ^ 2 / x ^ 2 )
+run_cmd ptest `( (x * (2 : ℚ)) * ((3 : ℚ) / x) )
 run_cmd ptest `( (x * y) ^ 3 / x ^ 2 )
 run_cmd ptest `( x * x * x * y * x * x / y)
 run_cmd ptest `( (x + y) ^ 2 / (x + y) ^ 2 * x )
