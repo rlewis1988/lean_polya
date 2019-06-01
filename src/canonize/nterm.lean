@@ -147,7 +147,6 @@ instance : decidable_rel (@has_le.le γ _) := const_space.dec_le γ
 
 end const_space
 
-
 @[derive decidable_eq, derive has_reflect]
 inductive nterm {γ : Type} [const_space γ] : Type
 | atom  : num → nterm
