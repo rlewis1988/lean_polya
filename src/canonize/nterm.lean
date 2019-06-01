@@ -16,6 +16,44 @@ attribute [squash_cast] znum.to_of_int
 attribute [squash_cast] znum.cast_zero
 attribute [move_cast] znum.cast_add
 
+namespace list
+
+theorem filter_perm {α} {p : α → Prop} [decidable_pred p] {l : list α} :
+  l ~ l.filter p ++ l.filter (not ∘ p) :=
+begin
+  induction l with x xs ih,
+  { simp },
+  { by_cases hx : p x,
+    { simp [filter, hx, perm.skip, ih] },
+    { calc
+      x::xs ~ x::(filter p xs ++ filter (not ∘ p) xs) : perm.skip _ ih
+      ... ~ filter p xs ++ x::filter (not ∘ p) xs : perm.symm perm_middle
+      ... ~ filter p (x::xs) ++ filter (not ∘ p) (x::xs) : by simp [hx] }}
+end
+
+theorem prod_ones {α} [monoid α] {l : list α} :
+  (∀ x : α, x ∈ l → x = 1) → l.prod = 1 :=
+begin
+  intro h,
+  induction l with x xs ih,
+  { refl },
+  { have h1 : x = 1, by { apply h, simp },
+    have h2 : prod xs = 1, by { apply ih, intros _ hx, apply h, simp [hx] },
+    simp [h1, h2] }
+end
+
+theorem sum_zeros {α} [add_monoid α] {l : list α} :
+  (∀ x : α, x ∈ l → x = 0) → l.sum = 0 :=
+begin
+  intro h,
+  induction l with x xs ih,
+  { refl },
+  { have h1 : x = 0, by { apply h, simp },
+    have h2 : sum xs = 0, by { apply ih, intros _ hx, apply h, simp [hx] },
+    simp [h1, h2] }
+end
+
+end list
 namespace polya
 
 structure dict (α : Type) :=
@@ -154,7 +192,7 @@ instance : has_add (@nterm γ _) := ⟨add⟩
 instance : has_mul (@nterm γ _) := ⟨mul⟩
 instance : has_pow (@nterm γ _) znum := ⟨pow⟩
 
-def neg (x : @nterm γ _) : @nterm γ _ := (-1 : γ) * x
+def neg (x : @nterm γ _) : @nterm γ _ := x * (-1 : γ)
 instance : has_neg (@nterm γ _) := ⟨neg⟩
 def sub (x y : @nterm γ _) : @nterm γ _ := x + (-y)
 instance : has_sub (@nterm γ _) := ⟨sub⟩
@@ -256,6 +294,26 @@ begin
       rw [list.map_cons, list.foldl_cons, list.prod_cons],
       rw [ih (mul y x), ← mul_assoc, ← eval_mul],
       refl }}
+end
+
+def nonzero (ρ : dict α) (ts : list (@nterm γ _)) : Prop :=
+∀ t ∈ ts, nterm.eval ρ t ≠ 0
+
+theorem nonzero_union (xs ys : list (@nterm γ _)) :
+nonzero ρ (xs ∪ ys) ↔ nonzero ρ xs ∧ nonzero ρ ys :=
+begin
+  apply iff.intro,
+  { intro h1, split; { intros _ h2, apply h1, simp [h2] }},
+  { intros h1 t ht, cases h1 with h1 h2, rw list.mem_union at ht, cases ht,
+    {apply h1, apply ht}, {apply h2, apply ht}}
+end
+
+theorem nonzero_iff_zero_not_mem (ts : list (@nterm γ _)) :
+nonzero ρ ts ↔ (0 : α) ∉ list.map (nterm.eval ρ) ts :=
+begin
+  apply iff.intro,
+  { intro h, simpa using h },
+  { intro h, simp at h, apply h }
 end
 
 end nterm

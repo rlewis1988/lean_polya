@@ -1,33 +1,5 @@
 import .nterm
 
-namespace list
-
-theorem filter_perm {α} {p : α → Prop} [decidable_pred p] {l : list α} :
-  l ~ l.filter p ++ l.filter (not ∘ p) :=
-begin
-  induction l with x xs ih,
-  { simp },
-  { by_cases hx : p x,
-    { simp [filter, hx, perm.skip, ih] },
-    { calc
-      x::xs ~ x::(filter p xs ++ filter (not ∘ p) xs) : perm.skip _ ih
-      ... ~ filter p xs ++ x::filter (not ∘ p) xs : perm.symm perm_middle
-      ... ~ filter p (x::xs) ++ filter (not ∘ p) (x::xs) : by simp [hx] }}
-end
-
-theorem prod_ones {α} [monoid α] {l : list α} :
-  (∀ x : α, x ∈ l → x = 1) → l.prod = 1 :=
-begin
-  intro h,
-  induction l with x xs ih,
-  { refl },
-  { have h1 : x = 1, by { apply h, simp },
-    have h2 : prod xs = 1, by { apply ih, intros _ hx, apply h, simp [hx] },
-    simp [h1, h2] }
-end
-
-end list
-
 namespace polya
 
 open nterm
@@ -83,68 +55,68 @@ begin
   simp [xterm.eval, fpow_add, hx]
 end
 
-def merge : list (@xterm γ _) → list (@xterm γ _) → list (@xterm γ _)
+def pmerge : list (@xterm γ _) → list (@xterm γ _) → list (@xterm γ _)
 | (x::xs) (y::ys) :=
   if x.term = y.term then
-    ⟨x.term, x.exp + y.exp⟩ :: merge xs ys
+    ⟨x.term, x.exp + y.exp⟩ :: pmerge xs ys
   else if x.term < y.term then
-    x :: merge xs (y::ys)
+    x :: pmerge xs (y::ys)
   else
-    y :: merge (x::xs) ys
+    y :: pmerge (x::xs) ys
 | xs [] := xs
 | [] ys := ys
 
-lemma merge_nil_left {ys : list (@xterm γ _)} :
-  merge [] ys = ys :=
+lemma pmerge_nil_left {ys : list (@xterm γ _)} :
+  pmerge [] ys = ys :=
 begin
   induction ys with y ys ih,
-  { unfold merge },
-  { unfold merge }
+  { unfold pmerge },
+  { unfold pmerge }
 end
 
-lemma merge_nil_right {xs : list (@xterm γ _)} :
-  merge xs [] = xs :=
+lemma pmerge_nil_right {xs : list (@xterm γ _)} :
+  pmerge xs [] = xs :=
 begin
   induction xs with x xs ih,
-  { unfold merge },
-  { unfold merge }
+  { unfold pmerge },
+  { unfold pmerge }
 end
 
-lemma merge_def1 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
+lemma pmerge_def1 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
   x.term = y.term →
-  merge (x::xs) (y::ys) = ⟨x.term, x.exp + y.exp⟩ :: merge xs ys :=
-by intro h; simp [merge, h]
-lemma merge_def2 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
+  pmerge (x::xs) (y::ys) = ⟨x.term, x.exp + y.exp⟩ :: pmerge xs ys :=
+by intro h; simp [pmerge, h]
+lemma pmerge_def2 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
   x.term ≠ y.term → x.term < y.term →
-  merge (x::xs) (y::ys) = x :: merge xs (y :: ys) :=
-by intros h1 h2; simp [merge, h1, h2]
-lemma merge_def3 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
+  pmerge (x::xs) (y::ys) = x :: pmerge xs (y :: ys) :=
+by intros h1 h2; simp [pmerge, h1, h2]
+lemma pmerge_def3 {x y : @xterm γ _} {xs ys : list (@xterm γ _)} :
   x.term ≠ y.term → ¬ x.term < y.term →
-  merge (x::xs) (y::ys) = y :: merge (x::xs) ys :=
-by intros h1 h2; simp [merge, h1, h2]
+  pmerge (x::xs) (y::ys) = y :: pmerge (x::xs) ys :=
+by intros h1 h2; simp [pmerge, h1, h2]
 
-theorem eval_merge (xs ys : list (@xterm γ _)) :
-  list.prod (list.map (xterm.eval ρ) (merge xs ys))
+theorem eval_pmerge (xs ys : list (@xterm γ _)) :
+  list.prod (list.map (xterm.eval ρ) (pmerge xs ys))
   = list.prod (list.map (xterm.eval ρ) xs)
     * list.prod (list.map (xterm.eval ρ) ys) :=
 begin
   revert ys,
   induction xs with x xs ihx,
-  { intro ys, simp [merge_nil_left] },
+  { intro ys, simp [pmerge_nil_left] },
   { intro ys, induction ys with y ys ihy,
-    { simp [merge_nil_right] },
+    { simp [pmerge_nil_right] },
     { by_cases h1 : x.term = y.term,
-      { rw merge_def1 h1,
+      { rw pmerge_def1 h1,
         cases x with x n, cases y with y m,
         simp only [] at h1, rw h1 at *,
         repeat {rw [list.map_cons, list.prod_cons]},
         rw [eval_add, ihx ys], ring },
       { by_cases h2 : x.term < y.term,
-        { rw merge_def2 h1 h2,
+        { rw pmerge_def2 h1 h2,
           repeat {rw [list.map_cons, list.prod_cons]},
           rw [ihx (y::ys), list.map_cons, list.prod_cons],
           ring},
-        { rw merge_def3 h1 h2,
+        { rw pmerge_def3 h1 h2,
           repeat {rw [list.map_cons, list.prod_cons]},
           rw [ihy, list.map_cons, list.prod_cons],
           ring}}}}
@@ -161,7 +133,7 @@ begin
   { simp [hx, xterm.eval, fpow_mul] }
 end
 
-theorem eval_pow' {xs : list (@xterm γ _)} {n : znum} :
+theorem eval_prod_pow {xs : list (@xterm γ _)} {n : znum} :
   n ≠ 0 → list.prod (list.map (xterm.eval ρ) xs) ^ (n : ℤ)
     = list.prod (list.map (λ x : xterm, xterm.eval ρ ⟨x.term, x.exp * n⟩) xs) :=
 begin
@@ -206,7 +178,7 @@ if P1.coeff = 0 ∨ P2.coeff = 0 then
     coeff := 0,
   }
 else
-  { terms := xterm.merge P1.terms P2.terms,
+  { terms := xterm.pmerge P1.terms P2.terms,
     coeff := P1.coeff * P2.coeff,
   }
 
@@ -223,7 +195,7 @@ instance : has_pow (@pterm γ _) znum := ⟨pow⟩
 
 theorem mul_terms {P Q : @pterm γ _} :
   P.coeff ≠ 0 ∧ Q.coeff ≠ 0 →
-  (P * Q).terms = xterm.merge P.terms Q.terms :=
+  (P * Q).terms = xterm.pmerge P.terms Q.terms :=
 begin
   intro h,
   simp [has_mul.mul, mul, h] 
@@ -255,7 +227,7 @@ begin
   { cases h0; simp [h0, morph.morph0] },
   { have : P.coeff ≠ 0 ∧ Q.coeff ≠ 0,
     from (decidable.not_or_iff_and_not _ _).mp h0,
-    rw [mul_terms this, xterm.eval_merge, morph.morph_mul],
+    rw [mul_terms this, xterm.eval_pmerge, morph.morph_mul],
     ring }
 end
 
@@ -278,7 +250,7 @@ begin
     simp only [pterm.eval],
     rw [mul_fpow, ← morph.morph_pow],
     congr, 
-    { rw xterm.eval_pow' hn,
+    { rw xterm.eval_prod_pow hn,
       simp [has_pow.pow, pow, hn] },
     { simp [has_pow.pow, pow, hn] }}
 end
@@ -310,15 +282,15 @@ begin
   }
 end
 
-def filter (P : @pterm γ _) : @pterm γ _ :=
+def reduce (P : @pterm γ _) : @pterm γ _ :=
 { terms := P.terms.filter (λ x, x.exp ≠ 0),
   coeff := P.coeff
 }
 
-def filter_hyps (P : @pterm γ _) : list (@nterm γ _) :=
+def reduce_hyps (P : @pterm γ _) : list (@nterm γ _) :=
 list.map xterm.term (P.terms.filter (λ x, x.exp = 0))
 
-private lemma lemma_eval_filter {x : @xterm γ _} :
+private lemma lemma_eval_reduce {x : @xterm γ _} :
   x.exp = 0 ∧ nterm.eval ρ x.term ≠ 0 →
   xterm.eval ρ x = 1 :=
 begin
@@ -328,13 +300,13 @@ begin
   simp [xterm.eval, hn, hx]
 end
 
-theorem eval_filter {P : @pterm γ _} :
-  (0 : α) ∉ P.filter_hyps.map (nterm.eval ρ) →
-  pterm.eval ρ P = pterm.eval ρ P.filter :=
+theorem eval_reduce {P : @pterm γ _} :
+  nonzero ρ P.reduce_hyps →
+  pterm.eval ρ P = pterm.eval ρ P.reduce :=
 begin
-  intro H,
+  intro H, rw nonzero_iff_zero_not_mem at H,
   have H1 : ∀ x : xterm, x ∈ P.terms → x.exp = 0 → nterm.eval ρ (x.term) ≠ 0,
-  by simpa [filter_hyps] using H,
+  by simpa [reduce_hyps] using H,
   have H2 : ∀ x : xterm, x ∈ P.terms.filter (λ x, x.exp = 0) → nterm.eval ρ (x.term) ≠ 0,
   by { intros x hx, have : x ∈ P.terms ∧ x.exp = 0, from list.mem_filter.mp hx,
        cases this, apply H1; assumption },
@@ -349,7 +321,7 @@ begin
   have : ∀ x ∈ P.terms.filter (λ x, x.exp = 0), xterm.eval ρ x = 1,
   by {
     intros x hx,
-    apply lemma_eval_filter,
+    apply lemma_eval_reduce,
     split,
     { exact (list.mem_filter.mp hx).right },
     { apply H2, exact hx }},
@@ -361,7 +333,7 @@ begin
     rw ← ha, apply this,
     assumption },
 
-  simp [filter, list.prod_ones this]
+  simp [reduce, list.prod_ones this]
 end
 
 def of_nterm : @nterm γ _ → @pterm γ _

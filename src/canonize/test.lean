@@ -3,27 +3,11 @@ import .pterm
 
 open tactic polya
 
+set_option trace.check true
 meta def test (e : expr) : tactic unit :=
 do
-    (nt, ρ, pr) ← nterm_of_expr e,
-    nt ← eval_expr (@nterm γ _) nt,
-    type_check pr,
-    trace nt,
-    skip
-
-meta def ptest (e : expr) : tactic unit :=
-do
-    (nt, ρ, pr) ← nterm_of_expr e,
-    nt ← eval_expr (@nterm γ _) nt,
-    type_check pr,
-
-    let pt := pterm.of_nterm nt,
-    trace "term from the expression:",
-    trace nt,
-    trace "semi-normalized form:",
-    trace pt.filter.to_nterm,
-    trace "under the condition that these are non zero:",
-    trace pt.filter_hyps,
+    (nt, new_e, pr) ← norm_expr e,
+    trace new_e,
     skip
 
 constants u v w x y z : ℝ
@@ -32,18 +16,20 @@ constants u v w x y z : ℝ
 set_option profiler true
 
 /- debug -/
-set_option trace.app_builder true
+--set_option trace.app_builder true
 
 --sterm tests
 run_cmd test `( x - x )
 run_cmd test `( x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ))
 run_cmd test `( x * (3 : ℚ) + y * (1 : ℚ) - x * y * (2 : ℚ) - y * (2 : ℚ) )
-run_cmd test `( x * y * (3 : ℚ) - x * y * (4 : ℚ) )
+run_cmd test `( x * y * z * (3 : ℚ) - z * x * y * (4 : ℚ) )
 
 --pterm tests
-run_cmd ptest `( x * (y * (z * u * v) * w) )
-run_cmd ptest `( (x * (2 : ℚ)) * ((3 : ℚ) / x) )
-run_cmd ptest `( (x * y) ^ 3 / x ^ 2 )
-run_cmd ptest `( (x / x) ^ 0 )
-run_cmd ptest `( (x + y) ^ 2 / (x + y) ^ 2 * x * y / x )
-run_cmd ptest `( x * (1 : ℚ) )
+run_cmd test `( x * ((y * w) * (z * (u * z) * v) * w) )
+run_cmd test `( (x * (2 : ℚ)) * ((3 : ℚ) / x) )
+run_cmd test `( (x * y) ^ 3 / x ^ 2 )
+run_cmd test `( (x / x) ^ 0 )
+run_cmd test `( (x + y) ^ 2 / (x + y) ^ 2 * x * y / x )
+run_cmd test `( x ^ 4 )
+
+run_cmd test `( (x + y) / (y + x) )
