@@ -5,7 +5,8 @@ open tactic polya
 set_option trace.check true
 meta def test (e : expr) : tactic unit :=
 do
-    (new_e, hyps) ← test_norm e,
+    (naive_new_e, new_e, hyps) ← test_norm e,
+    trace naive_new_e,
     trace new_e,
     trace hyps,
     skip

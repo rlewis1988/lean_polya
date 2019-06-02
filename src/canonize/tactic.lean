@@ -221,13 +221,17 @@ meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
   a ← nterm_to_expr x,
   to_expr ``(%%a ^ (%%(reflect n) : ℤ))
 
-meta def test_norm (e : expr) : tactic (expr × list expr) :=
+meta def test_norm (e : expr) : tactic (expr × expr × list expr) :=
 do
   let (t, s) := (eterm_of_expr e).run ∅,
-  let x := norm t,
-  let ts := norm_hyps t,
-  new_e ← nterm_to_expr s.get_f x,
-  hyps ← monad.mapm (nterm_to_expr s.get_f) ts,
-  return  (new_e, hyps)
+  naive_new_e ← nterm_to_expr s.get_f t.to_nterm.naive_norm,
+  new_e ← nterm_to_expr s.get_f t.to_nterm.norm,
+  hyps ← monad.mapm (nterm_to_expr s.get_f) t.to_nterm.norm_hyps,
+  return  (naive_new_e, new_e, hyps)
+
+--output expressions for:
+--the term produced by the naive norm function
+--the term produced by the norm function, which should be the same
+--the terms assumed to be nonzero
 
 end polya
