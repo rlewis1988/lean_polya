@@ -59,7 +59,7 @@ def to_nterm : @eterm γ _ → @nterm γ _
 | (pow x n) := to_nterm x ^ (n : znum)
 
 theorem correctness {x : @eterm γ _} :
-  x.eval ρ = (to_nterm x).eval ρ :=
+  nterm.eval ρ (to_nterm x) = eval ρ x :=
 begin
   induction x with
     c           --const
@@ -197,13 +197,13 @@ x.to_nterm.norm_hyps
 
 theorem correctness {x : @eterm γ _} {ρ : dict ℝ} :
   (∀ t ∈ norm_hyps x, nterm.eval ρ t ≠ 0) →
-  eterm.eval ρ x = nterm.eval ρ (norm x) :=
+  nterm.eval ρ (norm x) = eterm.eval ρ x :=
 begin
   intro H,
   unfold norm,
   apply eq.trans,
-  { apply eterm.correctness },
-  { apply nterm.correctness H }
+  { apply nterm.correctness, apply H },
+  { apply eterm.correctness }
 end
 
 meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
@@ -221,22 +221,13 @@ meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
   a ← nterm_to_expr x,
   to_expr ``(%%a ^ (%%(reflect n) : ℤ))
 
-meta def norm_expr (e : expr) : tactic (@nterm γ _ × expr × expr) :=
+meta def test_norm (e : expr) : tactic (expr × list expr) :=
 do
   let (t, s) := (eterm_of_expr e).run ∅,
-  
-
-  ρ ← s.get_dict,
-  let rt : expr := `(t),
-  hyp ← to_expr ``(∀ t ∈ norm_hyps %%rt, nterm.eval %%ρ t ≠ 0),
-
-  h1 ← to_expr ``(%%e = eterm.eval %%ρ %%rt),
-  ((), pr1) ← solve_aux h1 `[refl; done],
-  h2 ← to_expr ``(%%hyp → eterm.eval %%ρ %%rt = nterm.eval %%ρ (norm %%rt)),
-  ((), pr2) ← solve_aux h2 `[apply correctness; done],
-  
-  let nt := norm t,
-  new_e ← nterm_to_expr s.get_f (norm t),
-  return  (nt, new_e, pr1)
+  let x := norm t,
+  let ts := norm_hyps t,
+  new_e ← nterm_to_expr s.get_f x,
+  hyps ← monad.mapm (nterm_to_expr s.get_f) ts,
+  return  (new_e, hyps)
 
 end polya

@@ -72,7 +72,9 @@ end
 def smerge : list (@cterm γ _) → list (@cterm γ _) → list (@cterm γ _)
 | (x::xs) (y::ys) :=
   if x.term = y.term then
-    ⟨x.term, x.coeff + y.coeff⟩ :: smerge xs ys
+    let c := x.coeff + y.coeff in
+    if c = 0 then smerge xs ys
+    else ⟨x.term, c⟩ :: smerge xs ys
   else if x.term < y.term then
     x :: smerge xs (y::ys)
   else
@@ -97,14 +99,18 @@ begin
 end
 
 lemma smerge_def1 {x y : @cterm γ _} {xs ys : list (@cterm γ _)} :
-  x.term = y.term →
-  smerge (x::xs) (y::ys) = ⟨x.term, x.coeff + y.coeff⟩ :: smerge xs ys :=
-by intro h; simp [smerge, h]
+  x.term = y.term → x.coeff + y.coeff = 0 →
+  smerge (x::xs) (y::ys) = smerge xs ys :=
+by intros h1 h2; simp [smerge, h1, h2]
 lemma smerge_def2 {x y : @cterm γ _} {xs ys : list (@cterm γ _)} :
+  x.term = y.term → x.coeff + y.coeff ≠ 0 →
+  smerge (x::xs) (y::ys) = ⟨x.term, x.coeff + y.coeff⟩ :: smerge xs ys :=
+by intros h1 h2; simp [smerge, h1, h2]
+lemma smerge_def3 {x y : @cterm γ _} {xs ys : list (@cterm γ _)} :
   x.term ≠ y.term → x.term < y.term →
   smerge (x::xs) (y::ys) = x :: smerge xs (y :: ys) :=
 by intros h1 h2; simp [smerge, h1, h2]
-lemma smerge_def3 {x y : @cterm γ _} {xs ys : list (@cterm γ _)} :
+lemma smerge_def4 {x y : @cterm γ _} {xs ys : list (@cterm γ _)} :
   x.term ≠ y.term → ¬ x.term < y.term →
   smerge (x::xs) (y::ys) = y :: smerge (x::xs) ys :=
 by intros h1 h2; simp [smerge, h1, h2]
@@ -120,17 +126,19 @@ begin
   { intro ys, induction ys with y ys ihy,
     { simp [smerge_nil_right] },
     { by_cases h1 : x.term = y.term,
-      { rw smerge_def1 h1,
-        cases x with x n, cases y with y m,
-        simp only [] at h1, rw h1 at *,
-        repeat {rw [list.map_cons, list.sum_cons]},
-        rw [eval_add, ihx ys], ring },
-      { by_cases h2 : x.term < y.term,
+      { by_cases h2 : x.coeff + y.coeff = 0,
+        { sorry },
         { rw smerge_def2 h1 h2,
+          cases x with x n, cases y with y m,
+          simp only [] at h1, rw h1 at *,
+          repeat {rw [list.map_cons, list.sum_cons]},
+          rw [eval_add, ihx ys], ring }},
+      { by_cases h2 : x.term < y.term,
+        { rw smerge_def3 h1 h2,
           repeat {rw [list.map_cons, list.sum_cons]},
           rw [ihx (y::ys), list.map_cons, list.sum_cons],
           ring},
-        { rw smerge_def3 h1 h2,
+        { rw smerge_def4 h1 h2,
           repeat {rw [list.map_cons, list.sum_cons]},
           rw [ihy, list.map_cons, list.sum_cons],
           ring}}}}
@@ -193,17 +201,9 @@ begin
   simp
 end
 
-def reduce (S : @sterm γ _) : @sterm γ _ :=
-{ terms := S.terms.filter (λ x, x.coeff ≠ 0), }
-
-theorem eval_reduce {S : @sterm γ _} :
-  sterm.eval ρ S = sterm.eval ρ S.reduce :=
-begin
-  sorry --TODO
-end
 
 def to_nterm (S : @sterm γ _) : @nterm γ _ :=
-match S.reduce.terms with
+match S.terms with
 | []      := 0
 | (x::xs) :=
   let a := x.coeff in
