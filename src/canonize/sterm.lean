@@ -1,6 +1,5 @@
 import .nterm
 
-
 namespace polya
 
 open nterm

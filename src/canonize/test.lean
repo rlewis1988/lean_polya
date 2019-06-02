@@ -1,5 +1,4 @@
 import .tactic
-import .pterm
 
 open tactic polya
 
