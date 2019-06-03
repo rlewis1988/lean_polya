@@ -230,8 +230,9 @@ do
   new_e ← nterm_to_expr s.get_f nt,
   hyps ← monad.mapm (nterm_to_expr s.get_f) ts,
 
-  trace "new_e:", trace new_e,
-  trace "hyps:", trace hyps,
+  trace "new goals:",
+  monad.mapm (λ x, to_expr ``(%%x ≠ 0) >>= trace) hyps,
+  trace "",
 
   h ← to_expr ``(%%e = %%new_e),
   ((), pr) ← solve_aux h `[sorry],
