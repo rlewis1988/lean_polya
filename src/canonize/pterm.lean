@@ -287,8 +287,8 @@ def reduce (P : @pterm γ _) : @pterm γ _ :=
   coeff := P.coeff
 }
 
-def reduce_hyps (P : @pterm γ _) : list (@nterm γ _) :=
-list.map xterm.term (P.terms.filter (λ x, x.exp = 0))
+def reduce_hyps (P : @pterm γ _) : finset (@nterm γ _) :=
+list.to_finset $ list.map xterm.term (P.terms.filter (λ x, x.exp = 0))
 
 private lemma lemma_eval_reduce {x : @xterm γ _} :
   x.exp = 0 ∧ nterm.eval ρ x.term ≠ 0 →
