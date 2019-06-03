@@ -221,17 +221,32 @@ meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
   a ← nterm_to_expr x,
   to_expr ``(%%a ^ (%%(reflect n) : ℤ))
 
-meta def test_norm (e : expr) : tactic (expr × expr × list expr) :=
+meta def norm_expr (e : expr) (s : cache_ty) : tactic (expr × expr × cache_ty) :=
 do
-  let (t, s) := (eterm_of_expr e).run ∅,
-  naive_new_e ← nterm_to_expr s.get_f t.to_nterm.naive_norm,
-  new_e ← nterm_to_expr s.get_f t.to_nterm.norm,
-  hyps ← monad.mapm (nterm_to_expr s.get_f) t.to_nterm.norm_hyps,
-  return  (naive_new_e, new_e, hyps)
+  let (t, s) := (eterm_of_expr e).run s,
+  let nt := t.to_nterm.norm,
+  let ts := t.to_nterm.norm_hyps,
+  --let nt := t.to_ntern.naive_norm,
+  new_e ← nterm_to_expr s.get_f nt,
+  hyps ← monad.mapm (nterm_to_expr s.get_f) ts,
 
---output expressions for:
---the term produced by the naive norm function
---the term produced by the norm function, which should be the same
---the terms assumed to be nonzero
+  trace "new_e:", trace new_e,
+  trace "hyps:", trace hyps,
+
+  h ← to_expr ``(%%e = %%new_e),
+  ((), pr) ← solve_aux h `[sorry],
+  return (new_e, pr, s)
 
 end polya
+
+open interactive interactive.types lean.parser
+open tactic polya
+
+meta def tactic.interactive.field1 : tactic unit :=
+do
+  `(%%e1 = %%e2) ← target,
+  (e1', pr1, s) ← norm_expr e1 ∅,
+  (e2', pr2, s') ← norm_expr e2 s,
+  is_def_eq e1' e2',
+  p ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
+  tactic.exact p
