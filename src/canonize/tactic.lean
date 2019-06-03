@@ -108,7 +108,7 @@ def list_to_dict {α} [inhabited α] (l : list α) : dict α :=
 def finmap.to_dict (m : finmap (λ _ : num, ℝ)) : dict ℝ :=
 ⟨λ i, match finmap.lookup i m with (some x) := x | _ := 0 end⟩
 
-meta def cache_ty.get_dict (s : cache_ty) : tactic expr :=
+meta def cache_ty.get_dict_expr (s : cache_ty) : tactic expr :=
 do
     let l := s.atoms.to_list.merge_sort (λ x y, x.snd ≤ y.snd),
     let l := l.map prod.fst,
@@ -192,16 +192,16 @@ end
 def norm (x : @eterm γ _) : @nterm γ _ :=
 x.to_nterm.norm
 
-def norm_hyps (x : @eterm γ _) : list (@nterm γ _) :=
+def norm_hyps (x : @eterm γ _) : finset (@nterm γ _) :=
 x.to_nterm.norm_hyps
 
 theorem correctness {x : @eterm γ _} {ρ : dict ℝ} :
   (∀ t ∈ norm_hyps x, nterm.eval ρ t ≠ 0) →
-  nterm.eval ρ (norm x) = eterm.eval ρ x :=
+  eterm.eval ρ x = nterm.eval ρ (norm x) :=
 begin
   intro H,
   unfold norm,
-  apply eq.trans,
+  apply eq.symm, apply eq.trans,
   { apply nterm.correctness, apply H },
   { apply eterm.correctness }
 end
@@ -224,18 +224,17 @@ meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
 meta def norm_expr (e : expr) (s : cache_ty) : tactic (expr × expr × cache_ty) :=
 do
   let (t, s) := (eterm_of_expr e).run s,
-  let nt := t.to_nterm.norm,
-  let ts := t.to_nterm.norm_hyps,
-  --let nt := t.to_ntern.naive_norm,
-  new_e ← nterm_to_expr s.get_f nt,
-  hyps ← monad.mapm (nterm_to_expr s.get_f) ts,
+  let t_expr : expr := reflect t,
+  norm_t_expr : expr ← to_expr ``(norm %%t_expr),
 
-  trace "new goals:",
-  monad.mapm (λ x, to_expr ``(%%x ≠ 0) >>= trace) hyps,
-  trace "",
+  ρ_expr ← s.get_dict_expr,
+  h1 ← to_expr ``(%%e = eterm.eval %%ρ_expr %%t_expr),
+  ((), pr1) ← solve_aux h1 `[refl, done],
+  new_e ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr),
+  h2 ← to_expr ``(eterm.eval %%ρ_expr %%t_expr = %%new_e),
+  ((), pr2) ← solve_aux h2 `[apply correctness; sorry],
+  pr ← mk_eq_trans pr1 pr2,
 
-  h ← to_expr ``(%%e = %%new_e),
-  ((), pr) ← solve_aux h `[sorry],
   return (new_e, pr, s)
 
 end polya
@@ -246,8 +245,9 @@ open tactic polya
 meta def tactic.interactive.field1 : tactic unit :=
 do
   `(%%e1 = %%e2) ← target,
-  (e1', pr1, s) ← norm_expr e1 ∅,
-  (e2', pr2, s') ← norm_expr e2 s,
-  is_def_eq e1' e2',
-  p ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
-  tactic.exact p
+  (new_e1, pr1, s) ← norm_expr e1 ∅,
+  (new_e2, pr2, s) ← norm_expr e2 s,
+  is_def_eq new_e1 new_e2, --takes 80% of the computation time
+
+  pr ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
+  tactic.exact pr

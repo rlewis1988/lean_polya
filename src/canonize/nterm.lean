@@ -183,6 +183,10 @@ instance : has_lt (@nterm γ _) := ⟨lt⟩
 instance dec_le : decidable_rel (@le γ _) := by dunfold le; apply_instance
 instance dec_lt : decidable_rel (@lt γ _) := by dunfold lt; apply_instance
 
+instance trans_le : is_trans _ (@le γ _) := by sorry
+instance antisymm_le : is_antisymm _ (@le γ _) := by sorry
+instance is_total : is_total _ (@le γ _) := by sorry
+
 instance coe_atom : has_coe num (@nterm γ _) := ⟨atom⟩
 instance coe_const: has_coe γ (@nterm γ _) := ⟨const⟩
 instance : has_zero (@nterm γ _) := ⟨const 0⟩
