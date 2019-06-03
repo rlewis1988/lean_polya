@@ -89,7 +89,7 @@ meta instance : has_emptyc cache_ty := ⟨⟨0, rb_map.mk _ _⟩⟩
 
 meta def state_dict : Type → Type := state cache_ty
 
-meta instance state_dict_monad : monad state_dict := state_t.monad 
+meta instance state_dict_monad : monad state_dict := state_t.monad
 meta instance state_dict_monad_state : monad_state cache_ty state_dict := state_t.monad_state
 
 meta def get_atom (e : expr) : state_dict num :=
@@ -127,7 +127,7 @@ def γ := ℚ
 
 instance : const_space γ :=
 { df := by apply_instance,
-  le := by apply_instance, 
+  le := by apply_instance,
   dec_le := by apply_instance,
 }
 
@@ -192,8 +192,8 @@ end
 def norm (x : @eterm γ _) : @nterm γ _ :=
 x.to_nterm.norm
 
-def norm_hyps (x : @eterm γ _) : finset (@nterm γ _) :=
-x.to_nterm.norm_hyps
+def norm_hyps (x : @eterm γ _) : list (@nterm γ _) :=
+x.to_nterm.norm_hyps.sort (≤)
 
 theorem correctness {x : @eterm γ _} {ρ : dict ℝ} :
   (∀ t ∈ norm_hyps x, nterm.eval ρ t ≠ 0) →
@@ -202,7 +202,8 @@ begin
   intro H,
   unfold norm,
   apply eq.symm, apply eq.trans,
-  { apply nterm.correctness, apply H },
+  { apply nterm.correctness, unfold nterm.nonzero,
+    intros t ht, apply H, exact (finset.mem_sort _).mpr ht },
   { apply eterm.correctness }
 end
 
@@ -214,8 +215,7 @@ meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
   b ← nterm_to_expr y,
   to_expr ``(%%a + %%b)
 | (nterm.mul x y) := do
-  a ← nterm_to_expr x,
-  b ← nterm_to_expr y,
+  a ← nterm_to_expr x, b ← nterm_to_expr y,
   to_expr ``(%%a * %%b)
 | (nterm.pow x n) := do
   a ← nterm_to_expr x,
@@ -228,22 +228,21 @@ do
   norm_t_expr ← to_expr ``(norm %%t_expr),
   ρ_expr ← s.get_dict_expr,
 
-  let ts : list (@nterm γ _) := (norm_hyps t).sort (≤),
-  hyps ← monad.mapm (λ t, to_expr ``(nterm.eval %%ρ_expr %%(reflect t))) ts,
-  hyps ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) hyps,
-  meta_vars ← monad.mapm mk_meta_var hyps,
-  monad.mapm (λ e, infer_type e >>= trace) meta_vars,
-
+  let xs := norm_hyps t,
+  xs ← monad.mapm (nterm_to_expr s.get_f) xs,
+  xs ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) xs,
+  mvars ← monad.mapm mk_meta_var xs,
   gs ← get_goals,
-  set_goals (gs ++ meta_vars),
+  set_goals (gs ++ mvars),
 
+  h0 ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ_expr x ≠ 0),
+  ((), pr0) ← solve_aux h0 `[sorry], --TODO: prove using mvars
   h1 ← to_expr ``(%%e = eterm.eval %%ρ_expr %%t_expr),
   ((), pr1) ← solve_aux h1 `[refl, done],
-  new_e ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr),
-  h2 ← to_expr ``(eterm.eval %%ρ_expr %%t_expr = %%new_e),
-  ((), pr2) ← solve_aux h2 `[apply correctness; sorry],
+  pr2 ← mk_app ``correctness [pr0],
   pr ← mk_eq_trans pr1 pr2,
 
+  new_e ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr),
   return (new_e, pr, s)
 
 end polya
@@ -260,3 +259,4 @@ do
 
   pr ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
   tactic.exact pr
+

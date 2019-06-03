@@ -160,6 +160,8 @@ variables {α : Type} [discrete_field α]
 variables {γ : Type} [const_space γ]
 variables [morph γ α] {ρ : dict α}
 
+instance : inhabited (@nterm γ _) := ⟨const 0⟩
+
 def ble :
   @nterm γ _ → @nterm γ _ → bool
 | (atom i)  (atom j)  := i ≤ j
