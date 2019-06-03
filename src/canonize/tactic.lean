@@ -225,9 +225,18 @@ meta def norm_expr (e : expr) (s : cache_ty) : tactic (expr × expr × cache_ty)
 do
   let (t, s) := (eterm_of_expr e).run s,
   let t_expr : expr := reflect t,
-  norm_t_expr : expr ← to_expr ``(norm %%t_expr),
-
+  norm_t_expr ← to_expr ``(norm %%t_expr),
   ρ_expr ← s.get_dict_expr,
+
+  let ts : list (@nterm γ _) := (norm_hyps t).sort (≤),
+  hyps ← monad.mapm (λ t, to_expr ``(nterm.eval %%ρ_expr %%(reflect t))) ts,
+  hyps ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) hyps,
+  meta_vars ← monad.mapm mk_meta_var hyps,
+  monad.mapm (λ e, infer_type e >>= trace) meta_vars,
+
+  gs ← get_goals,
+  set_goals (gs ++ meta_vars),
+
   h1 ← to_expr ``(%%e = eterm.eval %%ρ_expr %%t_expr),
   ((), pr1) ← solve_aux h1 `[refl, done],
   new_e ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr),
