@@ -9,12 +9,12 @@ constants
   (h3 : x + y ≠ 0)
 
 /- benchmak -/
-set_option profiler true
+--set_option profiler true
 
-lemma ex1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) = 0 :=
+/- lemma ex1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) = 0 :=
 begin
   field1,
-end
+end -/
 
 theorem ex2 :
   (x + y) ^ 2 / (x + y) ^ 2 * x * y / x
@@ -25,7 +25,7 @@ begin
   --{ exact h3 },
   --{ exact h2 },
 end
-
+#exit
 theorem ex3 :
   x * ((y * w) * (z * (u * z) * v) * w)
   = w^2 * v * z^2 * u * y * x :=
@@ -43,4 +43,9 @@ theorem ex5 : y * (y / y) = (x * y) / x :=
 begin
   field1,
   --{ exact h1 },
+end
+
+theorem ex6 : x/x=1 :=
+begin
+  field1
 end

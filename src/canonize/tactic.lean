@@ -230,6 +230,24 @@ meta def nterm_to_expr (α : expr) (s : cache_ty) : @nterm γ _ → tactic expr
   a ← nterm_to_expr x,
   to_expr ``(%%a ^ (%%(reflect n) : ℤ))
 
+#check @list.all_iff_forall_prop
+#print list.all
+def list.pall {α : Type*} (l : list α) (f : α → Prop) : Prop :=
+l.foldr (λ a r, f a ∧ r) true
+
+lemma list.pall_iff_forall_prop : ∀ {α : Type*} {p : α → Prop} [_inst_1 : decidable_pred p] {l : list α},
+    list.pall l p ↔ ∀ (a : α), a ∈ l → p a := sorry
+
+#check tactic.apply
+#check tactic.interactive.convert
+lemma tt_true : tt := by simp
+
+def f (b s : bool): b && s :=
+begin simp, admit end
+#print f
+#check transparency.all
+#check band_coe_iff
+#check refine
 meta def norm_expr (e : expr) (s : cache_ty) : tactic (expr × expr × cache_ty) :=
 do
   let (t, s) := (eterm_of_expr e).run s,
@@ -243,10 +261,16 @@ do
   --mvars ← monad.mapm mk_meta_var xs,
   --gs ← get_goals,
   --set_goals (gs ++ mvars),
-
+  to_expr  ``(norm_hyps %%t_expr) >>= whnf >>= trace,
   h0 ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ_expr x ≠ 0),
-  ((), pr0) ← solve_aux h0 `[sorry], --TODO: prove using mvars
-
+  nhyps ← to_expr ``(norm_hyps %%t_expr) >>= eval_expr (list (@nterm γ _)),
+  nhyps ← nhyps.mmap $ nterm_to_expr `(ℝ) s,
+  nhyps ← nhyps.mmap $ λ e, to_expr ``(%%e ≠ 0) >>= mk_meta_var,
+  pe ← to_expr $ nhyps.foldr (λ e pe, ``((and.intro %%e %%pe))) ``(trivial), --nhyps.foldr (λ e pe, ``((band_coe_iff _ _).mpr (and.intro %%e %%pe))) ``(tt_true),
+  infer_type pe >>= trace,
+  solve_aux h0 `[refine polya.list.pall_iff_forall_prop.mp _, trace_state, whnf_target, trace_state],
+  ((), pr0) ← solve_aux h0 (refine ``(polya.list.pall_iff_forall_prop.mp _) >> exact pe >> done),
+  trace "pr0", infer_type pr0 >>= trace,
   h1 ← to_expr ``(%%e = eterm.eval %%ρ_expr %%t_expr),
   ((), pr1) ← solve_aux h1 `[refl, done],
   --h2 ← to_expr ``(eterm.eval %%ρ_expr %%t_expr = nterm.eval %%ρ_expr %%norm_t_expr),
