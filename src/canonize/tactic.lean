@@ -1,5 +1,6 @@
 import data.list.alist data.finmap
-import .norm
+import .norm data.finsupp
+#check finsupp
 
 namespace list
 open polya tactic
@@ -9,7 +10,7 @@ meta def expr_reflect (type : expr) : list expr → tactic expr
 | (h::t) := do e ← expr_reflect t, to_expr ``(list.cons (%%h : %%type) %%e)
 
 def to_dict {α} [inhabited α] (l : list α) : dict α :=
-⟨λ i, list.func.get i l⟩
+⟨λ i, list.func.get i l.reverse⟩
 
 end list
 
@@ -119,8 +120,10 @@ open polya polya.eterm
 meta structure cache_ty :=
 (new_atom : num)
 (atoms : rb_map expr num)
+(dict: rb_map num expr)
 
-meta instance : has_emptyc cache_ty := ⟨⟨0, rb_map.mk _ _⟩⟩
+meta instance : has_emptyc cache_ty :=
+⟨⟨0, rb_map.mk _ _, rb_map.mk _ _⟩⟩
 
 meta def state_dict : Type → Type := state cache_ty
 
@@ -133,22 +136,14 @@ match s.atoms.find e with
 | (some i) := return i
 | none     := do
     let i := s.new_atom,
-    put ⟨i + 1, s.atoms.insert e i⟩,
+    put ⟨i + 1, s.atoms.insert e i, s.dict.insert i e⟩,
     return i
 end
 
-meta def cache_ty.get_dict_expr (s : cache_ty) : tactic expr :=
+meta def cache_ty.dict_expr (s : cache_ty) : tactic expr :=
 do
-    let l := s.atoms.to_list.merge_sort (λ x y, x.snd ≤ y.snd),
-    let l := l.map prod.fst,
-    e ← l.expr_reflect `(ℝ),
+    e ← s.dict.values.expr_reflect `(ℝ), --TODO: for an α
     mk_app `list.to_dict [e]
-
-meta def cache_ty.get_f (s : cache_ty) : num → expr :=
-do
-    let l := s.atoms.to_list.merge_sort (λ x y, x.snd ≤ y.snd) in
-    let l := l.map prod.fst in
-    λ i, list.func.get i l
 
 @[reducible]
 def γ := ℚ
@@ -217,9 +212,12 @@ match e with
 | _ := atom <$> get_atom e
 end
 
-meta def nterm_to_expr (α : expr) (f : num → expr) : @nterm γ _ → tactic expr
-| (nterm.atom i)  := return (f i)
-| (nterm.const c) := to_expr ``(%%(reflect c) : %%α)
+meta def nterm_to_expr (α : expr) (s : cache_ty) : @nterm γ _ → tactic expr
+| (nterm.atom i)  := do
+  e ← s.dict.find i,
+  return e
+| (nterm.const c) := do
+  to_expr ``(%%(reflect c) : %%α)
 | (nterm.add x y) := do
   a ← nterm_to_expr x,
   b ← nterm_to_expr y,
@@ -237,14 +235,14 @@ do
   let (t, s) := (eterm_of_expr e).run s,
   let t_expr : expr := reflect t,
   norm_t_expr ← to_expr ``(norm %%t_expr),
-  ρ_expr ← s.get_dict_expr,
+  ρ_expr ← s.dict_expr,
 
-  let xs := norm_hyps t,
-  xs ← monad.mapm (nterm_to_expr `(ℝ) s.get_f) xs,
-  xs ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) xs,
-  mvars ← monad.mapm mk_meta_var xs,
-  gs ← get_goals,
-  set_goals (gs ++ mvars),
+  --let xs := norm_hyps t,
+  --xs ← monad.mapm (nterm_to_expr s) xs,
+  --xs ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) xs,
+  --mvars ← monad.mapm mk_meta_var xs,
+  --gs ← get_goals,
+  --set_goals (gs ++ mvars),
 
   h0 ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ_expr x ≠ 0),
   ((), pr0) ← solve_aux h0 `[sorry], --TODO: prove using mvars
@@ -256,7 +254,7 @@ do
   pr ← mk_eq_trans pr1 pr2,
 
   let norm_t := norm t,
-  new_e ← nterm_to_expr `(ℝ) s.get_f norm_t,
+  new_e ← nterm_to_expr `(ℝ) s norm_t,
   h3 ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr = %%new_e),
   --((), pr3) ← solve_aux h3 `[refl, done], -- super slow
   ((), pr3) ← solve_aux h3 `[sorry],
@@ -275,7 +273,7 @@ do
   `(%%e1 = %%e2) ← target,
   (new_e1, pr1, s) ← polya.norm_expr e1 ∅,
   (new_e2, pr2, s) ← norm_expr e2 s,
-  --is_def_eq new_e1 new_e2,
+  is_def_eq new_e1 new_e2,
 
   pr ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
   tactic.exact pr
