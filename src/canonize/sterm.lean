@@ -21,7 +21,7 @@ else if x.coeff = 1 then x.term
 else x.term * x.coeff
 
 def eval (ρ : dict α) (x : @cterm γ _) : α :=
-nterm.eval ρ x.term * morph.f _ x.coeff
+nterm.eval ρ x.term * ↑x.coeff
 
 def eval_to_nterm {x : @cterm γ _} :
  nterm.eval ρ x.to_nterm = cterm.eval ρ x :=
@@ -39,7 +39,7 @@ begin
 end
 
 theorem eval_def {x : @nterm γ _} {c : γ} :
-  cterm.eval ρ ⟨x, c⟩ = nterm.eval ρ x * morph.f _ c :=
+  cterm.eval ρ ⟨x, c⟩ = nterm.eval ρ x * ↑c :=
 rfl
 
 theorem eval_add {x : @nterm γ _} {a b : γ} :
@@ -53,13 +53,13 @@ def mul (x : @cterm γ _) (a : γ) : @cterm γ _ :=
 ⟨x.term, x.coeff * a⟩
 
 theorem eval_mul {x : @cterm γ _} {a : γ} :
-  cterm.eval ρ (x.mul a) = cterm.eval ρ x * morph.f _ a :=
+  cterm.eval ρ (x.mul a) = cterm.eval ρ x * ↑a :=
 begin
   simp [cterm.eval, morph.morph_mul, mul], ring
 end
 
 theorem eval_sum_mul {xs : list (@cterm γ _)} {a : γ} :
-  list.sum (list.map (cterm.eval ρ) xs) * morph.f _ a
+  list.sum (list.map (cterm.eval ρ) xs) * ↑a
     = list.sum (list.map (λ x : cterm, cterm.eval ρ (x.mul a)) xs) :=
 begin
   induction xs with x xs ih,
@@ -161,7 +161,7 @@ def eval (ρ : dict α) (S : @sterm γ _) : α :=
 list.sum (S.terms.map (cterm.eval ρ))
 
 theorem eval_of_const (a : γ) :
-  sterm.eval ρ (of_const a) = morph.f _ a :=
+  sterm.eval ρ (of_const a) = ↑a :=
 by simp [of_const, sterm.eval, cterm.eval]
 
 theorem eval_singleton (x : @nterm γ _) :
@@ -193,7 +193,7 @@ begin
 end
 
 theorem eval_mul {S : @sterm γ _} {a : γ} :
-  sterm.eval ρ (S.mul a) = sterm.eval ρ S * morph.f _ a :=
+  sterm.eval ρ (S.mul a) = sterm.eval ρ S * ↑a :=
 begin
   unfold sterm.eval, unfold mul,
   rw cterm.eval_sum_mul,

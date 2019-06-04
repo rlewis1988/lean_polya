@@ -3,9 +3,12 @@ import data.num.lemmas
 import data.list.sort data.list.basic data.list.perm
 
 section
+
 local attribute [semireducible] reflected
+
 meta instance rat.reflect : has_reflect ℚ
 | ⟨n, d, _, _⟩ := `(rat.mk_nat %%(reflect n) %%(reflect d))
+
 end
 
 meta def tactic.interactive.intros' : tactic unit :=
@@ -15,6 +18,7 @@ attribute [elim_cast] znum.cast_inj
 attribute [squash_cast] znum.to_of_int
 attribute [squash_cast] znum.cast_zero
 attribute [move_cast] znum.cast_add
+--TODO
 
 namespace list
 
@@ -54,26 +58,26 @@ begin
 end
 
 end list
+
 namespace polya
 
 structure dict (α : Type) :=
 (val : num → α)
 
 class morph (γ : Type) [discrete_field γ] (α : Type) [discrete_field α] :=
-(f : γ → α)
-(morph0 : f 0 = 0)
-(morph1 : f 1 = 1)
-(morph_add : ∀ a b : γ, f (a + b) = f a + f b)
-(morph_neg : ∀ a : γ, f (-a) = - f a)
-(morph_mul : ∀ a b : γ, f (a * b) = f a * f b)
-(morph_inv : ∀ a : γ, f (a⁻¹) = (f a)⁻¹)
-(morph_inj : ∀ a : γ, f a = 0 → a = 0)
+(cast   : has_coe γ α)
+(morph0 : ((0 : γ) : α) = 0)
+(morph1 : ((1 : γ) : α) = 1)
+(morph_add : ∀ a b : γ, ((a + b : γ) : α) = a + b)
+(morph_neg : ∀ a : γ, ((-a : γ) : α) = -a)
+(morph_mul : ∀ a b : γ, ((a * b : γ) : α) = a * b)
+(morph_inv : ∀ a : γ, ((a⁻¹ : γ) : α) = a⁻¹)
+(morph_inj : ∀ a : γ, (a : α) = 0 → a = 0)
 
 namespace morph
 
---TODO: replace ℚ with znum × znum
 instance rat_morph {α} [discrete_field α] [char_zero α] : morph ℚ α :=
-{ f         := rat.cast,
+{ cast      := by apply_instance,
   morph0    := rat.cast_zero,
   morph1    := rat.cast_one,
   morph_add := rat.cast_add,
@@ -93,19 +97,20 @@ attribute [simp] morph.morph1
 attribute [simp] morph.morph_mul
 --TODO
 
-section
 variables {α : Type} [discrete_field α]
 variables {γ : Type} [discrete_field γ]
 variables [morph γ α]
 variables {a b : γ}
 
-theorem morph_sub : f α (a - b) = f _ a - f _ b :=
+instance has_coe : has_coe γ α := morph.cast γ α
+
+theorem morph_sub : ((a - b : γ) : α) = a - b :=
 by rw [sub_eq_add_neg, morph.morph_add, morph.morph_neg, ← sub_eq_add_neg]
 
-theorem morph_div : f α (a / b) = f _ a / f _ b :=
+theorem morph_div : ((a / b : γ) : α) = a / b :=
 by rw [division_def, morph.morph_mul, morph.morph_inv, ← division_def]
 
-theorem morph_pow_nat (n : ℕ) : f α (a ^ n) = (f _ a) ^ n :=
+theorem morph_pow_nat (n : ℕ) : ((a ^ n : γ) : α) = a ^ n :=
 begin
   induction n with _ ih,
   { rw [pow_zero, pow_zero, morph.morph1] },
@@ -117,7 +122,7 @@ begin
     { rw [pow_succ, morph.morph_mul, ih, ← pow_succ] }}
 end
 
-theorem morph_pow (n : ℤ) : f α (a ^ n) = (f _ a) ^ n :=
+theorem morph_pow (n : ℤ) : ((a ^ n : γ) : α) = a ^ n :=
 begin
   cases n,
   { rw [int.of_nat_eq_coe, fpow_of_nat, fpow_of_nat],
@@ -126,8 +131,6 @@ begin
     rw [morph_div, morph.morph1],
     rw [fpow_of_nat, fpow_of_nat],
     rw morph_pow_nat }
-end
-
 end
 
 end morph
@@ -208,7 +211,7 @@ instance : has_div (@nterm γ _) := ⟨div⟩
 
 def eval (ρ : dict α) : @nterm γ _ → α
 | (atom i)  := ρ.val i
-| (const c) := morph.f _ c
+| (const c) := ↑c
 | (add x y) := eval x + eval y
 | (mul x y) := eval x * eval y
 | (pow x n) := eval x ^ (n : ℤ)
@@ -218,7 +221,7 @@ variables {x y : @nterm γ _} {i : num} {n : znum} {c : γ}
 @[simp] theorem eval_zero : (0 : @nterm γ _).eval ρ = 0 := by apply morph.morph0
 @[simp] theorem eval_one : (1 : @nterm γ _).eval ρ = 1 := by apply morph.morph1
 @[simp] theorem eval_atom : (i : @nterm γ _).eval ρ = ρ.val i := rfl
-@[simp] theorem eval_const : (c : @nterm γ _).eval ρ = morph.f _ c := rfl
+@[simp] theorem eval_const : (c : @nterm γ _).eval ρ = c := rfl
 @[simp] theorem eval_add : (x + y).eval ρ = x.eval ρ + y.eval ρ := rfl
 @[simp] theorem eval_mul : (x * y).eval ρ = x.eval ρ * y.eval ρ := rfl
 @[simp] theorem eval_pow : (x ^ n).eval ρ = x.eval ρ ^ (n : ℤ) := rfl

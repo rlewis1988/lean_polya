@@ -159,10 +159,10 @@ def singleton (x : @nterm γ _) : @pterm γ _ :=
 { terms := [⟨x, 1⟩], coeff := 1 }
 
 def eval (ρ : dict α) (P : @pterm γ _) : α :=
-list.prod (P.terms.map (xterm.eval ρ)) * morph.f _ P.coeff
+list.prod (P.terms.map (xterm.eval ρ)) * ↑P.coeff
 
 theorem eval_of_const (a : γ) :
-  pterm.eval ρ (of_const a) = morph.f _ a :=
+  pterm.eval ρ (of_const a) = ↑a :=
 by simp [of_const, pterm.eval, xterm.eval]
 
 theorem eval_singleton (x : @nterm γ _) :
@@ -233,7 +233,7 @@ end
 
 theorem pow_def {P : @pterm γ _} {n : znum} :
   n ≠ 0 → pterm.eval ρ (P.pow n) =
-    list.prod (list.map (λ x : xterm, xterm.eval ρ ⟨x.term, x.exp * n⟩) P.terms) * morph.f _ P.coeff ^ (n : ℤ) :=
+    list.prod (list.map (λ x : xterm, xterm.eval ρ ⟨x.term, x.exp * n⟩) P.terms) * ↑P.coeff ^ (n : ℤ) :=
 begin
   intro hn,
   rw [← morph.morph_pow],
@@ -267,8 +267,8 @@ begin
   by_cases h1 : xs.empty = ff,
   { by_cases h2 : c = 1,
     { rw h2, simp [pterm.eval, to_nterm, h1, eval_prod, xterm.eval_to_nterm'] },
-    { suffices : list.prod (list.map (xterm.eval ρ) xs) * morph.f α c =
-        nterm.eval ρ (prod (list.map xterm.to_nterm xs)) * morph.f α c,
+    { suffices : list.prod (list.map (xterm.eval ρ) xs) * ↑c =
+        nterm.eval ρ (prod (list.map xterm.to_nterm xs)) * ↑c,
       by { simp [to_nterm, pterm.eval, this, h1, h2] },
       rw [eval_prod, list.map_map],
       rw xterm.eval_to_nterm' }},
@@ -304,9 +304,9 @@ theorem eval_reduce {P : @pterm γ _} :
   nonzero ρ P.reduce_hyps →
   pterm.eval ρ P = pterm.eval ρ P.reduce :=
 begin
-  intro H, rw nonzero_iff_zero_not_mem at H,
+  intro H,
   have H1 : ∀ x : xterm, x ∈ P.terms → x.exp = 0 → nterm.eval ρ (x.term) ≠ 0,
-  by simpa [reduce_hyps] using H,
+  by { intros x h1 h2, apply H, simp [reduce_hyps], existsi x, simp [h1, h2] },
   have H2 : ∀ x : xterm, x ∈ P.terms.filter (λ x, x.exp = 0) → nterm.eval ρ (x.term) ≠ 0,
   by { intros x hx, have : x ∈ P.terms ∧ x.exp = 0, from list.mem_filter.mp hx,
        cases this, apply H1; assumption },

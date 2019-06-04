@@ -1,6 +1,6 @@
 import .tactic
 
-open polya
+open polya tactic
 
 constants u v w x y z : ℝ
 constants
@@ -11,12 +11,14 @@ constants
 /- benchmak -/
 set_option profiler true
 
-example : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) = 0 :=
+lemma ex1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) = 0 :=
 begin
   field1,
 end
 
-example : (x + y) ^ 2 / (x + y) ^ 2 * x * y / x = y * (z + 2 * y * x - x * y * 2) * z⁻¹:=
+theorem ex2 :
+  (x + y) ^ 2 / (x + y) ^ 2 * x * y / x
+  = y * (z + 2 * y * x - x * y * 2) * z⁻¹:=
 begin
   field1,
   { exact h1 },
@@ -24,18 +26,20 @@ begin
   { exact h2 },
 end
 
-example : x * ((y * w) * (z * (u * z) * v) * w) = w^2 * v * z^2 * u * y * x :=
+theorem ex3 :
+  x * ((y * w) * (z * (u * z) * v) * w)
+  = w^2 * v * z^2 * u * y * x :=
 begin
   field1,
 end
 
-example : x / x = (x / x) ^ 0 :=
+theorem ex4 : x / x = (x / x) ^ 0 :=
 begin
   field1,
   { exact h1 },
 end
 
-example : y * (y / y) = (x * y) / x :=
+theorem ex5 : y * (y / y) = (x * y) / x :=
 begin
   field1,
   { exact h1 },

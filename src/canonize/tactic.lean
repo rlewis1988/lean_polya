@@ -2,15 +2,29 @@ import data.list.alist data.finmap
 import .norm
 
 namespace list
-open tactic
+open polya tactic
 
 meta def expr_reflect (type : expr) : list expr → tactic expr
 | [] := to_expr ``([] : list %%type)
 | (h::t) := do e ← expr_reflect t, to_expr ``(list.cons (%%h : %%type) %%e)
 
+def to_dict {α} [inhabited α] (l : list α) : dict α :=
+⟨λ i, list.func.get i l⟩
+
 end list
 
+namespace finmap
+open polya
+
+def to_dict {α} [discrete_field α] (m : finmap (λ _ : num, α)) : dict α :=
+⟨λ i, match finmap.lookup i m with (some x) := x | _ := 0 end⟩
+
+end finmap
+
 namespace polya
+variables {α : Type} [discrete_field α]
+variables {γ : Type} [const_space γ]
+variables [morph γ α] {ρ : dict α}
 
 @[derive decidable_eq, derive has_reflect]
 inductive eterm {γ} [const_space γ] : Type
@@ -28,14 +42,10 @@ inductive eterm {γ} [const_space γ] : Type
 
 namespace eterm
 
-variables {α : Type} [discrete_field α]
-variables {γ : Type} [const_space γ]
-variables [morph γ α] {ρ : dict α}
-
 def eval (ρ : dict α) : @eterm γ _ → α
 | zero      := 0
 | one       := 1
-| (const r) := morph.f _ r
+| (const r) := ↑r
 | (atom i)  := ρ.val i
 | (add x y) := eval x + eval y
 | (sub x y) := eval x - eval y
@@ -79,7 +89,32 @@ begin
 end
 
 end eterm
-open eterm native tactic
+
+def norm (x : @eterm γ _) : @nterm γ _ :=
+x.to_nterm.norm
+
+def norm_hyps (x : @eterm γ _) : list (@nterm γ _) :=
+x.to_nterm.norm_hyps.sort (≤)
+
+theorem correctness {x : @eterm γ _} {ρ : dict α} :
+  (∀ t ∈ norm_hyps x, nterm.eval ρ t ≠ 0) →
+  eterm.eval ρ x = nterm.eval ρ (norm x) :=
+begin
+  intro H,
+  unfold norm,
+  apply eq.symm, apply eq.trans,
+  { apply nterm.correctness, unfold nterm.nonzero,
+    intros t ht, apply H, exact (finset.mem_sort _).mpr ht },
+  { apply eterm.correctness }
+end
+
+end polya
+
+namespace tactic
+open native tactic
+
+namespace polya
+open polya polya.eterm
 
 meta structure cache_ty :=
 (new_atom : num)
@@ -102,18 +137,12 @@ match s.atoms.find e with
     return i
 end
 
-def list_to_dict {α} [inhabited α] (l : list α) : dict α :=
-⟨λ i, list.func.get i l⟩
-
-def finmap.to_dict (m : finmap (λ _ : num, ℝ)) : dict ℝ :=
-⟨λ i, match finmap.lookup i m with (some x) := x | _ := 0 end⟩
-
 meta def cache_ty.get_dict_expr (s : cache_ty) : tactic expr :=
 do
     let l := s.atoms.to_list.merge_sort (λ x y, x.snd ≤ y.snd),
     let l := l.map prod.fst,
     e ← l.expr_reflect `(ℝ),
-    mk_app ``list_to_dict [e]
+    mk_app `list.to_dict [e]
 
 meta def cache_ty.get_f (s : cache_ty) : num → expr :=
 do
@@ -123,7 +152,6 @@ do
 
 @[reducible]
 def γ := ℚ
---TODO: replace with Qnum
 
 instance : const_space γ :=
 { df := by apply_instance,
@@ -189,33 +217,16 @@ match e with
 | _ := atom <$> get_atom e
 end
 
-def norm (x : @eterm γ _) : @nterm γ _ :=
-x.to_nterm.norm
-
-def norm_hyps (x : @eterm γ _) : list (@nterm γ _) :=
-x.to_nterm.norm_hyps.sort (≤)
-
-theorem correctness {x : @eterm γ _} {ρ : dict ℝ} :
-  (∀ t ∈ norm_hyps x, nterm.eval ρ t ≠ 0) →
-  eterm.eval ρ x = nterm.eval ρ (norm x) :=
-begin
-  intro H,
-  unfold norm,
-  apply eq.symm, apply eq.trans,
-  { apply nterm.correctness, unfold nterm.nonzero,
-    intros t ht, apply H, exact (finset.mem_sort _).mpr ht },
-  { apply eterm.correctness }
-end
-
-meta def nterm_to_expr (f : num → expr) : @nterm γ _ → tactic expr
+meta def nterm_to_expr (α : expr) (f : num → expr) : @nterm γ _ → tactic expr
 | (nterm.atom i)  := return (f i)
-| (nterm.const c) := to_expr ``(%%(reflect c) : ℝ)
+| (nterm.const c) := to_expr ``(%%(reflect c) : %%α)
 | (nterm.add x y) := do
   a ← nterm_to_expr x,
   b ← nterm_to_expr y,
   to_expr ``(%%a + %%b)
 | (nterm.mul x y) := do
-  a ← nterm_to_expr x, b ← nterm_to_expr y,
+  a ← nterm_to_expr x,
+  b ← nterm_to_expr y,
   to_expr ``(%%a * %%b)
 | (nterm.pow x n) := do
   a ← nterm_to_expr x,
@@ -229,7 +240,7 @@ do
   ρ_expr ← s.get_dict_expr,
 
   let xs := norm_hyps t,
-  xs ← monad.mapm (nterm_to_expr s.get_f) xs,
+  xs ← monad.mapm (nterm_to_expr `(ℝ) s.get_f) xs,
   xs ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) xs,
   mvars ← monad.mapm mk_meta_var xs,
   gs ← get_goals,
@@ -237,26 +248,34 @@ do
 
   h0 ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ_expr x ≠ 0),
   ((), pr0) ← solve_aux h0 `[sorry], --TODO: prove using mvars
+
   h1 ← to_expr ``(%%e = eterm.eval %%ρ_expr %%t_expr),
   ((), pr1) ← solve_aux h1 `[refl, done],
-  pr2 ← mk_app ``correctness [pr0],
+  --h2 ← to_expr ``(eterm.eval %%ρ_expr %%t_expr = nterm.eval %%ρ_expr %%norm_t_expr),
+  pr2 ← mk_app `polya.correctness [pr0],
   pr ← mk_eq_trans pr1 pr2,
 
-  new_e ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr),
+  let norm_t := norm t,
+  new_e ← nterm_to_expr `(ℝ) s.get_f norm_t,
+  h3 ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr = %%new_e),
+  --((), pr3) ← solve_aux h3 `[refl, done], -- super slow
+  ((), pr3) ← solve_aux h3 `[sorry],
+  pr ← mk_eq_trans pr pr3,
+
   return (new_e, pr, s)
 
 end polya
+end tactic
 
-open interactive interactive.types lean.parser
-open tactic polya
+open tactic interactive interactive.types lean.parser
+open tactic.polya
 
 meta def tactic.interactive.field1 : tactic unit :=
 do
   `(%%e1 = %%e2) ← target,
-  (new_e1, pr1, s) ← norm_expr e1 ∅,
+  (new_e1, pr1, s) ← polya.norm_expr e1 ∅,
   (new_e2, pr2, s) ← norm_expr e2 s,
-  is_def_eq new_e1 new_e2, --takes 80% of the computation time
+  --is_def_eq new_e1 new_e2,
 
   pr ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
   tactic.exact pr
-
