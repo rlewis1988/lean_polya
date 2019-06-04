@@ -142,7 +142,7 @@ end
 
 meta def cache_ty.dict_expr (s : cache_ty) : tactic expr :=
 do
-    e ← s.dict.values.expr_reflect `(ℝ), --TODO: for an α
+    e ← s.dict.values.expr_reflect `(ℝ), --TODO: for any α
     mk_app `list.to_dict [e]
 
 @[reducible]
