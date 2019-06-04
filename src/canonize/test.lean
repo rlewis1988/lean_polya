@@ -3,15 +3,19 @@ import .tactic
 open polya tactic
 
 constants u v w x y z : ℝ
-constants
-  (h1 : x ≠ 0)
-  (h2 : z ≠ 0)
-  (h3 : x + y ≠ 0)
+constants (h1 : x ≠ 0) (h2 : z ≠ 0) (h3 : x + y ≠ 0)
 
 /- benchmak -/
 set_option profiler true
 
-lemma ex1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) = 0 :=
+def i : num := 0
+def t1 : @nterm ℚ _ := i * (1 / 10 : ℚ) + i * (1 / 10 : ℚ) - i * (1 / 5 : ℚ)
+def t2 : @nterm ℚ _ := i - i
+
+--lemma slow : t1.norm = 0 := rfl
+lemma fast : t2.norm = 0 := rfl
+
+theorem ex1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) = 0 :=
 begin
   field1,
 end

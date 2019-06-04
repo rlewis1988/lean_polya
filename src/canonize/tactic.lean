@@ -256,8 +256,7 @@ do
   let norm_t := norm t,
   new_e ← nterm_to_expr `(ℝ) s norm_t,
   h3 ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr = %%new_e),
-  --((), pr3) ← solve_aux h3 `[refl, done], -- super slow
-  ((), pr3) ← solve_aux h3 `[sorry],
+  ((), pr3) ← solve_aux h3 `[refl, done],
   pr ← mk_eq_trans pr pr3,
 
   return (new_e, pr, s)
@@ -277,3 +276,4 @@ do
 
   pr ← mk_eq_symm pr2 >>= mk_eq_trans pr1,
   tactic.exact pr
+
