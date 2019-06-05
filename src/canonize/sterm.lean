@@ -143,7 +143,7 @@ begin
           cases x with x n, cases y with y m,
           simp only [] at h1, rw h1 at *,
           repeat {rw [list.map_cons, list.sum_cons]},
-          rw [eval_add, ihx ys], { ring },
+          rw [eval_add, ihx ys], { simp },
           repeat {assumption }}},
       { by_cases h2 : x.term < y.term,
         { rw smerge_def3 h1 h2,
