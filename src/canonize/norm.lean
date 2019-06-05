@@ -3,8 +3,8 @@ import .sterm .pterm
 namespace polya
 
 inductive alt {γ} [const_space γ] : bool → Type
-| sform : finset (@nterm γ _) → @sterm γ _ → alt tt
-| pform : finset (@nterm γ _) → @pterm γ _ → alt ff
+| sform : list (@nterm γ _) → @sterm γ _ → alt tt
+| pform : list (@nterm γ _) → @pterm γ _ → alt ff
 
 namespace alt
 open nterm
@@ -27,7 +27,7 @@ def to_sterm : @alt γ _ tt → @sterm γ _
 def to_pterm : @alt γ _ ff → @pterm γ _
 | (pform _ P) := P
 
-def hyps : Π {b}, @alt γ _ b → finset (@nterm γ _)
+def hyps : Π {b}, @alt γ _ b → list (@nterm γ _)
 | ._ (sform ts _) := ts
 | ._ (pform ts _) := ts
 
@@ -45,7 +45,8 @@ def to_pform : Π {b}, @alt γ _ b → @alt γ _ ff
 
 def hyps_to_sform {a} {x : @alt γ _ a} :
   x.hyps ⊆ x.to_sform.hyps :=
-by cases x; simp [hyps, to_sform, finset.subset_union_left]
+sorry
+--by cases x; simp [hyps, to_sform, list.subset_union_left]
 
 def hyps_to_pform {a} {x : @alt γ _ a} :
   x.hyps = x.to_pform.hyps :=
@@ -80,7 +81,7 @@ begin
     rw ← pterm.eval_reduce,
     intros t ht, apply H,
     unfold to_sform, unfold hyps,
-    apply finset.mem_union_right,
+    apply list.mem_union_right,
     exact ht }
 end
 
@@ -275,7 +276,7 @@ variables [morph γ α] {ρ : dict α}
 def norm (x : @nterm γ _) : @nterm γ _ :=
 (alt.of_nterm x).to_sform.to_nterm
 
-def norm_hyps (x : @nterm γ _) : finset (@nterm γ _) :=
+def norm_hyps (x : @nterm γ _) : list (@nterm γ _) :=
 (alt.of_nterm x).to_sform.hyps
 
 def correctness {x : @nterm γ _} :

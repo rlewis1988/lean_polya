@@ -9,8 +9,17 @@ constants (h1 : x ≠ 0) (h2 : z ≠ 0) (h3 : x + y ≠ 0)
 set_option profiler true
 
 def i : num := 0
+def j : num := 1
 def t1 : @nterm ℚ _ := i * (1 / 10 : ℚ) + i * (1 / 10 : ℚ) - i * (1 / 5 : ℚ)
 def t2 : @nterm ℚ _ := i - i
+
+def e1 : @eterm ℚ _ := eterm.div (eterm.atom i) (eterm.atom i)
+def e2 : @eterm ℚ _ := eterm.mul
+  (eterm.div (eterm.atom i) (eterm.atom i))
+  (eterm.div (eterm.atom j) (eterm.atom j))
+
+theorem foo : norm_hyps e1 = [@nterm.atom ℚ _ i] := rfl
+theorem bar : norm_hyps e2 = [@nterm.atom ℚ _ i, @nterm.atom ℚ _ j] := rfl
 
 --lemma slow : t1.norm = 0 := rfl
 lemma fast : t2.norm = 0 := rfl

@@ -304,26 +304,26 @@ begin
       refl }}
 end
 
-def nonzero (ρ : dict α) (ts : finset (@nterm γ _)) : Prop :=
+def nonzero (ρ : dict α) (ts : list (@nterm γ _)) : Prop :=
 ∀ t ∈ ts, nterm.eval ρ t ≠ 0
 
-theorem nonzero_union {xs ys : finset (@nterm γ _)} :
+theorem nonzero_union {xs ys : list (@nterm γ _)} :
 nonzero ρ (xs ∪ ys) ↔ nonzero ρ xs ∧ nonzero ρ ys :=
 begin
   apply iff.intro,
   { intro h1, split; { intros _ h2, apply h1, simp [h2] }},
-  { intros h1 t ht, cases h1 with h1 h2, rw finset.mem_union at ht, cases ht,
+  { intros h1 t ht, cases h1 with h1 h2, rw list.mem_union at ht, cases ht,
     {apply h1, apply ht}, {apply h2, apply ht}}
 end
 
-theorem nonzero_subset {xs ys : finset (@nterm γ _)} :
+theorem nonzero_subset {xs ys : list (@nterm γ _)} :
   xs ⊆ ys → nonzero ρ ys → nonzero ρ xs :=
 begin
   sorry
 end
 
-theorem nonzero_iff_zero_not_mem (ts : finset (@nterm γ _)) :
-nonzero ρ ts ↔ (0 : α) ∉ finset.image (nterm.eval ρ) ts :=
+theorem nonzero_iff_zero_not_mem (ts : list (@nterm γ _)) :
+nonzero ρ ts ↔ (0 : α) ∉ ts.map (nterm.eval ρ) :=
 begin
   apply iff.intro,
   { intro h, simpa using h },

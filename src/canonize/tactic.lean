@@ -95,7 +95,7 @@ def norm (x : @eterm γ _) : @nterm γ _ :=
 x.to_nterm.norm
 
 def norm_hyps (x : @eterm γ _) : list (@nterm γ _) :=
-x.to_nterm.norm_hyps.sort (≤)
+x.to_nterm.norm_hyps
 
 theorem correctness {x : @eterm γ _} {ρ : dict α} :
   (∀ t ∈ norm_hyps x, nterm.eval ρ t ≠ 0) →
@@ -105,7 +105,7 @@ begin
   unfold norm,
   apply eq.symm, apply eq.trans,
   { apply nterm.correctness, unfold nterm.nonzero,
-    intros t ht, apply H, exact (finset.mem_sort _).mpr ht },
+    intros t ht, apply H, exact ht },
   { apply eterm.correctness }
 end
 
