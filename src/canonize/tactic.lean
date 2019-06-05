@@ -1,8 +1,18 @@
 import data.list.alist data.finmap
-import .norm data.finsupp
-#check finsupp
+import .norm
 
 namespace list
+
+#print list.all
+def pall {α : Type*} (l : list α) (f : α → Prop) : Prop :=
+l.foldr (λ a r, f a ∧ r) true
+
+#check @list.all_iff_forall_prop
+theorem pall_iff_forall_prop :
+  ∀ {α : Type*} {p : α → Prop} [_inst_1 : decidable_pred p] {l : list α},
+  list.pall l p ↔ ∀ (a : α), a ∈ l → p a :=
+sorry
+
 open polya tactic
 
 meta def expr_reflect (type : expr) : list expr → tactic expr
@@ -234,31 +244,39 @@ meta def norm_expr (e : expr) (s : cache_ty) : tactic (expr × expr × cache_ty)
 do
   let (t, s) := (eterm_of_expr e).run s,
   let t_expr : expr := reflect t,
+  let norm_t := norm t,
   norm_t_expr ← to_expr ``(norm %%t_expr),
   ρ_expr ← s.dict_expr,
 
-  --let xs := norm_hyps t,
-  --xs ← monad.mapm (nterm_to_expr s) xs,
-  --xs ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) xs,
-  --mvars ← monad.mapm mk_meta_var xs,
-  --gs ← get_goals,
-  --set_goals (gs ++ mvars),
+  --creating mvars and new goals for the assumptions
+  let nhyps := norm_hyps t,
+  nhyps ← monad.mapm (nterm_to_expr `(ℝ) s) nhyps,
+  nhyps ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) nhyps,
+  mvars ← monad.mapm mk_meta_var nhyps,
+  gs ← get_goals,
+  set_goals (gs ++ mvars),
 
+  --proving the premise of the correctness theorem using mvars
+  pe ← to_expr $ mvars.foldr (λ e pe, ``((and.intro %%e %%pe))) ``(trivial),
+  infer_type pe >>= trace,
   h0 ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ_expr x ≠ 0),
-  ((), pr0) ← solve_aux h0 `[sorry], --TODO: prove using mvars
+  ((), pr0) ← solve_aux h0
+    (refine ``(list.pall_iff_forall_prop.mp _) >> exact pe >> done),
 
+  --reflexivity from expr to eterm
   h1 ← to_expr ``(%%e = eterm.eval %%ρ_expr %%t_expr),
   ((), pr1) ← solve_aux h1 `[refl, done],
+
+  --correctness theorem
   --h2 ← to_expr ``(eterm.eval %%ρ_expr %%t_expr = nterm.eval %%ρ_expr %%norm_t_expr),
   pr2 ← mk_app `polya.correctness [pr0],
-  pr ← mk_eq_trans pr1 pr2,
 
-  let norm_t := norm t,
+  --reflexivity from nterm to expr
   new_e ← nterm_to_expr `(ℝ) s norm_t,
   h3 ← to_expr ``(nterm.eval %%ρ_expr %%norm_t_expr = %%new_e),
   ((), pr3) ← solve_aux h3 `[refl, done],
-  pr ← mk_eq_trans pr pr3,
 
+  pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
   return (new_e, pr, s)
 
 end polya

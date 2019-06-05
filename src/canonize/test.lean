@@ -34,9 +34,9 @@ theorem ex2 :
   = y * (z + 2 * y * x - x * y * 2) * z⁻¹:=
 begin
   field1,
-  --{ exact h1 },
-  --{ exact h3 },
-  --{ exact h2 },
+  { exact h2 },
+  { exact h1 },
+  { exact h3 },
 end
 
 theorem ex3 :
@@ -49,11 +49,11 @@ end
 theorem ex4 : x / x = (x / x) ^ 0 :=
 begin
   field1,
-  --{ exact h1 },
+  { exact h1 },
 end
 
 theorem ex5 : y * (y / y) = (x * y) / x :=
 begin
   field1,
-  --{ exact h1 },
+  { exact h1 },
 end
