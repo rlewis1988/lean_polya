@@ -11,7 +11,14 @@ l.foldr (λ a r, f a ∧ r) true
 theorem pall_iff_forall_prop :
   ∀ {α : Type*} {p : α → Prop} [_inst_1 : decidable_pred p] {l : list α},
   list.pall l p ↔ ∀ (a : α), a ∈ l → p a :=
-sorry
+begin
+  intros,
+  apply iff.trans, swap,
+  { exact @list.all_iff_forall_prop _ _ _inst_1 _ },
+  { unfold pall, induction l with x xs ih,
+    { simp },
+    { simp [ih] }}
+end
 
 open polya tactic
 
