@@ -265,7 +265,7 @@ do
 
   --proving the premise of the correctness theorem using mvars
   pe ← to_expr $ mvars.foldr (λ e pe, ``((and.intro %%e %%pe))) ``(trivial),
-  infer_type pe >>= trace,
+  --infer_type pe >>= trace,
   h0 ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ_expr x ≠ 0),
   ((), pr0) ← solve_aux h0
     (refine ``(list.pall_iff_forall_prop.mp _) >> exact pe >> done),

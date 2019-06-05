@@ -6,7 +6,7 @@ constants u v w x y z : ℝ
 constants (h1 : x ≠ 0) (h2 : z ≠ 0) (h3 : x + y ≠ 0)
 
 /- benchmak -/
-set_option profiler true
+--set_option profiler true
 
 def i : num := 0
 def j : num := 1

@@ -191,9 +191,9 @@ instance : has_lt (@nterm γ _) := ⟨lt⟩
 instance dec_le : decidable_rel (@le γ _) := by dunfold le; apply_instance
 instance dec_lt : decidable_rel (@lt γ _) := by dunfold lt; apply_instance
 
-instance trans_le : is_trans _ (@le γ _) := by sorry
-instance antisymm_le : is_antisymm _ (@le γ _) := by sorry
-instance is_total : is_total _ (@le γ _) := by sorry
+--instance trans_le : is_trans _ (@le γ _) := by sorry
+--instance antisymm_le : is_antisymm _ (@le γ _) := by sorry
+--instance is_total : is_total _ (@le γ _) := by sorry
 
 instance coe_atom : has_coe num (@nterm γ _) := ⟨atom⟩
 instance coe_const: has_coe γ (@nterm γ _) := ⟨const⟩
@@ -322,7 +322,8 @@ end
 theorem nonzero_subset {xs ys : list (@nterm γ _)} :
   xs ⊆ ys → nonzero ρ ys → nonzero ρ xs :=
 begin
-  sorry
+  intros h1 h2, intros x hx,
+  apply h2, apply h1, apply hx
 end
 
 theorem nonzero_iff_zero_not_mem (ts : list (@nterm γ _)) :

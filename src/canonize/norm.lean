@@ -1,5 +1,14 @@
 import .sterm .pterm
 
+namespace list
+
+#check list.mem_union_left
+theorem subset_union_left {α : Type*} [decidable_eq α]
+  {l1 l2 : list α} : l1 ⊆ l1 ∪ l2 :=
+by {intros a ha, apply list.mem_union_left, exact ha}
+
+end list
+
 namespace polya
 
 inductive alt {γ} [const_space γ] : bool → Type
@@ -45,8 +54,11 @@ def to_pform : Π {b}, @alt γ _ b → @alt γ _ ff
 
 def hyps_to_sform {a} {x : @alt γ _ a} :
   x.hyps ⊆ x.to_sform.hyps :=
-sorry
---by cases x; simp [hyps, to_sform, list.subset_union_left]
+begin
+  cases x,
+  { simp [to_sform] },
+  { unfold to_sform, unfold hyps, exact list.subset_union_left }
+end
 
 def hyps_to_pform {a} {x : @alt γ _ a} :
   x.hyps = x.to_pform.hyps :=
