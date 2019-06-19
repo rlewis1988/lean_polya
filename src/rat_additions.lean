@@ -29,28 +29,28 @@ meta instance rat.reflect : has_reflect rat :=
 λ q, unchecked_cast $ q.to_expr
 -/
 
-private meta def nat_to_rat_expr : nat → expr | n :=
-if n = 0 then `(0 : ℚ)
-else if n = 1 then `(1 : ℚ)
-else if n % 2 = 0 then `(@bit0 ℚ _ %%(nat_to_rat_expr (n/2)))
-else `(@bit1 ℚ _ _ %%(nat_to_rat_expr (n/2)))
-
-private meta def int_to_rat_expr : int → expr | n :=
-if n = 0 then `(0 : ℚ)
-else if n < 0 then `(-%%(int_to_rat_expr (-n)) : ℚ)
-else if n = 1 then `(1 : ℚ)
-else if n % 2 = 0 then `(@bit0 ℚ _ %%(int_to_rat_expr (n/2)))
-else `(@bit1 ℚ _ _ %%(int_to_rat_expr (n/2)))
-
-meta def rat.to_expr (q : ℚ) : expr :=
-if q.denom = 1 then
-  `(%%(int_to_rat_expr q.num) : ℚ) 
-else 
-  `(%%(int_to_rat_expr q.num) / %%(nat_to_rat_expr q.denom) : ℚ)
---`(rat.mk_nat %%(int.reflect q.num) %%(nat.reflect q.denom))
-
-meta instance rat.reflect : has_reflect rat :=
-λ q, unchecked_cast $ q.to_expr
+--private meta def nat_to_rat_expr : nat → expr | n :=
+--if n = 0 then `(0 : ℚ)
+--else if n = 1 then `(1 : ℚ)
+--else if n % 2 = 0 then `(@bit0 ℚ _ %%(nat_to_rat_expr (n/2)))
+--else `(@bit1 ℚ _ _ %%(nat_to_rat_expr (n/2)))
+--
+--private meta def int_to_rat_expr : int → expr | n :=
+--if n = 0 then `(0 : ℚ)
+--else if n < 0 then `(-%%(int_to_rat_expr (-n)) : ℚ)
+--else if n = 1 then `(1 : ℚ)
+--else if n % 2 = 0 then `(@bit0 ℚ _ %%(int_to_rat_expr (n/2)))
+--else `(@bit1 ℚ _ _ %%(int_to_rat_expr (n/2)))
+--
+--meta def rat.to_expr (q : ℚ) : expr :=
+--if q.denom = 1 then
+--  `(%%(int_to_rat_expr q.num) : ℚ) 
+--else 
+--  `(%%(int_to_rat_expr q.num) / %%(nat_to_rat_expr q.denom) : ℚ)
+----`(rat.mk_nat %%(int.reflect q.num) %%(nat.reflect q.denom))
+--
+--meta instance rat.reflect : has_reflect rat :=
+--λ q, unchecked_cast $ q.to_expr
 
 section
 open nat
