@@ -110,8 +110,12 @@ begin
   rw [div_self this, mul_one, mul_one],
 end
 
+end nterm
+
+open nterm
+
 def aux (t1 t2 : @eterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
-scale2 t1.to_nterm.norm t2.to_nterm.norm
+scale2 (norm t1) (norm t2)
 
 theorem eval_aux {t1 t2 : @eterm γ _} {nt1 nt2 : @nterm γ _} {c : γ} :
   nonzero ρ t1.to_nterm.norm_hyps →
@@ -121,49 +125,77 @@ theorem eval_aux {t1 t2 : @eterm γ _} {nt1 nt2 : @nterm γ _} {c : γ} :
     (nterm.eval ρ nt1 - nterm.eval ρ nt2) * c :=
 begin
   intros _ _ h0,
-  have h1 : eterm.eval ρ t1 = nterm.eval ρ t1.to_nterm.norm,
-  by { rw [nterm.correctness, eterm.correctness], assumption },
-  have h2 : eterm.eval ρ t2 = nterm.eval ρ t2.to_nterm.norm,
-  by { rw [nterm.correctness, eterm.correctness], assumption },
+  have h1 : eterm.eval ρ t1 = nterm.eval ρ (norm t1),
+  by { apply correctness, assumption },
+  have h2 : eterm.eval ρ t2 = nterm.eval ρ (norm t2),
+  by { apply correctness, assumption },
   rw [h1, h2, ← nterm.eval_sub, ← nterm.eval_sub],
   apply eq.trans,
   { apply scale2_eval, unfold aux at h0, apply eq.symm h0  },
   { apply nterm.eval_mul }
 end
 
-end nterm
 end field
 
---namespace tactic.field
---open field
---
---end tactic.field
+namespace tactic.field
+open field tactic
+
+--todo: move to tactic.field
+meta def prove_correctness (t : @eterm ℚ _) (s : cache_ty) : tactic (list expr × expr) :=
+do
+  let t_expr : expr := reflect t,
+  ρ ← s.dict_expr,
+  let nhyps := norm_hyps t,
+  nhyps ← monad.mapm (nterm_to_expr `(ℝ) s) nhyps,
+  nhyps ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) nhyps,
+  mvars ← monad.mapm mk_meta_var nhyps,
+
+  pe ← to_expr $ mvars.foldr (λ e pe, ``((and.intro %%e %%pe))) ``(trivial),
+  h ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ x ≠ 0),
+  ((), pr) ← solve_aux h (refine ``(list.pall_iff_forall_prop.mp _) >> exact pe >> done),
+
+  pr ← mk_app ``correctness [pr],
+  return (mvars, pr)
+
+end tactic.field
 
 namespace polya
 namespace canonize
 open tactic field tactic.field
 
-meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic expr :=
+meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (list expr × expr) :=
 do
+  gs ← get_goals,
+  f ← mk_meta_var `(false),
+  set_goals [f],
 
   let (lt, s) := (eterm_of_expr lhs).run ∅,
   let (rt, s) := (eterm_of_expr rhs).run s,
-  let (lt', rt', c) := nterm.aux lt rt,
+  ρ ← s.dict_expr,
+
+  (mvars1, pr1) ← prove_correctness lt s,
+  (mvars2, pr2) ← prove_correctness rt s,
+
+  let (lt', rt', c) := aux lt rt,
   lhs' ← nterm_to_expr `(ℝ) s lt',
   rhs' ← nterm_to_expr `(ℝ) s rt',
   let op' := if c > 0 then op else op.reverse,
-  ρ ← s.dict_expr,
 
   h1 ← to_expr ``(%%lhs' = nterm.eval %%ρ (%%(reflect lt)).to_nterm.norm),
   h2 ← to_expr ``(%%rhs' = nterm.eval %%ρ (%%(reflect rt)).to_nterm.norm),
+  m1 ← mk_meta_var h1,
+  m2 ← mk_meta_var h2,
   --these have to be proven by reflexivity later on
 
-  h ← op'.to_function lhs' rhs',
-  h ← to_expr ``(%%h1 → %%h2 → %%h),
-  ((), e) ← solve_aux h `[sorry],
-  return e
 
-meta def canonize_hyp (e : expr) : tactic expr :=
+  h ← op'.to_function lhs' rhs',
+  h ← to_expr ``(%%h),
+  ((), e) ← solve_aux h `[sorry],
+
+  set_goals gs,
+  return ([m1, m2] ++ mvars1 ++ mvars2, e)
+
+meta def canonize_hyp (e : expr) : tactic (list expr × expr) :=
 do tp ← infer_type e, match tp with
 --| `(0 > %%e) := do ce ← expr.canonize e,
 --  mk_app ``canonized_inequality [e, `(0 > %%ce)]
@@ -191,11 +223,15 @@ do tp ← infer_type e, match tp with
 end
 
 constants x y z : ℝ
-constant h : z * (3 : ℚ) + x * (2 : ℚ) + y < y
+constant h1 : z * (3 : ℚ) + x * (2 : ℚ) + y < y
+constant h2 : x * x⁻¹ + (3 : ℚ) * y = 1
 
 run_cmd (do
-  e ← to_expr ``(h),
-  canonize_hyp e >>= infer_type >>= trace
+  e ← to_expr ``(h2),
+  (l, pr) ← canonize_hyp e,
+  infer_type pr >>= trace,
+  trace "",
+  monad.mapm (λ x, infer_type x >>= trace >> trace "") l
 )
 
 end canonize
