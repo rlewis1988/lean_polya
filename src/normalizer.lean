@@ -160,8 +160,55 @@ do
 end tactic.field
 
 namespace polya
+
+namespace gen_comp
+
+variables {u v x y : ℝ} {a : ℚ}
+variable {h : u - v = (x - y) * a}
+
+lemma lemma_pos_le : a > 0 → u ≤ v → x ≤ y := sorry
+lemma lemma_pos_lt : a > 0 → u < v → x < y := sorry
+lemma lemma_pos_ge : a > 0 → u ≥ v → x ≥ y := sorry
+lemma lemma_pos_gt : a > 0 → u > v → x > y := sorry
+
+lemma lemma_neg_le : a < 0 → u ≤ v → x ≥ y := sorry
+lemma lemma_neg_lt : a < 0 → u < v → x > y := sorry
+lemma lemma_neg_ge : a < 0 → u ≥ v → x ≤ y := sorry
+lemma lemma_neg_gt : a < 0 → u > v → x < y := sorry
+
+lemma lemma_eq : a ≠ 0 → u = v → x = y := sorry
+lemma lemma_ne : a ≠ 0 → u ≠ v → x ≠ y := sorry
+
+@[reducible]
+def to_rel : gen_comp → ℝ → ℝ → Prop
+| le := (≤)
+| lt := (<)
+| ge := (≥)
+| gt := (>)
+| eq := (=)
+| ne := (≠)
+
+theorem foo_pos : Π (op : gen_comp), a > 0 → op.to_rel u v → op.to_rel x y
+| le := lemma_pos_le
+| lt := lemma_pos_lt
+| ge := lemma_pos_ge
+| gt := lemma_pos_gt
+| eq := λ h, lemma_eq (ne_of_gt h)
+| ne := λ h, lemma_ne (ne_of_gt h)
+
+theorem foo_neg : Π (op : gen_comp), a < 0 → op.to_rel u v → op.reverse.to_rel x y
+| le := lemma_neg_le
+| lt := lemma_neg_lt
+| ge := lemma_neg_ge
+| gt := lemma_neg_gt
+| eq := λ h, lemma_eq (ne_of_lt h)
+| ne := λ h, lemma_ne (ne_of_lt h)
+
+end gen_comp
+
 namespace canonize
 open tactic field tactic.field
+
 
 meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (expr × list expr × expr) :=
 do
@@ -199,6 +246,10 @@ do
   ((), pr3) ← solve_aux h3 `[refl, done],
   pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
 
+  let op' := if c > 0 then op else op.reverse,
+  tp ← op'.to_function lhs' rhs',
+  ((), pr) ← solve_aux tp `[sorry],
+
   set_goals gs,
   return (h_aux_3, mvars1 ++ mvars2, pr)
 
@@ -230,12 +281,17 @@ do tp ← infer_type e, match tp with
 end
 
 constants x y z : ℝ
-constant h1 : z + x * (2 : ℚ) + (3 : ℚ) * y < y * (5 : ℚ)
+constant h1 : z + x * (2 : ℚ) - (3 : ℚ) * y < y * (5 : ℚ)
 constant h2 : x * x⁻¹ + (3 : ℚ) * y = 1
 
 run_cmd (do
-  e ← to_expr ``(h1),
+  e ← to_expr ``(h2),
   (mv, l, pr) ← canonize_hyp e,
+  gs ← get_goals,
+  set_goals [mv],
+  reflexivity,
+  set_goals gs,
+  
   infer_type mv >>= trace,
   trace "",
   infer_type pr >>= trace,
