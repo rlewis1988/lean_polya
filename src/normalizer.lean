@@ -163,24 +163,7 @@ namespace polya
 
 namespace gen_comp
 
-variables {u v x y : ℝ} {a : ℚ}
-variable {h : u - v = (x - y) * a}
-
-lemma lemma_pos_le : a > 0 → u ≤ v → x ≤ y := sorry
-lemma lemma_pos_lt : a > 0 → u < v → x < y := sorry
-lemma lemma_pos_ge : a > 0 → u ≥ v → x ≥ y := sorry
-lemma lemma_pos_gt : a > 0 → u > v → x > y := sorry
-
-lemma lemma_neg_le : a < 0 → u ≤ v → x ≥ y := sorry
-lemma lemma_neg_lt : a < 0 → u < v → x > y := sorry
-lemma lemma_neg_ge : a < 0 → u ≥ v → x ≤ y := sorry
-lemma lemma_neg_gt : a < 0 → u > v → x < y := sorry
-
-lemma lemma_eq : a ≠ 0 → u = v → x = y := sorry
-lemma lemma_ne : a ≠ 0 → u ≠ v → x ≠ y := sorry
-
-@[reducible]
-def to_rel : gen_comp → ℝ → ℝ → Prop
+@[reducible] def to_rel : gen_comp → ℝ → ℝ → Prop
 | le := (≤)
 | lt := (<)
 | ge := (≥)
@@ -188,27 +171,44 @@ def to_rel : gen_comp → ℝ → ℝ → Prop
 | eq := (=)
 | ne := (≠)
 
-theorem foo_pos : Π (op : gen_comp), a > 0 → op.to_rel u v → op.to_rel x y
-| le := lemma_pos_le
-| lt := lemma_pos_lt
-| ge := lemma_pos_ge
-| gt := lemma_pos_gt
-| eq := λ h, lemma_eq (ne_of_gt h)
-| ne := λ h, lemma_ne (ne_of_gt h)
+variables {u v x y a : ℝ}
 
-theorem foo_neg : Π (op : gen_comp), a < 0 → op.to_rel u v → op.reverse.to_rel x y
-| le := lemma_neg_le
-| lt := lemma_neg_lt
-| ge := lemma_neg_ge
-| gt := lemma_neg_gt
-| eq := λ h, lemma_eq (ne_of_lt h)
-| ne := λ h, lemma_ne (ne_of_lt h)
+lemma lemma_pos_le (h : u - v = (x - y) * a) : a > 0 → u ≤ v → x ≤ y := sorry
+lemma lemma_pos_lt (h : u - v = (x - y) * a) : a > 0 → u < v → x < y := sorry
+lemma lemma_pos_ge (h : u - v = (x - y) * a) : a > 0 → u ≥ v → x ≥ y := sorry
+lemma lemma_pos_gt (h : u - v = (x - y) * a) : a > 0 → u > v → x > y := sorry
+lemma lemma_pos_eq (h : u - v = (x - y) * a) : a > 0 → u = v → x = y := sorry
+lemma lemma_pos_ne (h : u - v = (x - y) * a) : a > 0 → u ≠ v → x ≠ y := sorry
+
+lemma lemma_neg_le (h : u - v = (x - y) * a) : a < 0 → u ≤ v → x ≥ y := sorry
+lemma lemma_neg_lt (h : u - v = (x - y) * a) : a < 0 → u < v → x > y := sorry
+lemma lemma_neg_ge (h : u - v = (x - y) * a) : a < 0 → u ≥ v → x ≤ y := sorry
+lemma lemma_neg_gt (h : u - v = (x - y) * a) : a < 0 → u > v → x < y := sorry
+lemma lemma_neg_eq (h : u - v = (x - y) * a) : a < 0 → u = v → x = y := sorry
+lemma lemma_neg_ne (h : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y := sorry
+
+open tactic
+
+meta def foo (op : gen_comp) (a : ℚ) (pr1 pr2 : expr) : tactic expr :=
+do
+  h3 ← to_expr $
+    if a > 0 then ``((%%(reflect a) : ℝ) > 0)
+    else ``((%%(reflect a) : ℝ) < 0),
+  ((), pr3) ← solve_aux h3 `[sorry],
+  let f : name := match op with
+  | le := if a > 0 then ``lemma_pos_le else ``lemma_neg_le 
+  | lt := if a > 0 then ``lemma_pos_lt else ``lemma_neg_lt
+  | ge := if a > 0 then ``lemma_pos_ge else ``lemma_neg_ge
+  | gt := if a > 0 then ``lemma_pos_gt else ``lemma_neg_gt
+  | eq := if a > 0 then ``lemma_pos_eq else ``lemma_neg_eq
+  | ne := if a > 0 then ``lemma_pos_ne else ``lemma_neg_ne
+  end,
+  mk_app f [pr1, pr3, pr2]
 
 end gen_comp
 
 namespace canonize
 open tactic field tactic.field
-
 
 meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (expr × list expr × expr) :=
 do
@@ -216,39 +216,34 @@ do
   f ← mk_meta_var `(false),
   set_goals [f],
 
-  let (lt, s) := (eterm_of_expr lhs).run ∅,
-  let (rt, s) := (eterm_of_expr rhs).run s,
+  let (t1, s) := (eterm_of_expr lhs).run ∅,
+  let (t2, s) := (eterm_of_expr rhs).run s,
   ρ ← s.dict_expr,
 
-  (mvars1, h_aux_1) ← prove_norm_hyps lt s,
-  (mvars2, h_aux_2) ← prove_norm_hyps rt s,
+  (mvars1, h_aux_1) ← prove_norm_hyps t1 s,
+  (mvars2, h_aux_2) ← prove_norm_hyps t2 s,
 
-  let (lt', rt', c) := aux lt rt,
-  lhs' ← nterm_to_expr `(ℝ) s lt',
-  rhs' ← nterm_to_expr `(ℝ) s rt',
+  let (t1', t2', c) := aux t1 t2,
+  lhs' ← nterm_to_expr `(ℝ) s t1',
+  rhs' ← nterm_to_expr `(ℝ) s t2',
   let c_expr : expr := reflect c,
   let op' := if c > 0 then op else op.reverse,
 
-  h_aux_3 ← to_expr ``((%%(reflect lt'), %%(reflect rt'), %%(c_expr)) = aux %%(reflect lt) %%(reflect rt))
+  h_aux_3 ← to_expr ``((%%(reflect t1'), %%(reflect t2'), %%(c_expr)) = aux %%(reflect t1) %%(reflect t2))
     >>= mk_meta_var,
 
   e1 ← to_expr ``(%%lhs - %%rhs),
-  e2 ← to_expr ``(eterm.eval %%ρ %%(reflect lt) - eterm.eval %%ρ %%(reflect rt)),
-  e3 ← to_expr ``((nterm.eval %%ρ %%(reflect lt') - nterm.eval %%ρ %%(reflect rt')) * ↑%%(c_expr)),
+  e2 ← to_expr ``(eterm.eval %%ρ %%(reflect t1) - eterm.eval %%ρ %%(reflect t2)),
+  e3 ← to_expr ``((nterm.eval %%ρ %%(reflect t1') - nterm.eval %%ρ %%(reflect t2')) * ↑%%(c_expr)),
   e4 ← to_expr ``((%%lhs' - %%rhs') * ↑%%(c_expr)),
 
   h1 ← to_expr ``(%%e1 = %%e2),
-  h2 ← to_expr ``(%%e2 = %%e3),
-  h3 ← to_expr ``(%%e3 = %%e4),
-
   ((), pr1) ← solve_aux h1 `[refl, done],
   pr2 ← to_expr ``(eval_aux %%h_aux_1 %%h_aux_2 %%h_aux_3),
+  h3 ← to_expr ``(%%e3 = %%e4),
   ((), pr3) ← solve_aux h3 `[refl, done],
   pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
-
-  let op' := if c > 0 then op else op.reverse,
-  tp ← op'.to_function lhs' rhs',
-  ((), pr) ← solve_aux tp `[sorry],
+  pr ← gen_comp.foo op c pr pf,
 
   set_goals gs,
   return (h_aux_3, mvars1 ++ mvars2, pr)
@@ -285,7 +280,7 @@ constant h1 : z + x * (2 : ℚ) - (3 : ℚ) * y < y * (5 : ℚ)
 constant h2 : x * x⁻¹ + (3 : ℚ) * y = 1
 
 run_cmd (do
-  e ← to_expr ``(h2),
+  e ← to_expr ``(h1),
   (mv, l, pr) ← canonize_hyp e,
   gs ← get_goals,
   set_goals [mv],
