@@ -41,7 +41,7 @@ else if a = 1 then
 else match t with
 | (nterm.const b) := (b * a : γ)
 | (nterm.mul t (nterm.const b)) :=
-  if b * a = 1 then t else t * (b * a : γ)
+  if b * a = 1 then t else t * ↑(b * a : γ)
 | t := t * a
 end
 
@@ -141,10 +141,11 @@ namespace tactic.field
 open field tactic
 
 --todo: move to tactic.field
-meta def prove_correctness (t : @eterm ℚ _) (s : cache_ty) : tactic (list expr × expr) :=
+meta def prove_norm_hyps (t : @eterm ℚ _) (s : cache_ty) : tactic (list expr × expr) :=
 do
   let t_expr : expr := reflect t,
   ρ ← s.dict_expr,
+
   let nhyps := norm_hyps t,
   nhyps ← monad.mapm (nterm_to_expr `(ℝ) s) nhyps,
   nhyps ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) nhyps,
@@ -154,7 +155,6 @@ do
   h ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ x ≠ 0),
   ((), pr) ← solve_aux h (refine ``(list.pall_iff_forall_prop.mp _) >> exact pe >> done),
 
-  pr ← mk_app ``correctness [pr],
   return (mvars, pr)
 
 end tactic.field
@@ -163,7 +163,7 @@ namespace polya
 namespace canonize
 open tactic field tactic.field
 
-meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (list expr × expr) :=
+meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (expr × list expr × expr) :=
 do
   gs ← get_goals,
   f ← mk_meta_var `(false),
@@ -173,29 +173,36 @@ do
   let (rt, s) := (eterm_of_expr rhs).run s,
   ρ ← s.dict_expr,
 
-  (mvars1, pr1) ← prove_correctness lt s,
-  (mvars2, pr2) ← prove_correctness rt s,
+  (mvars1, h_aux_1) ← prove_norm_hyps lt s,
+  (mvars2, h_aux_2) ← prove_norm_hyps rt s,
 
   let (lt', rt', c) := aux lt rt,
   lhs' ← nterm_to_expr `(ℝ) s lt',
   rhs' ← nterm_to_expr `(ℝ) s rt',
+  let c_expr : expr := reflect c,
   let op' := if c > 0 then op else op.reverse,
 
-  h1 ← to_expr ``(%%lhs' = nterm.eval %%ρ (%%(reflect lt)).to_nterm.norm),
-  h2 ← to_expr ``(%%rhs' = nterm.eval %%ρ (%%(reflect rt)).to_nterm.norm),
-  m1 ← mk_meta_var h1,
-  m2 ← mk_meta_var h2,
-  --these have to be proven by reflexivity later on
+  h_aux_3 ← to_expr ``((%%(reflect lt'), %%(reflect rt'), %%(c_expr)) = aux %%(reflect lt) %%(reflect rt))
+    >>= mk_meta_var,
 
+  e1 ← to_expr ``(%%lhs - %%rhs),
+  e2 ← to_expr ``(eterm.eval %%ρ %%(reflect lt) - eterm.eval %%ρ %%(reflect rt)),
+  e3 ← to_expr ``((nterm.eval %%ρ %%(reflect lt') - nterm.eval %%ρ %%(reflect rt')) * ↑%%(c_expr)),
+  e4 ← to_expr ``((%%lhs' - %%rhs') * ↑%%(c_expr)),
 
-  h ← op'.to_function lhs' rhs',
-  h ← to_expr ``(%%h),
-  ((), e) ← solve_aux h `[sorry],
+  h1 ← to_expr ``(%%e1 = %%e2),
+  h2 ← to_expr ``(%%e2 = %%e3),
+  h3 ← to_expr ``(%%e3 = %%e4),
+
+  ((), pr1) ← solve_aux h1 `[refl, done],
+  pr2 ← to_expr ``(eval_aux %%h_aux_1 %%h_aux_2 %%h_aux_3),
+  ((), pr3) ← solve_aux h3 `[refl, done],
+  pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
 
   set_goals gs,
-  return ([m1, m2] ++ mvars1 ++ mvars2, e)
+  return (h_aux_3, mvars1 ++ mvars2, pr)
 
-meta def canonize_hyp (e : expr) : tactic (list expr × expr) :=
+meta def canonize_hyp (e : expr) : tactic (expr × list expr × expr) :=
 do tp ← infer_type e, match tp with
 --| `(0 > %%e) := do ce ← expr.canonize e,
 --  mk_app ``canonized_inequality [e, `(0 > %%ce)]
@@ -223,12 +230,14 @@ do tp ← infer_type e, match tp with
 end
 
 constants x y z : ℝ
-constant h1 : z * (3 : ℚ) + x * (2 : ℚ) + y < y
+constant h1 : z + x * (2 : ℚ) + (3 : ℚ) * y < y * (5 : ℚ)
 constant h2 : x * x⁻¹ + (3 : ℚ) * y = 1
 
 run_cmd (do
-  e ← to_expr ``(h2),
-  (l, pr) ← canonize_hyp e,
+  e ← to_expr ``(h1),
+  (mv, l, pr) ← canonize_hyp e,
+  infer_type mv >>= trace,
+  trace "",
   infer_type pr >>= trace,
   trace "",
   monad.mapm (λ x, infer_type x >>= trace >> trace "") l
