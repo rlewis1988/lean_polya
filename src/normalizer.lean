@@ -70,33 +70,25 @@ begin
   repeat { simp [scale, h1, h2, eval] }
 end
 
-def norm2 (t1 t2 : @nterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
-if t1.norm.mk_unit.snd = 0 then
-  (0, t2.norm, 1)
+def scale2 (t1 t2 : @nterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+if t1.mk_unit.snd = 0 then
+  (0, t2, 1)
 else
-  (t1.norm.mk_unit.fst, t2.norm.scale (t1.norm.mk_unit.snd⁻¹), t1.norm.mk_unit.snd)
+  (t1.mk_unit.fst, t2.scale (t1.mk_unit.snd⁻¹), t1.mk_unit.snd)
 
-def correctness2 {t1 t2 nt1 nt2 : @nterm γ _} {c : γ} :
-  nonzero ρ t1.norm_hyps → nonzero ρ t2.norm_hyps → norm2 t1 t2 = (nt1, nt2, c) →
-    nterm.eval ρ ( t1 - t2 ) = nterm.eval ρ ( (nt1 - nt2) * c ) :=
+def scale2_eval {t1 t2 nt1 nt2 : @nterm γ _} {c : γ} :
+  scale2 t1 t2 = (nt1, nt2, c) → nterm.eval ρ ( t1 - t2 ) = nterm.eval ρ ( (nt1 - nt2) * c ) :=
 begin
-  intros H1 H2,
-  intro h, unfold norm2 at h,
-  by_cases h0 : t1.norm.mk_unit.snd = 0,
+  intro h, unfold scale2 at h,
+  by_cases h0 : t1.mk_unit.snd = 0,
   { rw [if_pos h0, prod.mk.inj_iff, prod.mk.inj_iff] at h,
     cases h with h1 h, cases h with h2 h3,
     subst h1, subst h2, subst h3,
     have h4 : nterm.eval ρ t1 = 0, by {
-      apply eq.trans,
-      { apply eq.symm, apply nterm.correctness, apply H1 },
-      { rw mk_unit_eval,
-        { rw [morph.morph0, mul_zero] },
-        { rw [← h0, prod.mk.eta] }}},
-    suffices : eval ρ t2 = eval ρ t2.norm,
-    by { simp [h4, this] },
-    apply eq.symm,
-    apply nterm.correctness,
-    apply H2 },
+      rw mk_unit_eval,
+      { rw [morph.morph0, mul_zero] },
+      { rw [← h0, prod.mk.eta] }},
+    simp [h4] },
   rw [if_neg h0, prod.mk.inj_iff, prod.mk.inj_iff] at h,
   cases h with h1 h, cases h with h2 h3,
   rw [h3] at h0 h2,
@@ -105,21 +97,38 @@ begin
     apply morph.morph_inj c h },
   have hl : nterm.eval ρ nt1 = nterm.eval ρ t1 / c,
   by {
-    apply eq.symm,
-    rw ← nterm.correctness,
-    { rw div_eq_iff_mul_eq this,
-      apply eq.symm, apply mk_unit_eval,
-      rw [← h1, ← h3, prod.mk.eta]},
-    { apply H1 }},
+    apply eq.symm, apply (div_eq_iff_mul_eq this).mpr,
+    apply eq.symm, apply mk_unit_eval,
+    rw [← h1, ← h3, prod.mk.eta] },
   have hr : nterm.eval ρ nt2 = nterm.eval ρ t2 / c,
   by {
-    rw [← h2, scale_eval, division_def, nterm.correctness],
-    { norm_cast },
-    { apply H2 }},
+    rw [← h2, scale_eval, division_def],
+    { norm_cast }},
   rw [nterm.eval_mul, nterm.eval_const, nterm.eval_sub, nterm.eval_sub],
   rw [sub_mul, hl, hr],
   rw [div_mul_eq_mul_div_comm _ _ this, div_mul_eq_mul_div_comm _ _ this],
-  rw [div_self this, mul_one, mul_one]
+  rw [div_self this, mul_one, mul_one],
+end
+
+def aux (t1 t2 : @eterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+scale2 t1.to_nterm.norm t2.to_nterm.norm
+
+theorem eval_aux {t1 t2 : @eterm γ _} {nt1 nt2 : @nterm γ _} {c : γ} :
+  nonzero ρ t1.to_nterm.norm_hyps →
+  nonzero ρ t2.to_nterm.norm_hyps →
+  (nt1, nt2, c) = aux t1 t2 →
+  eterm.eval ρ t1 - eterm.eval ρ t2 =
+    (nterm.eval ρ nt1 - nterm.eval ρ nt2) * c :=
+begin
+  intros _ _ h0,
+  have h1 : eterm.eval ρ t1 = nterm.eval ρ t1.to_nterm.norm,
+  by { rw [nterm.correctness, eterm.correctness], assumption },
+  have h2 : eterm.eval ρ t2 = nterm.eval ρ t2.to_nterm.norm,
+  by { rw [nterm.correctness, eterm.correctness], assumption },
+  rw [h1, h2, ← nterm.eval_sub, ← nterm.eval_sub],
+  apply eq.trans,
+  { apply scale2_eval, unfold aux at h0, apply eq.symm h0  },
+  { apply nterm.eval_mul }
 end
 
 end nterm
@@ -132,10 +141,27 @@ end field
 
 namespace polya
 namespace canonize
-open tactic
+open tactic field tactic.field
 
 meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic expr :=
-sorry
+do
+
+  let (lt, s) := (eterm_of_expr lhs).run ∅,
+  let (rt, s) := (eterm_of_expr rhs).run s,
+  let (lt', rt', c) := nterm.aux lt rt,
+  lhs' ← nterm_to_expr `(ℝ) s lt',
+  rhs' ← nterm_to_expr `(ℝ) s rt',
+  let op' := if c > 0 then op else op.reverse,
+  ρ ← s.dict_expr,
+
+  h1 ← to_expr ``(%%lhs' = nterm.eval %%ρ (%%(reflect lt)).to_nterm.norm),
+  h2 ← to_expr ``(%%rhs' = nterm.eval %%ρ (%%(reflect rt)).to_nterm.norm),
+  --these have to be proven by reflexivity later on
+
+  h ← op'.to_function lhs' rhs',
+  h ← to_expr ``(%%h1 → %%h2 → %%h),
+  ((), e) ← solve_aux h `[sorry],
+  return e
 
 meta def canonize_hyp (e : expr) : tactic expr :=
 do tp ← infer_type e, match tp with
@@ -163,6 +189,14 @@ do tp ← infer_type e, match tp with
 | `(%%lhs ≠ %%rhs) := prove_inequality lhs rhs e gen_comp.ne
 | _ := do s ← to_string <$> pp e, fail $ "didn't recognize " ++ s
 end
+
+constants x y z : ℝ
+constant h : z * (3 : ℚ) + x * (2 : ℚ) + y < y
+
+run_cmd (do
+  e ← to_expr ``(h),
+  canonize_hyp e >>= infer_type >>= trace
+)
 
 end canonize
 end polya
