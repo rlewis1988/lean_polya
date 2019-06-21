@@ -230,12 +230,27 @@ begin
   apply h4
 end
 
-lemma lemma_neg_le (h1 : u - v = (x - y) * a) : a < 0 → u ≤ v → x ≥ y := sorry
-lemma lemma_neg_lt (h1 : u - v = (x - y) * a) : a < 0 → u < v → x > y := sorry
-lemma lemma_neg_ge (h1 : u - v = (x - y) * a) : a < 0 → u ≥ v → x ≤ y := sorry
-lemma lemma_neg_gt (h1 : u - v = (x - y) * a) : a < 0 → u > v → x < y := sorry
-lemma lemma_neg_eq (h1 : u - v = (x - y) * a) : a < 0 → u = v → x = y := sorry
-lemma lemma_neg_ne (h1 : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y := sorry
+lemma aux : u - v = (x - y) * a → u - v = (y - x) * (-a) :=
+begin
+  intro h,
+  rw mul_neg_eq_neg_mul_symm,
+  rw neg_mul_eq_neg_mul,
+  rw neg_sub,
+  apply h
+end
+
+lemma lemma_neg_le (h1 : u - v = (x - y) * a) : a < 0 → u ≤ v → x ≥ y :=
+λ h2 h3, lemma_pos_le (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_lt (h1 : u - v = (x - y) * a) : a < 0 → u < v → x > y :=
+λ h2 h3, lemma_pos_lt (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_ge (h1 : u - v = (x - y) * a) : a < 0 → u ≥ v → x ≤ y :=
+λ h2 h3, lemma_pos_ge (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_gt (h1 : u - v = (x - y) * a) : a < 0 → u > v → x < y :=
+λ h2 h3, lemma_pos_gt (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_eq (h1 : u - v = (x - y) * a) : a < 0 → u = v → x = y :=
+λ h2 h3, eq.symm $ lemma_pos_eq (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_ne (h1 : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y :=
+λ h2 h3, ne.symm $ lemma_pos_ne (aux h1) (neg_pos_of_neg h2) h3
 
 open tactic
 
