@@ -324,24 +324,5 @@ do tp ← infer_type e, match tp with
 | _ := do s ← to_string <$> pp e, fail $ "didn't recognize " ++ s
 end
 
-constants x y z : ℝ
-constant h1 : x * (1 / 10 : ℚ) - (2 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) ≤ 1
-
-run_cmd (do
-  e ← to_expr ``(h1),
-  (mv, l, pr) ← canonize_hyp e,
-
-  --gs ← get_goals,
-  --set_goals [mv],
-  --reflexivity,
-  --set_goals gs,
-  
-  infer_type mv >>= trace,
-  trace "",
-  infer_type pr >>= trace,
-  trace "",
-  monad.mapm (λ x, infer_type x >>= trace >> trace "") l
-)
-
 end canonize
 end polya
