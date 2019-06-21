@@ -163,7 +163,7 @@ namespace polya
 
 namespace gen_comp
 
-@[reducible] def to_rel : gen_comp → ℝ → ℝ → Prop
+def to_rel : gen_comp → ℝ → ℝ → Prop
 | le := (≤)
 | lt := (<)
 | ge := (≥)
@@ -173,23 +173,73 @@ namespace gen_comp
 
 variables {u v x y a : ℝ}
 
-lemma lemma_pos_le (h : u - v = (x - y) * a) : a > 0 → u ≤ v → x ≤ y := sorry
-lemma lemma_pos_lt (h : u - v = (x - y) * a) : a > 0 → u < v → x < y := sorry
-lemma lemma_pos_ge (h : u - v = (x - y) * a) : a > 0 → u ≥ v → x ≥ y := sorry
-lemma lemma_pos_gt (h : u - v = (x - y) * a) : a > 0 → u > v → x > y := sorry
-lemma lemma_pos_eq (h : u - v = (x - y) * a) : a > 0 → u = v → x = y := sorry
-lemma lemma_pos_ne (h : u - v = (x - y) * a) : a > 0 → u ≠ v → x ≠ y := sorry
+lemma lemma_pos_le (h1 : u - v = (x - y) * a) : a > 0 → u ≤ v → x ≤ y :=
+begin
+  intros h2 h3,
+  apply le_of_sub_nonneg,
+  apply nonneg_of_neg_nonpos,
+  apply le_of_mul_le_mul_right _ h2,
+  rw [zero_mul, neg_sub, ← h1],
+  apply sub_nonpos_of_le,
+  apply h3
+end
+lemma lemma_pos_lt (h1 : u - v = (x - y) * a) : a > 0 → u < v → x < y :=
+begin
+  intros h2 h3,
+  apply lt_of_sub_neg,
+  apply neg_of_neg_pos,
+  apply lt_of_mul_lt_mul_right _ (le_of_lt h2),
+  rw [zero_mul, neg_mul_eq_neg_mul_symm, ← h1],
+  apply neg_pos_of_neg,
+  apply sub_neg_of_lt,
+  apply h3
+end
+lemma lemma_pos_ge (h1 : u - v = (x - y) * a) : a > 0 → u ≥ v → x ≥ y :=
+begin
+  apply lemma_pos_le,
+  apply eq_of_neg_eq_neg,
+  rw [← neg_mul_eq_neg_mul_symm, neg_sub, neg_sub],
+  apply h1
+end
+lemma lemma_pos_gt (h1 : u - v = (x - y) * a) : a > 0 → u > v → x > y :=
+begin
+  apply lemma_pos_lt,
+  apply eq_of_neg_eq_neg,
+  rw [← neg_mul_eq_neg_mul_symm, neg_sub, neg_sub],
+  apply h1
+end
+lemma lemma_pos_eq (h1 : u - v = (x - y) * a) : a > 0 → u = v → x = y :=
+begin
+  intros h2 h3,
+  apply eq_of_sub_eq_zero,
+  have : a ≠ 0, from ne_of_gt h2,
+  apply eq_of_mul_eq_mul_right this, 
+  apply eq.symm,
+  rw [zero_mul, ← sub_eq_zero.mpr h3],
+  apply h1
+end
+lemma lemma_pos_ne (h1 : u - v = (x - y) * a) : a > 0 → u ≠ v → x ≠ y :=
+begin
+  intros h2 h3,
+  intro h4, apply h3,
+  apply eq_of_sub_eq_zero,
+  rw h1,
+  apply mul_eq_zero.mpr,
+  left,
+  apply sub_eq_zero_of_eq,
+  apply h4
+end
 
-lemma lemma_neg_le (h : u - v = (x - y) * a) : a < 0 → u ≤ v → x ≥ y := sorry
-lemma lemma_neg_lt (h : u - v = (x - y) * a) : a < 0 → u < v → x > y := sorry
-lemma lemma_neg_ge (h : u - v = (x - y) * a) : a < 0 → u ≥ v → x ≤ y := sorry
-lemma lemma_neg_gt (h : u - v = (x - y) * a) : a < 0 → u > v → x < y := sorry
-lemma lemma_neg_eq (h : u - v = (x - y) * a) : a < 0 → u = v → x = y := sorry
-lemma lemma_neg_ne (h : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y := sorry
+lemma lemma_neg_le (h1 : u - v = (x - y) * a) : a < 0 → u ≤ v → x ≥ y := sorry
+lemma lemma_neg_lt (h1 : u - v = (x - y) * a) : a < 0 → u < v → x > y := sorry
+lemma lemma_neg_ge (h1 : u - v = (x - y) * a) : a < 0 → u ≥ v → x ≤ y := sorry
+lemma lemma_neg_gt (h1 : u - v = (x - y) * a) : a < 0 → u > v → x < y := sorry
+lemma lemma_neg_eq (h1 : u - v = (x - y) * a) : a < 0 → u = v → x = y := sorry
+lemma lemma_neg_ne (h1 : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y := sorry
 
 open tactic
 
-meta def foo (op : gen_comp) (a : ℚ) (pr1 pr2 : expr) : tactic expr :=
+meta def canonize (op : gen_comp) (a : ℚ) (pr1 pr2 : expr) : tactic expr :=
 do
   h3 ← to_expr $
     if a > 0 then ``((%%(reflect a) : ℝ) > 0)
@@ -243,29 +293,13 @@ do
   h3 ← to_expr ``(%%e3 = %%e4),
   ((), pr3) ← solve_aux h3 `[refl, done],
   pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
-  pr ← gen_comp.foo op c pr pf,
+  pr ← gen_comp.canonize op c pr pf,
 
   set_goals gs,
   return (h_aux_3, mvars1 ++ mvars2, pr)
 
 meta def canonize_hyp (e : expr) : tactic (expr × list expr × expr) :=
 do tp ← infer_type e, match tp with
---| `(0 > %%e) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(0 > %%ce)]
---| `(0 ≥ %%e) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(0 ≥ %%ce)]
---| `(0 < %%e) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(0 < %%ce)]
---| `(0 ≤ %%e) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(0 ≤ %%ce)]
---| `(%%e > 0) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(%%ce > 0)]
---| `(%%e ≥ 0) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(%%ce ≥ 0)]
---| `(%%e < 0) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(%%ce < 0)]
---| `(%%e ≤ 0) := do ce ← expr.canonize e,
---  mk_app ``canonized_inequality [e, `(%%ce ≤ 0)]
 | `(%%lhs ≤ %%rhs) := prove_inequality lhs rhs e gen_comp.le
 | `(%%lhs < %%rhs) := prove_inequality lhs rhs e gen_comp.lt
 | `(%%lhs ≥ %%rhs) := prove_inequality lhs rhs e gen_comp.ge
@@ -276,16 +310,16 @@ do tp ← infer_type e, match tp with
 end
 
 constants x y z : ℝ
-constant h1 : z + x * (2 : ℚ) - (3 : ℚ) * y < y * (5 : ℚ)
-constant h2 : x * x⁻¹ + (3 : ℚ) * y = 1
+constant h1 : x * (1 / 10 : ℚ) - (2 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) ≤ 1
 
 run_cmd (do
   e ← to_expr ``(h1),
   (mv, l, pr) ← canonize_hyp e,
-  gs ← get_goals,
-  set_goals [mv],
-  reflexivity,
-  set_goals gs,
+
+  --gs ← get_goals,
+  --set_goals [mv],
+  --reflexivity,
+  --set_goals gs,
   
   infer_type mv >>= trace,
   trace "",
