@@ -12,7 +12,7 @@ def mk_unit : @nterm γ _ → @nterm γ _ × γ
 | (nterm.mul t (nterm.const c)) := (t, c)
 | t := (t, 1)
 
-theorem mk_unit_eval {t nt : @nterm γ _} {c : γ} :
+theorem eval_mk_unit {t nt : @nterm γ _} {c : γ} :
   mk_unit t = (nt, c) → nterm.eval ρ t = nterm.eval ρ nt * c :=
 begin
   intro h,
@@ -45,7 +45,7 @@ else match t with
 | t := t * a
 end
 
-theorem scale_eval {t : @nterm γ _} {a : γ} :
+theorem eval_scale {t : @nterm γ _} {a : γ} :
   nterm.eval ρ (scale t a) = nterm.eval ρ t * a :=
 begin
   by_cases h1 : a = 0,
@@ -85,7 +85,7 @@ begin
     cases h with h1 h, cases h with h2 h3,
     subst h1, subst h2, subst h3,
     have h4 : nterm.eval ρ t1 = 0, by {
-      rw mk_unit_eval,
+      rw eval_mk_unit,
       { rw [morph.morph0, mul_zero] },
       { rw [← h0, prod.mk.eta] }},
     simp [h4] },
@@ -98,11 +98,11 @@ begin
   have hl : nterm.eval ρ nt1 = nterm.eval ρ t1 / c,
   by {
     apply eq.symm, apply (div_eq_iff_mul_eq this).mpr,
-    apply eq.symm, apply mk_unit_eval,
+    apply eq.symm, apply eval_mk_unit,
     rw [← h1, ← h3, prod.mk.eta] },
   have hr : nterm.eval ρ nt2 = nterm.eval ρ t2 / c,
   by {
-    rw [← h2, scale_eval, division_def],
+    rw [← h2, eval_scale, division_def],
     { norm_cast }},
   rw [nterm.eval_mul, nterm.eval_const, nterm.eval_sub, nterm.eval_sub],
   rw [sub_mul, hl, hr],
@@ -114,25 +114,140 @@ end nterm
 
 open nterm
 
-def aux (t1 t2 : @eterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
-scale2 (norm t1) (norm t2)
+def mk_unit2 (t1 t2 : @nterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+match t1.mk_unit, t2.mk_unit with
+| (t1', c1), (t2', c2) :=
+  if c1 = 0 then
+    (t2', 0, -c2)
+  else if c2 = 0 then
+    (t1', 0, c1)
+  else if t1' ≤ t2' then
+    (t1', scale t2' (c2 / c1), c1)
+  else
+    (t2', scale t1' (c1 / c2), -c2)
+end
 
-theorem eval_aux {t1 t2 : @eterm γ _} {nt1 nt2 : @nterm γ _} {c : γ} :
+lemma mk_unit2_def_1 {t1 t2 : @nterm γ _} :
+  t1.mk_unit.snd = 0 →
+  mk_unit2 t1 t2 = (t2.mk_unit.fst, 0, -t2.mk_unit.snd) :=
+begin
+  intro h1,
+  unfold mk_unit2,
+  cases t1.mk_unit with t1 c1,
+  cases t2.mk_unit with t2 c2,
+  unfold mk_unit2._match_1, --??
+  rw [if_pos h1]
+end
+
+lemma mk_unit2_def_2 {t1 t2 : @nterm γ _} :
+  t1.mk_unit.snd ≠ 0 →
+  t2.mk_unit.snd = 0 →
+  mk_unit2 t1 t2 = (t1.mk_unit.fst, 0, t1.mk_unit.snd) :=
+begin
+  intros h1 h2,
+  unfold mk_unit2,
+  cases t1.mk_unit with t1 c1,
+  cases t2.mk_unit with t2 c2,
+  unfold mk_unit2._match_1, --??
+  rw [if_neg h1, if_pos h2]
+end
+
+lemma mk_unit2_def_3 {t1 t2 : @nterm γ _} :
+  t1.mk_unit.snd ≠ 0 →
+  t2.mk_unit.snd ≠ 0 →
+  t1.mk_unit.fst ≤ t2.mk_unit.fst →
+  mk_unit2 t1 t2 =
+  ( t1.mk_unit.fst,
+    t2.mk_unit.fst.scale (t2.mk_unit.snd / t1.mk_unit.snd),
+    t1.mk_unit.snd ) :=
+begin
+  intros h1 h2 h3,
+  unfold mk_unit2,
+  cases t1.mk_unit with t1 c1,
+  cases t2.mk_unit with t2 c2,
+  unfold mk_unit2._match_1, --??
+  rw [if_neg h1, if_neg h2, if_pos h3]
+end
+
+lemma mk_unit2_def_4 {t1 t2 : @nterm γ _} :
+  t1.mk_unit.snd ≠ 0 →
+  t2.mk_unit.snd ≠ 0 →
+  ¬ t1.mk_unit.fst ≤ t2.mk_unit.fst →
+  mk_unit2 t1 t2 =
+  ( t2.mk_unit.fst,
+    t1.mk_unit.fst.scale (t1.mk_unit.snd / t2.mk_unit.snd),
+    -t2.mk_unit.snd ) :=
+begin
+  intros h1 h2 h3,
+  unfold mk_unit2,
+  cases t1.mk_unit with t1 c1,
+  cases t2.mk_unit with t2 c2,
+  unfold mk_unit2._match_1, --??
+  rw [if_neg h1, if_neg h2, if_neg h3]
+end
+
+lemma eval_mk_unit2 {t1 t2 t3 t4 : @nterm γ _} {c : γ} :
+  (t3, t4, c) = mk_unit2 t1 t2 →
+  nterm.eval ρ t1 - nterm.eval ρ t2 =
+    (nterm.eval ρ t3 - nterm.eval ρ t4) * c :=
+begin
+  intro h0,
+  by_cases h1 : t1.mk_unit.snd = 0,
+  { rw mk_unit2_def_1 h1 at h0,
+    simp only [prod.mk.inj_iff] at h0,
+    cases h0 with h4 h5, cases h5 with h5 h6,
+    subst h4, subst h5, subst h6,
+    rw [eval_mk_unit (eq.symm prod.mk.eta), h1, morph.morph0, mul_zero, zero_sub],
+    rw [morph.morph_neg, mul_neg_eq_neg_mul_symm, nterm.eval_zero, sub_zero, ← eval_mk_unit],
+    apply (eq.symm prod.mk.eta) },
+  by_cases h2 : t2.mk_unit.snd = 0,
+  { rw mk_unit2_def_2 h1 h2 at h0,
+    simp only [prod.mk.inj_iff] at h0,
+    cases h0 with h4 h5, cases h5 with h5 h6,
+    subst h4, subst h5, subst h6,
+    rw [eval_mk_unit (eq.symm (@prod.mk.eta _ _ (mk_unit t2))), h2, morph.morph0, mul_zero, sub_zero],
+    rw [nterm.eval_zero, sub_zero, eval_mk_unit],
+    apply (eq.symm prod.mk.eta) },
+  by_cases h3 : t1.mk_unit.fst ≤ t2.mk_unit.fst,
+  { rw mk_unit2_def_3 h1 h2 h3 at h0,
+    simp only [prod.mk.inj_iff] at h0,
+    cases h0 with h4 h5, cases h5 with h5 h6,
+    subst h4, subst h5, subst h6,
+    rw [sub_mul, ← eval_mk_unit (eq.symm prod.mk.eta)],
+    rw [eval_scale, morph.morph_div, ← mul_div_assoc, div_mul_cancel],
+    { rw ← eval_mk_unit, apply (eq.symm prod.mk.eta) },
+    { intro contrad, rw [← morph.morph0 γ, morph.morph_inj'] at contrad,
+      apply h1 contrad }}, --todo: norm_cast
+  { rw mk_unit2_def_4 h1 h2 h3 at h0,
+    simp only [prod.mk.inj_iff] at h0,
+    cases h0 with h4 h5, cases h5 with h5 h6,
+    subst h4, subst h5, subst h6,
+    rw [morph.morph_neg, mul_neg_eq_neg_mul_symm, ← neg_mul_eq_neg_mul_symm, neg_sub],
+    rw [sub_mul, ← eval_mk_unit (eq.symm prod.mk.eta)],
+    rw [eval_scale, morph.morph_div, ← mul_div_assoc, div_mul_cancel],
+    { rw ← eval_mk_unit, apply (eq.symm prod.mk.eta) },
+    { intro contrad, rw [← morph.morph0 γ, morph.morph_inj'] at contrad,
+      apply h2 contrad }}, --todo: norm_cast
+end
+
+def norm2 (t1 t2 : @eterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+  mk_unit2 (norm t1) (norm t2)
+
+theorem eval_norm2 {t1 t2 : @eterm γ _} {nt1 nt2 : @nterm γ _} {c : γ} :
   nonzero ρ t1.to_nterm.norm_hyps →
   nonzero ρ t2.to_nterm.norm_hyps →
-  (nt1, nt2, c) = aux t1 t2 →
+  (nt1, nt2, c) = norm2 t1 t2 →
   eterm.eval ρ t1 - eterm.eval ρ t2 =
     (nterm.eval ρ nt1 - nterm.eval ρ nt2) * c :=
 begin
-  intros _ _ h0,
-  have h1 : eterm.eval ρ t1 = nterm.eval ρ (norm t1),
-  by { apply correctness, assumption },
-  have h2 : eterm.eval ρ t2 = nterm.eval ρ (norm t2),
-  by { apply correctness, assumption },
-  rw [h1, h2, ← nterm.eval_sub, ← nterm.eval_sub],
+  intros nz1 nz2 h0,
+  cases (norm t1).mk_unit with nt1 c1,
+  cases (norm t2).mk_unit with nt2 c2,
+  unfold norm2 at h0,
   apply eq.trans,
-  { apply scale2_eval, unfold aux at h0, apply eq.symm h0  },
-  { apply nterm.eval_mul }
+  { show _ = nterm.eval ρ (norm t1) - nterm.eval ρ (norm t2),
+    rw [correctness nz1, correctness nz2] },
+  { apply eval_mk_unit2 h0 }
 end
 
 end field
@@ -288,13 +403,13 @@ do
   (mvars1, h_aux_1) ← prove_norm_hyps t1 s,
   (mvars2, h_aux_2) ← prove_norm_hyps t2 s,
 
-  let (t1', t2', c) := aux t1 t2,
+  let (t1', t2', c) := norm2 t1 t2,
   lhs' ← nterm_to_expr `(ℝ) s t1',
   rhs' ← nterm_to_expr `(ℝ) s t2',
   let c_expr : expr := reflect c,
   let op' := if c > 0 then op else op.reverse,
 
-  h_aux_3 ← to_expr ``((%%(reflect t1'), %%(reflect t2'), %%(c_expr)) = aux %%(reflect t1) %%(reflect t2))
+  h_aux_3 ← to_expr ``((%%(reflect t1'), %%(reflect t2'), %%(c_expr)) = norm2 %%(reflect t1) %%(reflect t2))
     >>= mk_meta_var,
 
   e1 ← to_expr ``(%%lhs - %%rhs),
@@ -304,7 +419,7 @@ do
 
   h1 ← to_expr ``(%%e1 = %%e2),
   ((), pr1) ← solve_aux h1 `[refl, done],
-  pr2 ← to_expr ``(eval_aux %%h_aux_1 %%h_aux_2 %%h_aux_3),
+  pr2 ← to_expr ``(eval_norm2 %%h_aux_1 %%h_aux_2 %%h_aux_3),
   h3 ← to_expr ``(%%e3 = %%e4),
   ((), pr3) ← solve_aux h3 `[refl, done],
   pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,

@@ -13,7 +13,7 @@ private meta def test_on (e : expr) : tactic unit := (do
 run_cmd test_on `(((1 : ℚ) : ℝ) * a + (3 : ℚ) * (b + c) + (5 : ℚ) * b)
 run_cmd test_on `((((1 : ℚ) : ℝ) * u + ((2 : ℚ) * ((1 : ℚ) * v ^ 2 + (23 : ℚ) * 1) ^ 3) + 1 * z) ^ 3)
 
-constant h1 : x * (1 / 10 : ℚ) - (2 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) ≤ 1
+constant h1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) ≤ y
 
 run_cmd (do
   e ← to_expr ``(h1),
