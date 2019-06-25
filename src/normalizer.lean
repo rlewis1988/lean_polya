@@ -252,28 +252,6 @@ end
 
 end field
 
-namespace tactic.field
-open field tactic
-
---todo: move to tactic.field
-meta def prove_norm_hyps (t : @eterm ℚ _) (s : cache_ty) : tactic (list expr × expr) :=
-do
-  let t_expr : expr := reflect t,
-  ρ ← s.dict_expr,
-
-  let nhyps := norm_hyps t,
-  nhyps ← monad.mapm (nterm_to_expr `(ℝ) s) nhyps,
-  nhyps ← monad.mapm (λ e, to_expr ``(%%e ≠ 0)) nhyps,
-  mvars ← monad.mapm mk_meta_var nhyps,
-
-  pe ← to_expr $ mvars.foldr (λ e pe, ``((and.intro %%e %%pe))) ``(trivial),
-  h ← to_expr ``(∀ x ∈ norm_hyps %%t_expr, nterm.eval %%ρ x ≠ 0),
-  ((), pr) ← solve_aux h (refine ``(list.pall_iff_forall_prop.mp _) >> exact pe >> done),
-
-  return (mvars, pr)
-
-end tactic.field
-
 namespace polya
 
 namespace gen_comp
