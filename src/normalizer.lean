@@ -278,13 +278,13 @@ namespace polya
 
 namespace gen_comp
 
-def to_rel : gen_comp → ℝ → ℝ → Prop
-| le := (≤)
-| lt := (<)
-| ge := (≥)
-| gt := (>)
-| eq := (=)
-| ne := (≠)
+--def to_rel : gen_comp → ℝ → ℝ → Prop
+--| le := (≤)
+--| lt := (<)
+--| ge := (≥)
+--| gt := (>)
+--| eq := (=)
+--| ne := (≠)
 
 variables {u v x y a : ℝ}
 
