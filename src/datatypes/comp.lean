@@ -470,19 +470,23 @@ TODO: move these to expr namespace?
 -/
 open polya tactic
 
+meta def get_coeff : expr → tactic (expr × ℚ)
+| `(%%x * ↑%%c) := do c' ← eval_expr ℚ c, return (x, c')
+| x := return (x, 1)
+
 meta def expr_to_ineq : expr → tactic (expr × expr × ineq)
-| `(%%x ≤ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.le (slope.some c'))
-| `(%%x < (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.lt (slope.some c'))
-| `(%%x ≥ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.ge (slope.some c'))
-| `(%%x > (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, ineq.of_comp_and_slope comp.gt (slope.some c'))
+| `(%%x ≤ %%y) := do (y, c) ← get_coeff y, return $ (x, y, ineq.of_comp_and_slope comp.le (slope.some c))
+| `(%%x < %%y) := do (y, c) ← get_coeff y, return $ (x, y, ineq.of_comp_and_slope comp.lt (slope.some c))
+| `(%%x ≥ %%y) := do (y, c) ← get_coeff y, return $ (x, y, ineq.of_comp_and_slope comp.ge (slope.some c))
+| `(%%x > %%y) := do (y, c) ← get_coeff y, return $ (x, y, ineq.of_comp_and_slope comp.gt (slope.some c))
 | _ := failed
 
 meta def expr_to_eq : expr → tactic (expr × expr × ℚ)
-| `(%%x = (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return $ (x, y, c')
+| `(%%x = %%y) := do (y, c) ← get_coeff y, return $ (x, y, c)
 | _ := failed
 
 meta def expr_to_diseq : expr → tactic (expr × expr × ℚ)
-| `(%%x ≠ (%%c : ℚ)*%%y) := do c' ← eval_expr rat c, return (x, y, c')
+| `(%%x ≠ %%y) := do (y, c) ← get_coeff y, return (x, y, c)
 | _ := failed
 
 -- for efficiency???

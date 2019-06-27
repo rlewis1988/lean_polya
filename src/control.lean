@@ -28,7 +28,7 @@ meta def contr_found (pb : polya_bundle) : bool :=
 pb.bb.contr_found
 
 meta def set_blackboard (pb : polya_bundle) (bb' : blackboard) : polya_bundle :=
-{pb with bb := bb'}
+{ pb with bb := bb' }
 
 meta def update_ith (i : ℕ) : polya_bundle → polya_bundle
 | ⟨modules, n, bb⟩ := 
@@ -68,10 +68,12 @@ meta def polya_bundle.default : polya_bundle :=
 }
 
 lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
+lemma rat_cast_one_gt_cast_zero : ((1 : ℚ) : ℝ) > ((0 : ℚ) : ℝ) :=
+by exact_mod_cast zero_lt_one
 
 meta def polya_on_hyps (hys : list name) (rct : bool := tt) : tactic unit :=
 do exps ← hys.mmap get_local,
-   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_cast_one_gt_cast_zero),
    bb ← add_proofs_to_blackboard bb exps,
    let pb := polya_bundle.default.set_blackboard bb,
    let (n, pb) := pb.cycle 0,

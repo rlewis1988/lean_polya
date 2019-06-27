@@ -1,6 +1,6 @@
 import normalizer
 
-open polya polya.canonize field tactic.field tactic
+open polya field tactic.field tactic
 
 constants a b c u v w z y x : ℝ
 
@@ -19,13 +19,8 @@ run_cmd (do
   e ← to_expr ``(h1),
   (mv, l, pr) ← canonize_hyp e,
 
-  gs ← get_goals,
-  set_goals [mv],
-  reflexivity,
-  set_goals gs,
+  prove_by_reflexivity [mv],
   
-  infer_type mv >>= trace,
-  trace "",
   infer_type pr >>= trace,
   trace "",
   monad.mapm (λ x, infer_type x >>= trace >> trace "") l

@@ -127,7 +127,7 @@ match t1.mk_unit, t2.mk_unit with
     (t2', scale t1' (c1 / c2), -c2)
 end
 
-lemma mk_unit2_def_1 {t1 t2 : nterm γ} :
+private lemma mk_unit2_def_1 {t1 t2 : nterm γ} :
   t1.mk_unit.snd = 0 →
   mk_unit2 t1 t2 = (t2.mk_unit.fst, 0, -t2.mk_unit.snd) :=
 begin
@@ -139,7 +139,7 @@ begin
   rw [if_pos h1]
 end
 
-lemma mk_unit2_def_2 {t1 t2 : nterm γ} :
+private lemma mk_unit2_def_2 {t1 t2 : nterm γ} :
   t1.mk_unit.snd ≠ 0 →
   t2.mk_unit.snd = 0 →
   mk_unit2 t1 t2 = (t1.mk_unit.fst, 0, t1.mk_unit.snd) :=
@@ -152,7 +152,7 @@ begin
   rw [if_neg h1, if_pos h2]
 end
 
-lemma mk_unit2_def_3 {t1 t2 : nterm γ} :
+private lemma mk_unit2_def_3 {t1 t2 : nterm γ} :
   t1.mk_unit.snd ≠ 0 →
   t2.mk_unit.snd ≠ 0 →
   t1.mk_unit.fst ≤ t2.mk_unit.fst →
@@ -169,7 +169,7 @@ begin
   rw [if_neg h1, if_neg h2, if_pos h3]
 end
 
-lemma mk_unit2_def_4 {t1 t2 : nterm γ} :
+private lemma mk_unit2_def_4 {t1 t2 : nterm γ} :
   t1.mk_unit.snd ≠ 0 →
   t2.mk_unit.snd ≠ 0 →
   ¬ t1.mk_unit.fst ≤ t2.mk_unit.fst →
@@ -186,7 +186,7 @@ begin
   rw [if_neg h1, if_neg h2, if_neg h3]
 end
 
-lemma eval_mk_unit2 {t1 t2 t3 t4 : nterm γ} {c : γ} :
+theorem eval_mk_unit2 {t1 t2 t3 t4 : nterm γ} {c : γ} :
   (t3, t4, c) = mk_unit2 t1 t2 →
   nterm.eval ρ t1 - nterm.eval ρ t2 =
     (nterm.eval ρ t3 - nterm.eval ρ t4) * c :=
@@ -365,10 +365,10 @@ do
 
 end gen_comp
 
-namespace canonize
 open tactic field tactic.field
 
-meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (expr × list expr × expr) :=
+meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) :
+  tactic (expr × list expr × expr) :=
 do
   (t1, s) ← (eterm_of_expr lhs).run ∅,
   (t2, s) ← (eterm_of_expr rhs).run s,
@@ -412,5 +412,40 @@ do tp ← infer_type e, match tp with
 | _ := do s ← to_string <$> pp e, fail $ "didn't recognize " ++ s
 end
 
-end canonize
+section aux
+
+meta def mk_neg : expr → expr
+| `((-%%lhs) * %%rhs) := `(%%lhs * %%rhs : ℚ)
+| `(%%lhs * %%rhs) := `((-%%lhs) * %%rhs : ℚ)
+| a := `((-1 : ℚ)*%%a)
+
+meta def get_sum_components : expr → list expr
+| `(%%lhs + %%rhs) := rhs::(get_sum_components lhs)
+| `(%%lhs - %%rhs) := mk_neg rhs::(get_sum_components lhs)
+| a := [a]
+
+meta def get_prod_components : expr → list expr
+| `(%%lhs * %%rhs) := rhs::(get_prod_components lhs)
+| a := [a]
+
+meta def is_sum (e : expr) : bool :=
+e.is_app_of ``has_add.add || e.is_app_of ``has_sub.sub
+
+meta def is_prod (e : expr) : bool :=
+e.is_app_of ``has_mul.mul || e.is_app_of ``rat.pow
+
+open tactic
+meta def get_comps_of_mul (e : expr) : tactic (expr × ℚ) := match e with
+| `(%%lhs * %%rhs) := (do c ← eval_expr ℚ lhs, return (rhs, c)) <|> return (e, 1)
+| `(%%num / %%denom) := (do c ← eval_expr ℚ denom, return (num, 1/c)) <|> return (e, 1)
+| f := return (f, 1)
+end
+
+meta def get_comps_of_exp (e : expr) : tactic (expr × ℤ) := match e with
+| `(rat.pow %%base %%exp) := (do z ← eval_expr ℤ exp, return (base, z)) <|> return (e, 1)
+| f := return (f, 1)
+end
+
+end aux
+
 end polya
