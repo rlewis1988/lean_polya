@@ -5,7 +5,7 @@ open polya polya.canonize field tactic.field tactic
 constants a b c u v w z y x : ℝ
 
 private meta def test_on (e : expr) : tactic unit := (do
-  let (t, s) := (eterm_of_expr e).run ∅,
+  (t, s) ← (eterm_of_expr e).run ∅,
   new_e ← nterm_to_expr `(ℝ) s (norm t),
   trace new_e
 )
@@ -19,10 +19,10 @@ run_cmd (do
   e ← to_expr ``(h1),
   (mv, l, pr) ← canonize_hyp e,
 
-  --gs ← get_goals,
-  --set_goals [mv],
-  --reflexivity,
-  --set_goals gs,
+  gs ← get_goals,
+  set_goals [mv],
+  reflexivity,
+  set_goals gs,
   
   infer_type mv >>= trace,
   trace "",

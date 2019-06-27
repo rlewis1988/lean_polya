@@ -7,12 +7,12 @@ variables [morph γ α] {ρ : dict α}
 
 namespace nterm
 
-def mk_unit : @nterm γ _ → @nterm γ _ × γ
+def mk_unit : nterm γ → nterm γ × γ
 | (nterm.const c) := (1, c)
 | (nterm.mul t (nterm.const c)) := (t, c)
 | t := (t, 1)
 
-theorem eval_mk_unit {t nt : @nterm γ _} {c : γ} :
+theorem eval_mk_unit {t nt : nterm γ} {c : γ} :
   mk_unit t = (nt, c) → nterm.eval ρ t = nterm.eval ρ nt * c :=
 begin
   intro h,
@@ -33,7 +33,7 @@ begin
     simp [eval] }
 end
 
-def scale (t : @nterm γ _) (a : γ) : @nterm γ _ :=
+def scale (t : nterm γ) (a : γ) : nterm γ :=
 if a = 0 then
   0
 else if a = 1 then
@@ -45,7 +45,7 @@ else match t with
 | t := t * a
 end
 
-theorem eval_scale {t : @nterm γ _} {a : γ} :
+theorem eval_scale {t : nterm γ} {a : γ} :
   nterm.eval ρ (scale t a) = nterm.eval ρ t * a :=
 begin
   by_cases h1 : a = 0,
@@ -70,13 +70,13 @@ begin
   repeat { simp [scale, h1, h2, eval] }
 end
 
-def scale2 (t1 t2 : @nterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+def scale2 (t1 t2 : nterm γ) : nterm γ × nterm γ × γ :=
 if t1.mk_unit.snd = 0 then
   (0, t2, 1)
 else
   (t1.mk_unit.fst, t2.scale (t1.mk_unit.snd⁻¹), t1.mk_unit.snd)
 
-def scale2_eval {t1 t2 nt1 nt2 : @nterm γ _} {c : γ} :
+def scale2_eval {t1 t2 nt1 nt2 : nterm γ} {c : γ} :
   scale2 t1 t2 = (nt1, nt2, c) → nterm.eval ρ ( t1 - t2 ) = nterm.eval ρ ( (nt1 - nt2) * c ) :=
 begin
   intro h, unfold scale2 at h,
@@ -114,7 +114,7 @@ end nterm
 
 open nterm
 
-def mk_unit2 (t1 t2 : @nterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+def mk_unit2 (t1 t2 : nterm γ) : nterm γ × nterm γ × γ :=
 match t1.mk_unit, t2.mk_unit with
 | (t1', c1), (t2', c2) :=
   if c1 = 0 then
@@ -127,7 +127,7 @@ match t1.mk_unit, t2.mk_unit with
     (t2', scale t1' (c1 / c2), -c2)
 end
 
-lemma mk_unit2_def_1 {t1 t2 : @nterm γ _} :
+lemma mk_unit2_def_1 {t1 t2 : nterm γ} :
   t1.mk_unit.snd = 0 →
   mk_unit2 t1 t2 = (t2.mk_unit.fst, 0, -t2.mk_unit.snd) :=
 begin
@@ -139,7 +139,7 @@ begin
   rw [if_pos h1]
 end
 
-lemma mk_unit2_def_2 {t1 t2 : @nterm γ _} :
+lemma mk_unit2_def_2 {t1 t2 : nterm γ} :
   t1.mk_unit.snd ≠ 0 →
   t2.mk_unit.snd = 0 →
   mk_unit2 t1 t2 = (t1.mk_unit.fst, 0, t1.mk_unit.snd) :=
@@ -152,7 +152,7 @@ begin
   rw [if_neg h1, if_pos h2]
 end
 
-lemma mk_unit2_def_3 {t1 t2 : @nterm γ _} :
+lemma mk_unit2_def_3 {t1 t2 : nterm γ} :
   t1.mk_unit.snd ≠ 0 →
   t2.mk_unit.snd ≠ 0 →
   t1.mk_unit.fst ≤ t2.mk_unit.fst →
@@ -169,7 +169,7 @@ begin
   rw [if_neg h1, if_neg h2, if_pos h3]
 end
 
-lemma mk_unit2_def_4 {t1 t2 : @nterm γ _} :
+lemma mk_unit2_def_4 {t1 t2 : nterm γ} :
   t1.mk_unit.snd ≠ 0 →
   t2.mk_unit.snd ≠ 0 →
   ¬ t1.mk_unit.fst ≤ t2.mk_unit.fst →
@@ -186,7 +186,7 @@ begin
   rw [if_neg h1, if_neg h2, if_neg h3]
 end
 
-lemma eval_mk_unit2 {t1 t2 t3 t4 : @nterm γ _} {c : γ} :
+lemma eval_mk_unit2 {t1 t2 t3 t4 : nterm γ} {c : γ} :
   (t3, t4, c) = mk_unit2 t1 t2 →
   nterm.eval ρ t1 - nterm.eval ρ t2 =
     (nterm.eval ρ t3 - nterm.eval ρ t4) * c :=
@@ -230,10 +230,10 @@ begin
       apply h2 contrad }}, --todo: norm_cast
 end
 
-def norm2 (t1 t2 : @eterm γ _) : @nterm γ _ × @nterm γ _ × γ :=
+def norm2 (t1 t2 : eterm γ) : nterm γ × nterm γ × γ :=
   mk_unit2 (norm t1) (norm t2)
 
-theorem eval_norm2 {t1 t2 : @eterm γ _} {nt1 nt2 : @nterm γ _} {c : γ} :
+theorem eval_norm2 {t1 t2 : eterm γ} {nt1 nt2 : nterm γ} {c : γ} :
   nonzero ρ t1.to_nterm.norm_hyps →
   nonzero ρ t2.to_nterm.norm_hyps →
   (nt1, nt2, c) = norm2 t1 t2 →
@@ -370,12 +370,8 @@ open tactic field tactic.field
 
 meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic (expr × list expr × expr) :=
 do
-  gs ← get_goals,
-  f ← mk_meta_var `(false),
-  set_goals [f],
-
-  let (t1, s) := (eterm_of_expr lhs).run ∅,
-  let (t2, s) := (eterm_of_expr rhs).run s,
+  (t1, s) ← (eterm_of_expr lhs).run ∅,
+  (t2, s) ← (eterm_of_expr rhs).run s,
   ρ ← s.dict_expr,
 
   (mvars1, h_aux_1) ← prove_norm_hyps t1 s,
@@ -389,7 +385,7 @@ do
 
   h_aux_3 ← to_expr ``((%%(reflect t1'), %%(reflect t2'), %%(c_expr)) = norm2 %%(reflect t1) %%(reflect t2))
     >>= mk_meta_var,
-
+  
   e1 ← to_expr ``(%%lhs - %%rhs),
   e2 ← to_expr ``(eterm.eval %%ρ %%(reflect t1) - eterm.eval %%ρ %%(reflect t2)),
   e3 ← to_expr ``((nterm.eval %%ρ %%(reflect t1') - nterm.eval %%ρ %%(reflect t2')) * ↑%%(c_expr)),
@@ -397,13 +393,12 @@ do
 
   h1 ← to_expr ``(%%e1 = %%e2),
   ((), pr1) ← solve_aux h1 `[refl, done],
-  pr2 ← to_expr ``(eval_norm2 %%h_aux_1 %%h_aux_2 %%h_aux_3),
+  pr2 ← to_expr ``(eval_norm2 %%h_aux_1 %%h_aux_2 %%h_aux_3) tt ff,
   h3 ← to_expr ``(%%e3 = %%e4),
   ((), pr3) ← solve_aux h3 `[refl, done],
   pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
   pr ← gen_comp.canonize op c pr pf,
 
-  set_goals gs,
   return (h_aux_3, mvars1 ++ mvars2, pr)
 
 meta def canonize_hyp (e : expr) : tactic (expr × list expr × expr) :=
