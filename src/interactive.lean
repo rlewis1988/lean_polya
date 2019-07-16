@@ -41,7 +41,7 @@ meta def save_info (p : pos) : polya_tactic unit :=
 return ()
 
 meta def execute (c : polya_tactic unit) : tactic unit :=
-do bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+do bb ← add_proof_to_blackboard blackboard.mk_empty `(one_gt_zero),
 let pc : polya_cache := ⟨mk_rb_set, mk_rb_set, bb⟩ in 
 c.run pc >> return ()
 

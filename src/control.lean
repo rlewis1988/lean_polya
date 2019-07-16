@@ -67,13 +67,11 @@ meta def polya_bundle.default : polya_bundle :=
   bb := blackboard.mk_empty
 }
 
-lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
-lemma rat_cast_one_gt_cast_zero : ((1 : ℚ) : ℝ) > ((0 : ℚ) : ℝ) :=
-by exact_mod_cast zero_lt_one
+lemma one_gt_zero : (1 : α) > 0 := zero_lt_one
 
 meta def polya_on_hyps (hys : list name) (rct : bool := tt) : tactic unit :=
 do exps ← hys.mmap get_local,
-   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_cast_one_gt_cast_zero),
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(one_gt_zero),
    bb ← add_proofs_to_blackboard bb exps,
    let pb := polya_bundle.default.set_blackboard bb,
    let (n, pb) := pb.cycle 0,
@@ -92,7 +90,7 @@ private meta def try_add_hyps : list expr → blackboard → tactic blackboard
 
 meta def polya_on_all_hyps (rct : bool := tt) : tactic unit :=
 do hyps ← local_context,
-   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(one_gt_zero),
    bb ← try_add_hyps hyps bb,
    bb.trace_exprs,
    let pb := polya_bundle.default.set_blackboard bb,

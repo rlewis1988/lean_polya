@@ -1,7 +1,12 @@
 import interactive
-variables x y z : ℚ
+variables x y z : α
 
-example (e1 : x < 1*y) (e2 : z < 1*y) (e3 : x + z > 3*y) (e4 : x + z >0) : false := 
+example
+  (e1 : x < 1 * y)
+  (e2 : z < 1 * y)
+  (e3 : x + z > 3 * y)
+  (e4 : x + z > 0)
+  : false :=
 by polya e1 e2 e3 e4
 /-exps ← monad.mapm get_local [`e1, `e2, `e3, `e4],
 bb ← add_proofs_to_blackboard blackboard.mk_empty exps,
@@ -12,7 +17,11 @@ trace $ ("contr found", bb.contr_found),
 pf ← bb.contr.reconstruct,
 trace pf, apply pf-/
 
-example (e1 : x < 2*y) (e2 : z ≤ 4*y) (e3 : 1*x + 1*z > 6*y) : false := 
+example
+  (e1 : x < 2 * y)
+  (e2 : z ≤ 4 * y)
+  (e3 : 1 * x + 1 * z > 6 * y)
+  : false :=
 by polya e1 e2 e3
 /-do 
 exps ← monad.mapm get_local [`e1, `e2, `e3],
@@ -24,7 +33,11 @@ trace $ ("contr found", bb.contr_found),
 pf ← bb.contr.reconstruct,
 apply pf-/
 
-def g (e1 : x = 2*y) (e2 : x > 1*y) (e3 : y < 0)  : false := 
+def g
+  (e1 : x = 2 * y)
+  (e2 : x > 1 * y)
+  (e3 : y < 0)
+  : false :=
 by polya e1 e2 e3
 /-by do
 e1 ← get_local `e1, e2 ← get_local `e2, e3 ← get_local `e3,-- e4 ← get_local `e4,

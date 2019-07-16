@@ -2,28 +2,12 @@ import normalizer
 
 open polya field tactic.field tactic
 
-constants a b c u v w z y x : ℝ
+constants a b c u v w z y x : α
 
-private meta def test_on (e : expr) : tactic unit := (do
-  (t, s) ← (eterm_of_expr e).run ∅,
-  new_e ← nterm_to_expr `(ℝ) s (norm t),
-  trace new_e
-)
-
-run_cmd test_on `(((1 : ℚ) : ℝ) * a + (3 : ℚ) * (b + c) + (5 : ℚ) * b)
-run_cmd test_on `((((1 : ℚ) : ℝ) * u + ((2 : ℚ) * ((1 : ℚ) * v ^ 2 + (23 : ℚ) * 1) ^ 3) + 1 * z) ^ 3)
-
-constant h1 : x * (1 / 10 : ℚ) + x * (1 / 10 : ℚ) - x * (1 / 5 : ℚ) ≤ y
-
-run_cmd (do
-  e ← to_expr ``(h1),
+example (h1 : x * (1 / 2) + x * (1 / 2) - x ≤ y) : y ≥ 0 :=
+by do
+  e ← get_local `h1,
   (mv, l, pr) ← canonize_hyp e,
-
   prove_by_reflexivity [mv],
-  
-  infer_type pr >>= trace,
-  trace "",
-  monad.mapm (λ x, infer_type x >>= trace >> trace "") l
-)
-
+  exact pr
 

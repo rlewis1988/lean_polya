@@ -252,6 +252,8 @@ end
 
 end field
 
+@[reducible] def α := ℚ
+
 namespace polya
 
 namespace gen_comp
@@ -264,7 +266,8 @@ namespace gen_comp
 --| eq := (=)
 --| ne := (≠)
 
-variables {u v x y a : ℝ}
+section
+variables {u v x y a : α} --TODO: more general hypothesis?
 
 lemma lemma_pos_le (h1 : u - v = (x - y) * a) : a > 0 → u ≤ v → x ≤ y :=
 begin
@@ -345,15 +348,20 @@ lemma lemma_neg_eq (h1 : u - v = (x - y) * a) : a < 0 → u = v → x = y :=
 lemma lemma_neg_ne (h1 : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y :=
 λ h2 h3, ne.symm $ lemma_pos_ne (aux h1) (neg_pos_of_neg h2) h3
 
+end
+
 open tactic
 
 meta def canonize (op : gen_comp) (a : ℚ) (pr1 pr2 : expr) : tactic expr :=
 do
-  h3 ← to_expr $
-    if a > 0 then ``((%%(reflect a) : ℝ) > 0)
-    else ``((%%(reflect a) : ℝ) < 0),
-  ((), pr3) ← solve_aux h3 `[sorry],
-  let f : name := match op with
+  -- a should not be equal to 0
+  let h3 : expr := if a > 0 then `((%%(reflect a) : ℚ) > 0) else `((%%(reflect a) : ℚ) < 0),
+  pr3 ← mk_meta_var h3,
+
+  dec ← mk_instance `(decidable %%h3),
+  mk_app ``is_true [pr3] >>= unify dec,
+
+  let decl : name := match op with
   | le := if a > 0 then ``lemma_pos_le else ``lemma_neg_le 
   | lt := if a > 0 then ``lemma_pos_lt else ``lemma_neg_lt
   | ge := if a > 0 then ``lemma_pos_ge else ``lemma_neg_ge
@@ -361,7 +369,10 @@ do
   | eq := if a > 0 then ``lemma_pos_eq else ``lemma_neg_eq
   | ne := if a > 0 then ``lemma_pos_ne else ``lemma_neg_ne
   end,
-  mk_app f [pr1, pr3, pr2]
+  foo ← resolve_name decl,
+  e ← to_expr ``(%%foo %%pr1 %%pr3 %%pr2),
+  --e ← mk_app decl [pr1, pr3, pr2],
+  return e
 
 end gen_comp
 
@@ -378,8 +389,8 @@ do
   (mvars2, h_aux_2) ← prove_norm_hyps t2 s,
 
   let (t1', t2', c) := norm2 t1 t2,
-  lhs' ← nterm_to_expr `(ℝ) s t1',
-  rhs' ← nterm_to_expr `(ℝ) s t2',
+  lhs' ← nterm_to_expr `(α) s t1',
+  rhs' ← nterm_to_expr `(α) s t2',
   let c_expr : expr := reflect c,
   let op' := if c > 0 then op else op.reverse,
 
