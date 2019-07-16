@@ -370,7 +370,7 @@ do
   | ne := if a > 0 then ``lemma_pos_ne else ``lemma_neg_ne
   end,
   foo ← resolve_name decl,
-  e ← to_expr ``(%%foo %%pr1 %%pr3 %%pr2),
+  e ← to_expr ``(%%foo %%pr1 %%pr3 %%pr2) tt ff,
   --e ← mk_app decl [pr1, pr3, pr2],
   return e
 
