@@ -2,8 +2,6 @@ import control proof_trace
 
 open polya tactic expr
 
-variables u v w x y z : α
-
 meta def polya_on_hyps' (hys : list name) (rct : bool := tt) : tactic unit :=
 do
   exps ← hys.mmap get_local,
@@ -15,14 +13,28 @@ do
   trace ("contr found", pb.contr_found),
   if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else do
   pb.bb.contr.sketch >>= proof_sketch.trace,
-  if rct then pb.bb.contr.reconstruct >>= apply >> skip
-  else skip
+  guard rct,
+  prove_normalizer_hypothesis pb.bb,
+  pb.bb.contr.reconstruct >>= apply,
+  skip
+
+constants u v w x y z : ℚ
+constants (hy : y ≠ 0)
 
 example
   (h1 : x > 0)
   (h2 : x < 0)
   : false :=
-by polya_on_hyps' [`h1, `h2]
+by polya_on_hyps [`h1, `h2]
+
+example
+  (h1 : y * (x⁻¹ * y)⁻¹ > 0)
+  (h2 : x < 0)
+  : false :=
+begin
+  polya_on_hyps [`h1, `h2],
+  exact hy
+end
 
 example
   (h1 : x > 0)

@@ -100,15 +100,15 @@ meta def to_format  {lhs rhs c} : ineq_proof lhs rhs c → format
 
 meta def to_format2 :
      Π {lhs rhs : expr} {iq : ineq}, ineq_proof lhs rhs iq → format
-| .(_) .(_) .(_) (hyp (lhs) (rhs) (iq) e) := "hyp"
-| .(_) .(_) .(_) (@sym lhs rhs c ip) := "sym"
-| .(_) .(_) .(_) (@of_ineq_proof_and_diseq lhs rhs iq c ip dp) := "of_ineq_proof_and_diseq"
+| .(_) .(_) .(_) (hyp (lhs) (rhs) (iq) e)                         := "hyp"
+| .(_) .(_) .(_) (@sym lhs rhs c ip)                              := "sym"
+| .(_) .(_) .(_) (@of_ineq_proof_and_diseq lhs rhs iq c ip dp)    := "of_ineq_proof_and_diseq"
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_lhs lhs rhs iq c ip sp) := "of_ineq_proof_and_sign_lhs"
 | .(_) .(_) .(_) (@of_ineq_proof_and_sign_rhs lhs rhs iq c ip sp) :=  "of_ineq_proof_and_sign_rhs"
-| .(_) .(_) .(_) (@zero_comp_of_sign_proof lhs c rhs iq sp) := "zero_comp_of_sign"
-| .(_) .(_) .(_) (@horiz_of_sign_proof rhs c lhs iq sp) := "horiz_of_sign"
-| .(_) .(_) .(_) (@of_sum_form_proof lhs rhs i _ sp) := "of_sum_form"
-| .(_) .(_) .(_) (adhoc _ _ _ _ t) := "adhoc"
+| .(_) .(_) .(_) (@zero_comp_of_sign_proof lhs c rhs iq sp)       := "zero_comp_of_sign"
+| .(_) .(_) .(_) (@horiz_of_sign_proof rhs c lhs iq sp)           := "horiz_of_sign"
+| .(_) .(_) .(_) (@of_sum_form_proof lhs rhs i _ sp)              := "of_sum_form"
+| .(_) .(_) .(_) (adhoc _ _ _ _ t)                                := "adhoc"
 
 meta instance has_to_format (lhs rhs c) : has_to_format (ineq_proof lhs rhs c) :=
 ⟨to_format2⟩
@@ -116,21 +116,21 @@ end ineq_proof
 
 namespace sign_proof
 meta def to_format : Π {e c}, sign_proof e c → format
-| (_) (_) (hyp _ _ _) := "hyp"
-| (_) (_) (scaled_hyp _ _ _ _) := "scaled_hyp"
-| (_) (_) (ineq_lhs _ _) := "ineq_lhs"
-| (_) (_) (ineq_rhs _ _) := "ineq_rhs"
-| (_) (_) (eq_of_two_eqs_rhs _ _) := "eq_of_two_eqs_rhs"
-| (_) (_) (eq_of_two_eqs_lhs _ _) := "eq_of_two_eqs_lhs"
-| (_) (_) (diseq_of_diseq_zero _) := "diseq_of_diseq_zero"
-| (_) (_) (eq_of_eq_zero _) := "eq_of_eq_zero"
-| (_) (_) (eq_of_le_of_ge _ _) := "eq_of_le_of_ge"
-| (_) (_) (ineq_of_eq_and_ineq_lhs _ _ _) := "ineq_of_eq_and_ineq_lhs"
-| (_) (_) (ineq_of_eq_and_ineq_rhs _ _ _) := "ineq_of_eq_and_ineq_rhs"
+| (_) (_) (hyp _ _ _)                          := "hyp"
+| (_) (_) (scaled_hyp _ _ _ _)                 := "scaled_hyp"
+| (_) (_) (ineq_lhs _ _)                       := "ineq_lhs"
+| (_) (_) (ineq_rhs _ _)                       := "ineq_rhs"
+| (_) (_) (eq_of_two_eqs_rhs _ _)              := "eq_of_two_eqs_rhs"
+| (_) (_) (eq_of_two_eqs_lhs _ _)              := "eq_of_two_eqs_lhs"
+| (_) (_) (diseq_of_diseq_zero _)              := "diseq_of_diseq_zero"
+| (_) (_) (eq_of_eq_zero _)                    := "eq_of_eq_zero"
+| (_) (_) (eq_of_le_of_ge _ _)                 := "eq_of_le_of_ge"
+| (_) (_) (ineq_of_eq_and_ineq_lhs _ _ _)      := "ineq_of_eq_and_ineq_lhs"
+| (_) (_) (ineq_of_eq_and_ineq_rhs _ _ _)      := "ineq_of_eq_and_ineq_rhs"
 | (_) (_) (ineq_of_ineq_and_eq_zero_rhs _ _ _) := "ineq_of_ineq_and_eq_zero_rhs"
-| (_) (_) (diseq_of_strict_ineq _) := "diseq_of_strict_ineq"
-| (_) (_) (of_sum_form_proof _ _ _) := "of_sum_form_proof"
-| (_) (_) (adhoc _ _ _ _) := "adhoc"
+| (_) (_) (diseq_of_strict_ineq _)             := "diseq_of_strict_ineq"
+| (_) (_) (of_sum_form_proof _ _ _)            := "of_sum_form_proof"
+| (_) (_) (adhoc _ _ _ _)                      := "adhoc"
 
 meta instance has_to_format {e c} : has_to_format (sign_proof e c) := ⟨sign_proof.to_format⟩
 end sign_proof

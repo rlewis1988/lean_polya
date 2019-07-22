@@ -1,5 +1,5 @@
 import data.rat data.nat.gcd tactic.finish algebra.group_power
-import tactic.field
+import tactic.polya.field
 
 --meta instance : has_to_format ℤ := ⟨λ z, int.rec_on z (λ k, ↑k) (λ k, "-"++↑(k+1)++"")⟩
 

@@ -349,4 +349,77 @@ match id.inq.to_slope with
 | slope.some m := id
 end
 
+meta def diseq_proof.hyps : Π {lhs rhs a}, diseq_proof lhs rhs a → list expr
+| _ _ _ (diseq_proof.hyp .(_) .(_) .(_) e) := [e]
+| _ _ _ (diseq_proof.sym dp)               := diseq_proof.hyps dp
+
+meta mutual def eq_proof.hyps, ineq_proof.hyps, sign_proof.hyps, sum_form_proof.hyps
+with eq_proof.hyps : Π {lhs rhs a}, eq_proof lhs rhs a → list expr
+| _ _ _ (eq_proof.hyp .(_) .(_) .(_) e)                 := [e]
+| _ _ _ (eq_proof.sym ep)                               := eq_proof.hyps ep
+| _ _ _ (eq_proof.of_opp_ineqs _ ip1 ip2)               := ineq_proof.hyps ip1 ∪ ineq_proof.hyps ip2
+| _ _ _ (eq_proof.of_sum_form_proof .(_) .(_) .(_) sfp) := sum_form_proof.hyps sfp
+| _ _ _ (eq_proof.adhoc .(_) .(_) .(_) _ _)             := []
+with ineq_proof.hyps : Π {lhs rhs op}, ineq_proof lhs rhs op → list expr
+| _ _ _ (ineq_proof.hyp .(_) .(_) .(_) e)                 := [e]
+| _ _ _ (ineq_proof.sym ip)                               := ineq_proof.hyps ip
+| _ _ _ (ineq_proof.of_ineq_proof_and_diseq ip dp)        := ineq_proof.hyps ip ∪ diseq_proof.hyps dp
+| _ _ _ (ineq_proof.of_ineq_proof_and_sign_lhs ip sp)     := ineq_proof.hyps ip ∪ sign_proof.hyps sp
+| _ _ _ (ineq_proof.of_ineq_proof_and_sign_rhs ip sp)     := ineq_proof.hyps ip ∪ sign_proof.hyps sp
+| _ _ _ (ineq_proof.zero_comp_of_sign_proof .(_) .(_) sp) := sign_proof.hyps sp
+| _ _ _ (ineq_proof.horiz_of_sign_proof .(_) .(_) sp)     := sign_proof.hyps sp
+| _ _ _ (ineq_proof.of_sum_form_proof .(_) .(_) .(_) sfp) := sum_form_proof.hyps sfp
+| _ _ _ (ineq_proof.adhoc _ _ _ _ _)                      := []
+with sign_proof.hyps : Π {e c}, sign_proof e c → list expr
+| _ _ (sign_proof.hyp .(_) .(_) e)                         := [e]
+| _ _ (sign_proof.scaled_hyp .(_) .(_) e _)                := [e]
+| _ _ (sign_proof.ineq_lhs .(_) ip)                        := ineq_proof.hyps ip
+| _ _ (sign_proof.ineq_rhs .(_) ip)                        := ineq_proof.hyps ip
+| _ _ (sign_proof.eq_of_two_eqs_lhs ep1 ep2)               := eq_proof.hyps ep1 ∪ eq_proof.hyps ep2
+| _ _ (sign_proof.eq_of_two_eqs_rhs ep1 ep2)               := eq_proof.hyps ep1 ∪ eq_proof.hyps ep2
+| _ _ (sign_proof.diseq_of_diseq_zero dp)                  := diseq_proof.hyps dp
+| _ _ (sign_proof.eq_of_eq_zero ep)                        := eq_proof.hyps ep
+| _ _ (sign_proof.eq_of_le_of_ge sp1 sp2)                  := sign_proof.hyps sp1 ∪ sign_proof.hyps sp2
+| _ _ (sign_proof.ineq_of_eq_and_ineq_lhs .(_) ep ip)      := eq_proof.hyps ep ∪ ineq_proof.hyps ip
+| _ _ (sign_proof.ineq_of_eq_and_ineq_rhs .(_) ep ip)      := eq_proof.hyps ep ∪ ineq_proof.hyps ip
+| _ _ (sign_proof.ineq_of_ineq_and_eq_zero_rhs .(_) ip sp) := ineq_proof.hyps ip ∪ sign_proof.hyps sp
+| _ _ (sign_proof.diseq_of_strict_ineq sp)                 := sign_proof.hyps sp
+| _ _ (sign_proof.of_sum_form_proof .(_) .(_) sfp)         := sum_form_proof.hyps sfp
+| _ _ (sign_proof.adhoc .(_) .(_) _ _)                     := []
+with sum_form_proof.hyps : Π {sfc}, sum_form_proof sfc → list expr
+| _ (sum_form_proof.of_ineq_proof ip)                     := ineq_proof.hyps ip
+| _ (sum_form_proof.of_eq_proof ep)                       := eq_proof.hyps ep
+| _ (sum_form_proof.of_sign_proof sp)                     := sign_proof.hyps sp
+| _ (sum_form_proof.of_add_factor_same_comp _ sfp1 sfp2)  := sum_form_proof.hyps sfp1 ∪ sum_form_proof.hyps sfp2
+| _ (sum_form_proof.of_add_eq_factor_op_comp _ sfp1 sfp2) := sum_form_proof.hyps sfp1 ∪ sum_form_proof.hyps sfp2
+| _ (sum_form_proof.of_scale _ sfp)                       := sum_form_proof.hyps sfp
+| _ (sum_form_proof.of_expr_def _ _)                      := []
+| _ (sum_form_proof.fake _)                               := []
+
+meta def eq_data.hyps {lhs rhs} : eq_data lhs rhs → list expr
+| ed := eq_proof.hyps ed.prf
+
+meta def ineq_data.hyps {lhs rhs} : ineq_data lhs rhs → list expr
+| id := ineq_proof.hyps id.prf
+
+meta def diseq_data.hyps {lhs rhs} : diseq_data lhs rhs → list expr
+| dd := diseq_proof.hyps dd.prf
+
+meta def ineq_info.hyps {lhs rhs} : ineq_info lhs rhs → list expr
+| ineq_info.no_comps            := []
+| (ineq_info.one_comp id)       := ineq_data.hyps id
+| (ineq_info.two_comps id1 id2) := ineq_data.hyps id1 ∪ ineq_data.hyps id2
+| (ineq_info.equal ed)          := eq_data.hyps ed
+
+meta def sign_data.hyps {e} : sign_data e → list expr
+| sd := sign_proof.hyps sd.prf
+
+meta def contrad.hyps : contrad → list expr
+| contrad.none := []
+| (contrad.eq_diseq ed dd)      := eq_data.hyps ed ∪ diseq_data.hyps dd
+| (contrad.ineqs ii id)         := ineq_info.hyps ii ∪ ineq_data.hyps id
+| (contrad.sign sd1 sd2)        := sign_data.hyps sd1 ∪ sign_data.hyps sd2
+| (contrad.strict_ineq_self id) := ineq_data.hyps id
+| (contrad.sum_form sfp)        := sum_form_proof.hyps sfp
+
 end polya

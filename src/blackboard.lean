@@ -13,7 +13,6 @@ meta structure blackboard : Type :=
 ( to_refl  : rb_map expr expr := rb_map.mk _ _ )
 ( to_prove : rb_map expr (list expr) := rb_map.mk _ _ )
 
-
 namespace blackboard
 
 meta def expr_pair_hash : expr × expr → ℕ
@@ -130,9 +129,9 @@ meta def set_changed (b : bool) (bb : blackboard) : blackboard :=
 
 end manipulators
 
-meta def insert_hyps (bb : blackboard) (e : expr)
+meta def add_hyp (bb : blackboard) (e : expr)
   (mv : expr) (l : list expr) : blackboard :=
-{ to_refl := bb.to_refl.insert e mv,
+{ to_refl  := bb.to_refl.insert e mv,
   to_prove := bb.to_prove.insert e l,
   ..bb }
 
@@ -509,10 +508,7 @@ else
  | some _ := skip
  end
 
-
-
 end
-
 
 meta def add_old_sign_info_to_new_ineq (new_e : expr) {old_e : expr} : sign_data old_e → polya_state unit
 | ⟨gen_comp.ne, prf⟩ := skip
@@ -609,47 +605,58 @@ TODO: rename?
 -/
 open tactic
 meta def add_proof_to_blackboard (b : blackboard) (e : expr) : tactic blackboard :=
---infer_type e >>= trace >>
-do
-  infer_type e >>= trace,
+( do
   (mv, l, e) ← canonize_hyp e,
-  let b := b.insert_hyps e mv l,
+  let b := b.add_hyp e mv l,
 
   tp ← infer_type e,
-  --trace tp,
-  (do (x, y, ie1) ← expr_to_ineq tp,
-  --    trace x, trace y, trace ie1,
-      id ← return $ ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
-      --return (add_ineq id b).2)
-      tac_add_ineq b id)
-  <|>
-  (do (x, y, ie1) ← expr_to_eq tp,
-      id ← return $ eq_data.mk ie1 (eq_proof.hyp x y _ e),
-      --return (add_eq id b).2)
-      tac_add_eq b id)
-  <|>
-  (do (x, c) ← expr_to_sign tp,
-      cf ← coeff_of_expr x,
-      match cf with
-      | (none, e') := do
-      sd ← return $ sign_data.mk c (sign_proof.hyp x _ e),
-  --    trace "calling tac-add-sign",
-      bb ← tac_add_sign b sd,
-  --    trace "tac_add_sign done",
-      return bb
-      | (some q, e') :=
-      do trace q, trace e', sd ← return $ trace_val $ sign_data.mk (if q > 0 then c else c.reverse) (sign_proof.scaled_hyp e' _ e q),
-        tac_add_sign b sd
-      end)
-  <|>
-  (do (x, y, ie1) ← expr_to_diseq tp,
-      sd ← return $ diseq_data.mk ie1 (diseq_proof.hyp x y _ e),
-      tac_add_diseq b sd)
-  <|>
-  trace "failed" >> trace e >> fail "add_comp_to_blackboard failed"
+  trace tp,
+  ( do
+    (x, y, ie1) ← expr_to_ineq tp,
+    let id := ineq_data.mk ie1 (ineq_proof.hyp x y _ e),
+    --return (add_ineq id b).2)
+    tac_add_ineq b id
+  ) <|> ( do
+    (x, y, ie1) ← expr_to_eq tp,
+    let id := eq_data.mk ie1 (eq_proof.hyp x y _ e),
+    --return (add_eq id b).2)
+    tac_add_eq b id
+  ) <|> ( do
+    (x, c) ← expr_to_sign tp,
+    cf ← coeff_of_expr x,
+    match cf with
+    | (none, e') := do
+      let sd := sign_data.mk c (sign_proof.hyp x _ e),
+      tac_add_sign b sd
+    | (some q, e') := do
+      let sd := trace_val $ sign_data.mk (if q > 0 then c else c.reverse) (sign_proof.scaled_hyp e' _ e q),
+      tac_add_sign b sd
+    end
+  ) <|> ( do
+    (x, y, ie1) ← expr_to_diseq tp,
+    let sd := diseq_data.mk ie1 (diseq_proof.hyp x y _ e),
+    tac_add_diseq b sd
+  )
+) <|> ( do
+  trace "failed",
+  trace e,
+  fail "add_proof_to_blackboard failed"
+)
 
 meta def add_proofs_to_blackboard (b : blackboard) (l : list expr) : tactic blackboard :=
 monad.foldl add_proof_to_blackboard b l
+
+
+
+meta def prove_normalizer_hypothesis (bb : blackboard) : tactic unit :=
+do
+  gs ← get_goals,
+  let hyps : list expr := bb.contr.hyps,
+  let norm_gs : list expr := list.join (hyps.filter_map bb.to_prove.find),
+  let norm_refl : list expr := hyps.filter_map bb.to_refl.find,
+  prove_by_reflexivity norm_refl,
+  set_goals $ gs ++ norm_gs
+
 
 /- assumes the second input is the type of prf
 meta def process_comp (prf : expr) : expr → polya_state unit

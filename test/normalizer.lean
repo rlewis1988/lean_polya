@@ -1,6 +1,6 @@
 import normalizer
 
-open polya field tactic.field tactic
+open polya field tactic.polya.field tactic
 
 constants a b c u v w z y x : α
 
