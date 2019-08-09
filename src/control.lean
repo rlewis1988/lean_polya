@@ -2,7 +2,6 @@ import .blackboard .proof_reconstruction .additive .multiplicative data.hash_map
 
 open polya tactic
 
-
 meta structure module_op (α : Type) :=
 (a : α)
 (op : α → polya_state α)
@@ -28,7 +27,7 @@ meta def contr_found (pb : polya_bundle) : bool :=
 pb.bb.contr_found
 
 meta def set_blackboard (pb : polya_bundle) (bb' : blackboard) : polya_bundle :=
-{pb with bb := bb'}
+{ pb with bb := bb' }
 
 meta def update_ith (i : ℕ) : polya_bundle → polya_bundle
 | ⟨modules, n, bb⟩ := 
@@ -67,19 +66,23 @@ meta def polya_bundle.default : polya_bundle :=
   bb := blackboard.mk_empty
 }
 
-lemma rat_one_gt_zero : (1 : ℚ) > 0 := zero_lt_one
+@[reducible] def α := ℚ
+lemma one_gt_zero : (1 : α) > 0 := zero_lt_one
 
 meta def polya_on_hyps (hys : list name) (rct : bool := tt) : tactic unit :=
 do exps ← hys.mmap get_local,
-   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(one_gt_zero),
    bb ← add_proofs_to_blackboard bb exps,
    let pb := polya_bundle.default.set_blackboard bb,
    let (n, pb) := pb.cycle 0,
    trace ("number of cycles:", n),
    trace ("contr found", pb.contr_found),
    if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else
-   if rct then pb.bb.contr.reconstruct >>= apply >> skip
-   else skip
+   guard rct,
+   prove_normalizer_hypothesis pb.bb,
+   pr ← pb.bb.contr.reconstruct,
+   apply pr,
+   skip
 
 private meta def try_add_hyp (h : expr) (bb : blackboard) : tactic blackboard :=
 add_proof_to_blackboard bb h <|> return bb
@@ -90,7 +93,7 @@ private meta def try_add_hyps : list expr → blackboard → tactic blackboard
 
 meta def polya_on_all_hyps (rct : bool := tt) : tactic unit :=
 do hyps ← local_context,
-   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
+   bb ← add_proof_to_blackboard blackboard.mk_empty `(one_gt_zero),
    bb ← try_add_hyps hyps bb,
    bb.trace_exprs,
    let pb := polya_bundle.default.set_blackboard bb,

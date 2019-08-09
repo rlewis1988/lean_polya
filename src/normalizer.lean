@@ -1,13 +1,184 @@
-import datatypes -- blackboard
+import .datatypes -- blackboard
 
 namespace polya
+
+--@[reducible] def α := ℚ
+--@[reducible] def γ := ℚ
+
+namespace gen_comp
+
+--def to_rel : gen_comp → ℝ → ℝ → Prop
+--| le := (≤)
+--| lt := (<)
+--| ge := (≥)
+--| gt := (>)
+--| eq := (=)
+--| ne := (≠)
+
+section
+variables {u v x y a : ℚ} --TODO: more general hypothesis?
+
+lemma lemma_pos_le (h1 : u - v = (x - y) * a) : a > 0 → u ≤ v → x ≤ y :=
+begin
+  intros h2 h3,
+  apply le_of_sub_nonneg,
+  apply nonneg_of_neg_nonpos,
+  apply le_of_mul_le_mul_right _ h2,
+  rw [zero_mul, neg_sub, ← h1],
+  apply sub_nonpos_of_le,
+  apply h3
+end
+lemma lemma_pos_lt (h1 : u - v = (x - y) * a) : a > 0 → u < v → x < y :=
+begin
+  intros h2 h3,
+  apply lt_of_sub_neg,
+  apply neg_of_neg_pos,
+  apply lt_of_mul_lt_mul_right _ (le_of_lt h2),
+  rw [zero_mul, neg_mul_eq_neg_mul_symm, ← h1],
+  apply neg_pos_of_neg,
+  apply sub_neg_of_lt,
+  apply h3
+end
+lemma lemma_pos_ge (h1 : u - v = (x - y) * a) : a > 0 → u ≥ v → x ≥ y :=
+begin
+  apply lemma_pos_le,
+  apply eq_of_neg_eq_neg,
+  rw [← neg_mul_eq_neg_mul_symm, neg_sub, neg_sub],
+  apply h1
+end
+lemma lemma_pos_gt (h1 : u - v = (x - y) * a) : a > 0 → u > v → x > y :=
+begin
+  apply lemma_pos_lt,
+  apply eq_of_neg_eq_neg,
+  rw [← neg_mul_eq_neg_mul_symm, neg_sub, neg_sub],
+  apply h1
+end
+lemma lemma_pos_eq (h1 : u - v = (x - y) * a) : a > 0 → u = v → x = y :=
+begin
+  intros h2 h3,
+  apply eq_of_sub_eq_zero,
+  have : a ≠ 0, from ne_of_gt h2,
+  apply eq_of_mul_eq_mul_right this, 
+  apply eq.symm,
+  rw [zero_mul, ← sub_eq_zero.mpr h3],
+  apply h1
+end
+lemma lemma_pos_ne (h1 : u - v = (x - y) * a) : a > 0 → u ≠ v → x ≠ y :=
+begin
+  intros h2 h3,
+  intro h4, apply h3,
+  apply eq_of_sub_eq_zero,
+  rw h1,
+  apply mul_eq_zero.mpr,
+  left,
+  apply sub_eq_zero_of_eq,
+  apply h4
+end
+
+lemma aux : u - v = (x - y) * a → u - v = (y - x) * (-a) :=
+begin
+  intro h,
+  rw mul_neg_eq_neg_mul_symm,
+  rw neg_mul_eq_neg_mul,
+  rw neg_sub,
+  apply h
+end
+
+lemma lemma_neg_le (h1 : u - v = (x - y) * a) : a < 0 → u ≤ v → x ≥ y :=
+λ h2 h3, lemma_pos_le (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_lt (h1 : u - v = (x - y) * a) : a < 0 → u < v → x > y :=
+λ h2 h3, lemma_pos_lt (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_ge (h1 : u - v = (x - y) * a) : a < 0 → u ≥ v → x ≤ y :=
+λ h2 h3, lemma_pos_ge (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_gt (h1 : u - v = (x - y) * a) : a < 0 → u > v → x < y :=
+λ h2 h3, lemma_pos_gt (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_eq (h1 : u - v = (x - y) * a) : a < 0 → u = v → x = y :=
+λ h2 h3, eq.symm $ lemma_pos_eq (aux h1) (neg_pos_of_neg h2) h3
+lemma lemma_neg_ne (h1 : u - v = (x - y) * a) : a < 0 → u ≠ v → x ≠ y :=
+λ h2 h3, ne.symm $ lemma_pos_ne (aux h1) (neg_pos_of_neg h2) h3
+
+end
+
+open tactic
+
+meta def canonize (op : gen_comp) (a : ℚ) (pr1 pr2 : expr) : tactic expr :=
+do
+  -- a should not be equal to 0
+  let h3 : expr := if a > 0 then `((%%(reflect a) : ℚ) > 0) else `((%%(reflect a) : ℚ) < 0),
+  pr3 ← mk_meta_var h3,
+
+  dec ← mk_instance `(decidable %%h3),
+  mk_app ``is_true [pr3] >>= unify dec,
+
+  let decl : name := match op with
+  | le := if a > 0 then ``lemma_pos_le else ``lemma_neg_le 
+  | lt := if a > 0 then ``lemma_pos_lt else ``lemma_neg_lt
+  | ge := if a > 0 then ``lemma_pos_ge else ``lemma_neg_ge
+  | gt := if a > 0 then ``lemma_pos_gt else ``lemma_neg_gt
+  | eq := if a > 0 then ``lemma_pos_eq else ``lemma_neg_eq
+  | ne := if a > 0 then ``lemma_pos_ne else ``lemma_neg_ne
+  end,
+  foo ← resolve_name decl,
+  e ← to_expr ``(%%foo %%pr1 %%pr3 %%pr2) tt ff,
+  --e ← mk_app decl [pr1, pr3, pr2],
+  return e
+
+end gen_comp
+
+open tactic field polya.field tactic.polya.field
+
+meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) :
+  tactic (expr × list expr × expr) :=
+do
+  (t1, s) ← (term_of_expr lhs).run ∅,
+  (t2, s) ← (term_of_expr rhs).run s,
+  ρ ← s.dict_expr `(α),
+
+  (mvars1, h_aux_1) ← prove_norm_hyps t1 s,
+  (mvars2, h_aux_2) ← prove_norm_hyps t2 s,
+
+  let (t1', t2', c) := norm2 γ t1 t2,
+  trace t1',
+  lhs' ← nterm_to_expr s t1',
+  rhs' ← nterm_to_expr s t2',
+  let c_expr : expr := reflect c,
+  let op' := if c > 0 then op else op.reverse,
+
+  h_aux_3 ← to_expr ``((%%(reflect t1'), %%(reflect t2'), %%(c_expr)) = norm2 γ %%(reflect t1) %%(reflect t2))
+    >>= mk_meta_var,
+  
+  e1 ← to_expr ``(%%lhs - %%rhs),
+  e2 ← to_expr ``(term.eval %%ρ %%(reflect t1) - term.eval %%ρ %%(reflect t2)),
+  e3 ← to_expr ``((nterm.eval %%ρ %%(reflect t1') - nterm.eval %%ρ %%(reflect t2')) * ↑%%(c_expr)),
+  e4 ← to_expr ``((%%lhs' - %%rhs') * ↑%%(c_expr)),
+
+  h1 ← to_expr ``(%%e1 = %%e2),
+  ((), pr1) ← solve_aux h1 `[refl, done],
+  pr2 ← to_expr ``(eval_norm2 %%h_aux_1 %%h_aux_2 %%h_aux_3) tt ff,
+  h3 ← to_expr ``(%%e3 = %%e4),
+  ((), pr3) ← solve_aux h3 `[refl, done],
+  pr ← mk_eq_trans pr2 pr3 >>= mk_eq_trans pr1,
+  pr ← gen_comp.canonize op c pr pf,
+
+  return (h_aux_3, mvars1 ++ mvars2, pr)
+
+meta def canonize_hyp (e : expr) : tactic (expr × list expr × expr) :=
+do tp ← infer_type e, match tp with
+| `(%%lhs ≤ %%rhs) := prove_inequality lhs rhs e gen_comp.le
+| `(%%lhs < %%rhs) := prove_inequality lhs rhs e gen_comp.lt
+| `(%%lhs ≥ %%rhs) := prove_inequality lhs rhs e gen_comp.ge
+| `(%%lhs > %%rhs) := prove_inequality lhs rhs e gen_comp.gt
+| `(%%lhs = %%rhs) := prove_inequality lhs rhs e gen_comp.eq
+| `(%%lhs ≠ %%rhs) := prove_inequality lhs rhs e gen_comp.ne
+| _ := do s ← to_string <$> pp e, fail $ "didn't recognize " ++ s
+end
 
 section aux
 
 meta def mk_neg : expr → expr
-| `((-%%lhs) * %%rhs) := `(%%lhs * %%rhs : ℚ)
-| `(%%lhs * %%rhs) := `((-%%lhs) * %%rhs : ℚ)
-| a := `((-1 : ℚ)*%%a)
+| `((-%%lhs) * %%rhs) := `(%%lhs * %%rhs : α)
+| `(%%lhs * %%rhs) := `((-%%lhs) * %%rhs : α)
+| a := `((-1 : α) * %%a)
 
 meta def get_sum_components : expr → list expr
 | `(%%lhs + %%rhs) := rhs::(get_sum_components lhs)
@@ -25,9 +196,9 @@ meta def is_prod (e : expr) : bool :=
 e.is_app_of ``has_mul.mul || e.is_app_of ``rat.pow
 
 open tactic
-meta def get_comps_of_mul (e : expr) : tactic (expr × ℚ) := match e with
-| `(%%lhs * %%rhs) := (do c ← eval_expr ℚ lhs, return (rhs, c)) <|> return (e, 1)
-| `(%%num / %%denom) := (do c ← eval_expr ℚ denom, return (num, 1/c)) <|> return (e, 1)
+meta def get_comps_of_mul (e : expr) : tactic (expr × α) := match e with
+| `(%%lhs * %%rhs) := (do c ← eval_expr α lhs, return (rhs, c)) <|> return (e, 1)
+| `(%%num / %%denom) := (do c ← eval_expr α denom, return (num, 1/c)) <|> return (e, 1)
 | f := return (f, 1)
 end
 
@@ -38,341 +209,4 @@ end
 
 end aux
 
-open native
-
-/-meta mutual inductive sterm, term
-with sterm : Type
-| scaled : ℚ → term → sterm
-with term : Type
-| add_term : list sterm → term
-| mul_term : list (term × ℤ) → term
-| atom : expr → term-/
-meta inductive term : Type
-| add_term : rb_map term ℚ → term
-| mul_term : rb_map term ℤ → term
-| atom : expr → term
-
-meta structure sterm :=
-(coeff : ℚ) (body : term)
-
-namespace term
-
-meta mutual def cmp, list_cmp
-with cmp : term → term → ordering
-| (add_term m) (add_term n) := list_cmp m.keys n.keys
-| (add_term _) _ := ordering.gt
-| _ (add_term _) := ordering.lt
-| (mul_term m) (mul_term n) := list_cmp m.keys n.keys
-| (mul_term _) (atom _) := ordering.gt
-| (atom _) (mul_term _) := ordering.lt
-| (atom e1) (atom e2) := cmp_using has_lt.lt e1 e2
-with list_cmp : list term → list term → ordering
-| [] [] := ordering.eq
-| [] _  := ordering.lt
-| _  [] := ordering.gt
-| (x::xs) (y::ys) := let c := cmp x y in if c = ordering.eq then list_cmp xs ys else c
-
-meta def lt (x y : term) := cmp x y = ordering.lt
-
-meta instance : has_lt term := ⟨lt⟩
-meta instance : decidable_rel lt := λ x y, by delta lt; apply_instance
-
-meta def add_term_empty : term :=
-add_term mk_rb_map
-
-meta def mul_term_empty : term :=
-mul_term mk_rb_map
-end term
-
-
-private meta def add_term_coeff_pair (map : rb_map term ℚ) (st : term × ℚ) : rb_map term ℚ :=
-match map.find st.1 with
-| none := map.insert st.1 st.2
-| some c := map.insert st.1 (st.2 + c)
-end
-
-private meta def add_term_coeff_pair_list (map : rb_map term ℚ) (l : list (term × ℚ)) : rb_map term ℚ :=
-l.foldl add_term_coeff_pair map
-
-private meta def add_sterm (map : rb_map term ℚ) (st : sterm) : rb_map term ℚ :=
-add_term_coeff_pair map (st.body, st.coeff)
-
-meta def add_term_of_sterm_list (l : list sterm) : term :=
-term.add_term $ l.foldl add_sterm mk_rb_map
-
-private meta def pow_term_exp (map : rb_map term ℤ) (pr : term × ℤ) : rb_map term ℤ :=
-match map.find pr.1 with
-| none := map.insert pr.1 pr.2
-| some c := map.insert pr.1 (pr.2 + c)
-end
-
-private meta def pow_term_exp_list (map : rb_map term ℤ) (l : list (term × ℤ)) : rb_map term ℤ :=
-l.foldl pow_term_exp map
-
-meta def mul_term_of_term_exp_list (l : list (term × ℤ)) : term :=
-term.mul_term $ l.foldl pow_term_exp mk_rb_map
-
-meta def term.is_zero : term → bool
-| (term.add_term m) := m.size = 0
-| _ := ff
-
-meta def sterm.is_zero (st : sterm) : bool :=
-st.body.is_zero || (st.coeff = 0)
-
-meta def term.scale (q : ℚ) (t : term) : sterm :=
-⟨q, t⟩
-
-meta def sterm.scale (q : ℚ) (st : sterm) : sterm :=
-{ st with coeff := st.coeff * q }
-
-meta def sterm.of_pair (pr : term × ℚ) : sterm :=
-⟨pr.2, pr.1⟩
-
-open tactic
-
-private meta def expr.to_term_aux (tst : expr → tactic sterm) : expr → tactic term | e := 
-if is_sum e then
-  let scs := get_sum_components e in
-  add_term_of_sterm_list <$> scs.mmap tst
-else if is_prod e then 
-  let scs := get_prod_components e in
-  do scs' ← scs.mmap get_comps_of_exp,
-     mul_term_of_term_exp_list <$> scs'.mmap (λ pr, do tm ← expr.to_term_aux pr.1, return (tm, pr.2))
-else return $ term.atom e
-          
-private meta def split_num_nonnum_prod_comps : list expr → list expr × list expr
-| [] := ([], [])
-| (e::l) :=
-   let (t1, t2) := split_num_nonnum_prod_comps l in
-   if expr.is_numeral e then (e::t1, t2) else (t1, e::t2)
-
-
-private meta def fold_op_app_aux (op : pexpr) : expr → list expr → tactic expr
-| h [] := return h
-| h (h'::t) := do h'' ← to_expr ``(%%op %%h %%h'), fold_op_app_aux h'' t
-
-private meta def fold_op_app (op : pexpr) (dflt : expr) : list expr → tactic expr
-| [] := return dflt
-| (h::t) := fold_op_app_aux op h t
-
-meta def expr.to_sterm : expr → tactic sterm | e :=
-if expr.is_numeral e then
-  do q ← eval_expr ℚ e,
-     return ⟨q, (term.atom `(1 : ℚ))⟩
-else if is_prod e then
- let scs := get_prod_components e,
-     (numcs, nnumcs) := split_num_nonnum_prod_comps scs in
- do  numcs' ← numcs.mmap (eval_expr ℚ),
- let q := numcs'.foldl (*) 1,
-     sterm.mk q <$> ((fold_op_app ``((*)) `(1 : ℚ) nnumcs) >>= expr.to_term_aux expr.to_sterm)
-else sterm.mk 1 <$> expr.to_term_aux expr.to_sterm e
-
-/-match e with
-| `(%%c*%%t) := 
-  if expr.is_numeral c then
-    do q ← eval_expr ℚ c,
-       sterm.scale q <$> expr.to_sterm t
-  else sterm.mk 1 <$> expr.to_term_aux expr.to_sterm e
-| t := sterm.mk 1 <$> expr.to_term_aux expr.to_sterm t
-end       -/
-
-meta def expr.to_term : expr → tactic term := expr.to_term_aux expr.to_sterm
-
-private meta def term.to_expr_aux (ste : sterm → tactic expr) : term → tactic expr
-| (term.add_term l) :=
- if l.size = 0 then return `(0 : ℚ) else
- do l' ← l.to_list.mmap (λ pr, ste (sterm.of_pair pr)),
-     fold_op_app ``((+)) `(0 : ℚ) l'
-| (term.mul_term l) :=
-  if l.size = 0 then return `(1 : ℚ) else
-  do l' ← l.to_list.mmap (λ pr, do e' ← term.to_expr_aux pr.1, return (e', pr.2)),
-  let l'' := l'.map (λ pr, `(rat.pow %%(pr.1) %%(pr.2.reflect))),
-     fold_op_app ``((*)) `(1 : ℚ) l''
-| (term.atom e) := return e
-    
-
-meta def sterm.to_expr : sterm → tactic expr
-| ⟨c, t⟩ :=
-  if t.is_zero || (c = 0) then return `(0 : ℚ) else
-  do t' ← term.to_expr_aux sterm.to_expr t,
-     return `(%%(c.reflect)*%%t' : ℚ)
-
-meta def term.to_expr : term → tactic expr := term.to_expr_aux sterm.to_expr
-
-meta def term.to_tactic_format (e : term) : tactic format :=
-do ex ← e.to_expr,
-   tactic_format_expr ex
-
-meta def sterm.to_tactic_format (e : sterm) : tactic format :=
-do ex ← e.to_expr,
-   tactic_format_expr ex
-
-meta instance term.has_to_tactic_format : has_to_tactic_format term :=
-⟨term.to_tactic_format⟩
-
-meta instance sterm.has_to_tactic_format : has_to_tactic_format sterm :=
-⟨sterm.to_tactic_format⟩
-
-section canonize
-
-private meta def coeff_and_terms_of_sterm_z_list : list (sterm × ℤ) → ℚ × list (term × ℤ)
-| [] := (1, [])
-| ((⟨c, tm⟩, z)::t) :=
-   let (q, l) := coeff_and_terms_of_sterm_z_list  t in
-  (q * rat.pow c z, (tm, z)::l)
-
-/-private meta def coeff_and_terms_of_sterm_z_list : ℚ → list (term × ℤ) → list (sterm × ℤ) → ℚ × list (term × ℤ)
-| acc l [] := (acc, l)
-| acc l ((sterm.scaled c tm, z)::t) := (tm, z)::coeff_and_terms_of_sterm_z_list (acc*rat.pow c z) t-/
-
--- only applies to add_term
-private meta def term.leading_coeff : term → ℚ
-| (term.add_term l) := 
-  match l.to_list with
-  | [] := 1
-  | ((_, c)::t) := c
-  end
-| _ := 1
-
--- only applies to add_term
-private meta def term.scale_coeffs (c : ℚ) : term → term
-| (term.add_term l) := term.add_term $ l.map (λ c', c*c')
-| a := a
-
--- doesn't flatten
-private meta def term.canonize_aux (stc : sterm → tactic sterm) : term → tactic sterm
-| (term.add_term l) :=
-  do l' ← add_term_of_sterm_list <$> l.to_list.mmap (λ pr, stc (sterm.of_pair pr)),
-     let c := term.leading_coeff l',
-     return ⟨c, term.scale_coeffs (1/c) l'⟩
-/-  do l' : list (sterm × expr) ← l.to_list.mmap (λ st, do st' ← stc (sterm.of_pair st), e ← st'.to_expr, return (st', e)),
-  let l' := (l'.qsort (λ pr1 pr2 : sterm × expr, pr2.2.lt pr1.2)).map prod.fst,
-  match l' with
-  | [] := return $ sterm.mk 1 term.add_term_empty
-  | [st] := return st
-  | (⟨c, tm⟩)::t := 
-    if c = 1 then return $ sterm.mk 1 (add_term_of_sterm_list l')
-    else return $ sterm.mk c (add_term_of_sterm_list (l'.map (sterm.scale (1/c))))
-  end-/
-| (term.mul_term l) := 
-  do l' ←  l.to_list.mmap (λ pr, do t' ← term.canonize_aux pr.1, return (t', pr.2)),
-     let (q, l'') := coeff_and_terms_of_sterm_z_list l',
-     return ⟨q, mul_term_of_term_exp_list l''⟩
- /- do l' ← l.to_list.mmap (λ pr, do t' ← term.canonize_aux pr.1, e ← t'.to_expr, return ((t', pr.2), e)),
-    let l' := (l'.qsort (λ pr1 pr2 : (sterm × ℤ) × expr, pr2.2.lt pr1.2)),
-    let l' := l'.map prod.fst,
-    let (q, l'') := coeff_and_terms_of_sterm_z_list l',
-    return $ sterm.mk q (mul_term_of_term_exp_list l'')-/
-| (term.atom e) := return $ sterm.mk 1 (term.atom e)
-
--- doesn't flatten
-private meta def sterm.canonize_aux : sterm → tactic sterm 
-| ⟨c, t⟩ := 
-  do sterm.mk c' t' ← term.canonize_aux sterm.canonize_aux t,
-  return $ sterm.mk (c*c') t'
-
-/-private meta def flatten_sum_list : list (term × ℚ) → list (term × ℚ)
-| [] := []
-| ((term.add_term tm, c)::t) := 
-  (tm.to_list.map (λ pr : term × ℚ, (pr.1, pr.2*c))).append (flatten_sum_list t)
-| (h::t) := h::flatten_sum_list t
-
-private meta def flatten_prod_list : list (term × ℤ) → list (term × ℤ)
-| [] := []
-| ((term.mul_term l, z)::t) := (l.to_list.map (λ pr : term × ℤ, (pr.1, pr.2*z))).append (flatten_prod_list t)
-| (h::t) := h::flatten_prod_list t-/
-
-
-private meta def scale_list {α} [has_mul α] (l : list (term × α)) (q : α) : list (term × α) :=
-l.map (λ pr, {pr with snd := pr.snd * q})
-
-private meta def flatten_sum_term_aux (t : term) (coeff : ℚ) (map : rb_map term ℚ) : rb_map term ℚ :=
-match t with
-| term.add_term l := add_term_coeff_pair_list map (scale_list l.to_list coeff)
-| _ := map.insert t coeff
-end
-
-private meta def flatten_sum_term (map : rb_map term ℚ) : rb_map term ℚ :=
-map.fold mk_rb_map flatten_sum_term_aux 
-
-private meta def flatten_mul_term_aux (t : term) (exp : ℤ) (map : rb_map term ℤ) : rb_map term ℤ :=
-match t with
-| term.mul_term l := pow_term_exp_list map (scale_list l.to_list exp)
-| _ := map.insert t exp
-end
-
-private meta def flatten_mul_term (map : rb_map term ℤ) : rb_map term ℤ :=
-map.fold mk_rb_map flatten_mul_term_aux
-
-private meta def term.flatten : term → term
-| (term.add_term l) := term.add_term $ flatten_sum_term l --$ rb_map.of_list (flatten_sum_list l.to_list)
-| (term.mul_term l) := term.mul_term $ flatten_mul_term l --$ rb_map.of_list (flatten_prod_list l.to_list)
-| a := a
-
-private meta def sterm.flatten : sterm → sterm 
-| (sterm.mk c t) := sterm.mk c (term.flatten t)
-
-meta def sterm.canonize : sterm → tactic sterm :=
-sterm.canonize_aux ∘ sterm.flatten
-
-meta def term.canonize (t : term) : tactic sterm :=
-term.canonize_aux sterm.canonize (term.flatten t)
-
-meta def expr.canonize (e : expr) : tactic sterm :=
-match e with
-| `(0 : ℚ) := return $ sterm.mk 0 (term.add_term_empty)
-| _ := expr.to_sterm e >>= sterm.canonize
-end
-
-meta def expr.canonize_to_expr (e : expr) : tactic expr :=
-match e with 
-| `(0 : ℚ) := return e
-| _ := expr.to_sterm e >>= sterm.canonize >>= sterm.to_expr
-end
-
-theorem canonized_inequality {P : Prop} (h : P) (canP : Prop) : canP := sorry
-
-meta def prove_inequality (lhs rhs pf : expr) (op : gen_comp) : tactic expr :=
-do sterm.mk clhs tlhs ← expr.canonize lhs, 
-   --trace "tlhs", trace tlhs,
-   srhs ← expr.canonize rhs,
-   --trace "srhs", trace srhs,
-   elhs ← tlhs.to_expr,
-   if clhs = 0 then
-     do erhs ← srhs.to_expr,
-        tp ← op.reverse.to_function erhs elhs,
-        mk_app ``canonized_inequality [pf, tp]
-   else 
-     do erhs ← (srhs.scale (1/clhs)).to_expr,
-        tp ← ((if clhs < 0 then gen_comp.reverse else id) op).to_function elhs erhs, --to_expr ``(%%op %%elhs %%erhs),
-        mk_app ``canonized_inequality [pf, tp]
-
-meta def canonize_hyp (e : expr) : tactic expr :=
-do tp ← infer_type e, match tp with
-/-| `(0 > %%e) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(0 > %%ce)]
-| `(0 ≥ %%e) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(0 ≥ %%ce)]
-| `(0 < %%e) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(0 < %%ce)]
-| `(0 ≤ %%e) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(0 ≤ %%ce)]
-| `(%%e > 0) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(%%ce > 0)]
-| `(%%e ≥ 0) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(%%ce ≥ 0)]
-| `(%%e < 0) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(%%ce < 0)]
-| `(%%e ≤ 0) := do ce ← expr.canonize e,
-  mk_app ``canonized_inequality [e, `(%%ce ≤ 0)]-/
-| `(%%lhs ≤ %%rhs) := prove_inequality lhs rhs e gen_comp.le
-| `(%%lhs < %%rhs) := prove_inequality lhs rhs e gen_comp.lt
-| `(%%lhs ≥ %%rhs) := prove_inequality lhs rhs e gen_comp.ge
-| `(%%lhs > %%rhs) := prove_inequality lhs rhs e gen_comp.gt
-| `(%%lhs = %%rhs) := prove_inequality lhs rhs e gen_comp.eq
-| `(%%lhs ≠ %%rhs) := prove_inequality lhs rhs e gen_comp.ne
-| _ := /-trace e >>-/ do s ← to_string <$> pp e, fail $ "didn't recognize " ++ s
-end
-
-end canonize
 end polya

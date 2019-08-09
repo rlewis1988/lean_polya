@@ -3,9 +3,7 @@ import .datatypes .proof_reconstruction
 namespace polya
 open tactic
 
-
 open proof_sketch
-
 
 private meta def proof_sketch.trace_aux : string → proof_sketch → tactic string
 | tab ⟨fact, reason, justifications⟩ :=

@@ -1,4 +1,5 @@
 import .datatypes .additive .reconstruction_theorems tactic.norm_num
+
 namespace polya
 
 open expr tactic diseq_proof
@@ -9,36 +10,29 @@ theorem fake_lt_zero_pf (q : ℚ) : q < 0 := sorry
 theorem fake_eq_zero_pf (q : ℚ) : q = 0 := sorry
 theorem fake_ne_pf (q1 q2 : ℚ) : q1 ≠ q2 := sorry
 
-private meta def solve_by_norm_num (e : expr) : tactic expr :=
+meta def solve_by_norm_num (e : expr) : tactic expr :=
 do (_, pf) ← solve_aux e `[norm_num, tactic.done],
    return pf
 
 meta def mk_ne_zero_pf (q : ℚ) : tactic expr :=
---do qe ← to_expr ``(%%(quote q) : ℚ),
---   to_expr ``(fake_ne_zero_pf (%%qe : ℚ))
---return `(fake_ne_zero_pf q) 
-solve_by_norm_num `(q ≠ 0)
-
+do
+  e ← expr_of_rat `(ℚ) q,
+  e ← to_expr ``(%%e ≠ 0),
+  solve_by_norm_num e
   
 -- proves that q > 0, q < 0, or q = 0
 meta def mk_sign_pf (q : ℚ) : tactic expr :=
-/-do qe ← to_expr `(%%(quote q) : ℚ),
-   if q > 0 then to_expr `(fake_gt_zero_pf (%%qe : ℚ))
-   else if q < 0 then to_expr `(fake_lt_zero_pf (%%qe : ℚ))
-   else to_expr ``(fake_eq_zero_pf (%%qe : ℚ))-/
-if q > 0 then --return `(fake_gt_zero_pf q)
-  solve_by_norm_num `(q > 0)
-else if q < 0 then --return `(fake_lt_zero_pf q)
-  solve_by_norm_num `(q < 0)
-else --return `(fake_eq_zero_pf q)
-  solve_by_norm_num `(q = 0)
+do
+  e ← expr_of_rat `(ℚ) q,
+  h ← to_expr $ if q > 0 then ``(%%e > 0) else if q < 0 then ``(%%e < 0) else ``(%%e = 0),
+  solve_by_norm_num h
 
 meta def mk_ne_pf (q1 q2 : ℚ) : tactic expr :=
-/-do q1e ← to_expr ``(%%(quote q1) : ℚ),
-   q2e ← to_expr ``(%%(quote q2) : ℚ),
-   to_expr `(fake_ne_pf %%q1e %%q2e)-/
---return `(fake_ne_pf q1 q2)
-solve_by_norm_num `(q1 ≠ q2)
+do
+  e1 ← expr_of_rat `(ℚ) q1,
+  e2 ← expr_of_rat `(ℚ) q2,
+  h ← to_expr ``(%%e1 ≠ %%e2),
+  solve_by_norm_num h
 
 meta def mk_int_sign_pf (z : ℤ) : tactic expr :=
 if z > 0 then solve_by_norm_num `(z > 0) --return `(sorry : z > 0)
@@ -71,7 +65,6 @@ meta def reconstruct : Π {lhs rhs : expr} {c : ℚ}, diseq_proof lhs rhs c → 
 end diseq_proof
 
 namespace eq_proof
-
 
 private meta def reconstruct_hyp (lhs rhs : expr) (c : ℚ) (pf : expr) : tactic expr :=
 do mvc ← mk_mvar,
@@ -472,16 +465,16 @@ if expr.lt lhs rhs then reconstruct_of_ineq_proof ip.sym else
 --trace "ipp is:" >> iprc ip >>= infer_type >>= trace >> trace "const is:" >> infer_type ↑`(@polya.mul_lt_of_lt) >>= trace >>
 match iq.to_slope with
 | slope.horiz := 
-  do ipp ← iprc ip, 
+  do ipp ← iprc ip,
      tactic.mk_mapp (sum_form_name_of_comp_single iq.to_comp) [none, none, ipp]
 | slope.some m := 
-  do ipp ← iprc ip, 
---trace ("ipp", ip, ipp), infer_type ipp >>= trace, trace ("comp", iq.to_comp), trace ("iq", iq),
-     if m = 0 then
-       tactic.mk_mapp (sum_form_name_of_comp_single iq.to_comp) [none, none, ipp]
-     else
-       tactic.mk_mapp (sum_form_name_of_comp iq.to_comp) [none, none, none, ipp]
---     tactic.mk_mapp ((if m = 0 then sum_form_name_of_comp_single else sum_form_name_of_comp) iq.to_comp) [none, none, ipp]
+  do
+    ipp ← iprc ip,
+    if m = 0 then
+      tactic.mk_mapp (sum_form_name_of_comp_single iq.to_comp) [none, none, ipp]
+    else
+      tactic.mk_mapp (sum_form_name_of_comp iq.to_comp) [none, none, none, ipp]
+      --tactic.mk_mapp ((if m = 0 then sum_form_name_of_comp_single else sum_form_name_of_comp) iq.to_comp) [none, none, ipp]
 end
 --include sfrc
 
@@ -555,16 +548,14 @@ do tp ← sum_form.to_expr sf,
 --fail "reconstruct_of_expr_def failed, not implemented yet"
 
 meta def reconstruct : Π {sfc}, sum_form_proof sfc → tactic expr
-| _ (of_ineq_proof ip) := reconstruct_of_ineq_proof @reconstruct ip
-| _ (of_eq_proof ep) := reconstruct_of_eq_proof @reconstruct ep
-| _ (of_sign_proof sp) := reconstruct_of_sign_proof @reconstruct sp
-| _ (of_add_factor_same_comp m sfpl sfpr) := 
-  reconstruct_of_add_factor_same_comp @reconstruct m sfpl sfpr 
-| _ (of_add_eq_factor_op_comp m sfpl sfpr) :=
-  reconstruct_of_add_eq_factor_op_comp @reconstruct m sfpl sfpr
-| _ (of_scale m sfp) := reconstruct_of_scale @reconstruct m sfp
-| _ (of_expr_def e sf) := reconstruct_of_expr_def e sf
-| _ (fake sd) := fail "cannot reconstruct a fake proof"
+| _ (of_ineq_proof ip)                     := reconstruct_of_ineq_proof @reconstruct ip
+| _ (of_eq_proof ep)                       := reconstruct_of_eq_proof @reconstruct ep
+| _ (of_sign_proof sp)                     := reconstruct_of_sign_proof @reconstruct sp
+| _ (of_add_factor_same_comp m sfpl sfpr)  := reconstruct_of_add_factor_same_comp @reconstruct m sfpl sfpr
+| _ (of_add_eq_factor_op_comp m sfpl sfpr) := reconstruct_of_add_eq_factor_op_comp @reconstruct m sfpl sfpr
+| _ (of_scale m sfp)                       := reconstruct_of_scale @reconstruct m sfp
+| _ (of_expr_def e sf)                     := reconstruct_of_expr_def e sf
+| _ (fake sd)                              := fail "cannot reconstruct a fake proof"
 
 
 
@@ -612,19 +603,19 @@ private meta def reconstruct_eq_ineq {lhs rhs} (ed : eq_data lhs rhs) (id : ineq
 fail "reconstruct_eq_ineq not implemented"
 
 -- TODO: this is the hard part. Should this be refactored into smaller pieces?
-private meta def reconstruct_ineqs (rct : contrad → tactic expr) {lhs rhs} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : tactic expr := --do trace "ineqs!!",
+private meta def reconstruct_ineqs (rct : contrad → tactic expr) {lhs rhs} (ii : ineq_info lhs rhs) (id : ineq_data lhs rhs) : tactic expr :=
 match ii with
-| ineq_info.no_comps := fail "reconstruct_ineqs cannot find a contradiction with no known comps"
+| ineq_info.no_comps     := fail "reconstruct_ineqs cannot find a contradiction with no known comps"
 | ineq_info.one_comp id2 := reconstruct_two_ineq_data rct id id2
-| ineq_info.equal ed := reconstruct_eq_ineq ed id
+| ineq_info.equal ed     := reconstruct_eq_ineq ed id
 | ineq_info.two_comps id1 id2 := 
-   let sfid  := sum_form_comp_data.of_ineq_data id,
-       sfid1 := sum_form_comp_data.of_ineq_data id1,
-       sfid2 := sum_form_comp_data.of_ineq_data id2 in
-   match find_contrad_in_sfcd_list [sfid, sfid1, sfid2] with
-   | some ctr    := rct ctr
-   | option.none := fail "reconstruct_ineqs failed to find contr"
-   end
+  let sfid  := sum_form_comp_data.of_ineq_data id,
+      sfid1 := sum_form_comp_data.of_ineq_data id1,
+      sfid2 := sum_form_comp_data.of_ineq_data id2 in
+  match find_contrad_in_sfcd_list [sfid, sfid1, sfid2] with
+  | some ctr    := rct ctr
+  | option.none := fail "reconstruct_ineqs failed to find contr"
+  end
 end
 
 private meta def reconstruct_sign_ne_eq {e} (nepr : sign_proof e gen_comp.ne) (eqpr : sign_proof e gen_comp.eq) : tactic expr :=

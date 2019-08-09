@@ -1,4 +1,4 @@
-import rat_additions tactic.norm_num --comp_val
+import .rat_additions tactic.norm_num --comp_val
 open tactic
 
 lemma rat_pow_mul (a : ℚ) (e : ℤ) : rat.pow a (e + e) = rat.pow a e * rat.pow a e := sorry

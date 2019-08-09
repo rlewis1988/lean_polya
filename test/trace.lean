@@ -2,25 +2,53 @@ import control proof_trace
 
 open polya tactic expr
 
-variables u v w x y z : ℚ
-
 meta def polya_on_hyps' (hys : list name) (rct : bool := tt) : tactic unit :=
-do exps ← hys.mmap get_local,
-   bb ← add_proof_to_blackboard blackboard.mk_empty `(rat_one_gt_zero),
-   bb ← add_proofs_to_blackboard bb exps,
-   let pb := polya_bundle.default.set_blackboard bb,
-   let (n, pb) := pb.cycle 0,
-   trace ("number of cycles:", n),
-   trace ("contr found", pb.contr_found),
-   if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else do
-   pb.bb.contr.sketch >>= proof_sketch.trace,
-   if rct then pb.bb.contr.reconstruct >>= apply >> skip
-   else skip
+do
+  exps ← hys.mmap get_local,
+  bb ← add_proof_to_blackboard blackboard.mk_empty `(one_gt_zero),
+  bb ← add_proofs_to_blackboard bb exps,
+  let pb := polya_bundle.default.set_blackboard bb,
+  let (n, pb) := pb.cycle 0,
+  trace ("number of cycles", n),
+  trace ("contr found", pb.contr_found),
+  if bnot pb.contr_found then /-bb.trace >>-/ fail "polya failed, no contradiction found" else do
+  pb.bb.contr.sketch >>= proof_sketch.trace,
+  guard rct,
+  prove_normalizer_hypothesis pb.bb,
+  pb.bb.contr.reconstruct >>= apply,
+  skip
 
-example  (h1 : x > 0) (h2 : x < 1*1) (h3 : rat.pow (1*1 + (-1)*x) (-1) ≤ 1*(rat.pow (1*1 + (-1)*rat.pow x 2) (-1))) : false :=
-by 
-polya_on_hyps' [`h1, `h2, `h3]
+constants u v w x y z : ℚ
+constants (hy : y ≠ 0)
 
+example
+  (h1 : x > 0)
+  (h2 : x < 0)
+  : false :=
+by polya_on_hyps [`h1, `h2]
 
-example (h1 : u > 0) (h2 : u < 1*v) (h3 : z > 0) (h4 : 1*z + 1*1 < 1*w) (h5 : rat.pow (1*u + 1*v + 1*z) 3 ≥ 1* rat.pow (1*u + 1*v + 1*w + 1*1) 5) : false :=
-by  polya_on_hyps' [`h1, `h2, `h3, `h4, `h5]
+example
+  (h1 : y * (x⁻¹ * y)⁻¹ > 0)
+  (h2 : x < 0)
+  : false :=
+begin
+  polya_on_hyps [`h1, `h2],
+  exact hy
+end
+
+example
+  (h1 : x > 0)
+  (h2 : x < 1 * 1)
+  (h3 :  1 * 1 + (-1) * x ^ (-1 : ℤ)
+    ≤ 1 * (1 * 1 + (-1) * x ^ 2) ^ (-1 : ℤ))
+  : false :=
+by polya_on_hyps' [`h1, `h2, `h3]
+
+example
+  (h1 : u > 0)
+  (h2 : u < 1 * v)
+  (h3 : z > 0)
+  (h4 : 1 * z + 1 * 1 < 1 * w)
+  (h5 : (1 * u + 1 * v + 1 * z) ^ 3 ≥ 1 * (1 * u + 1 * v + 1 * w + 1 * 1) ^ 5)
+  : false :=
+by polya_on_hyps' [`h1, `h2, `h3, `h4, `h5]
